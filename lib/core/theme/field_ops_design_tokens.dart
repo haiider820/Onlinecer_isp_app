@@ -30,18 +30,27 @@ abstract final class FieldOpsDesignTokens {
   static const Color outline = Color(0xFF75777F);
   static const Color outlineVariant = Color(0xFFC5C6D0);
 
-  // Primary
-  static const Color primary = Color(0xFF223861);
+  // Primary — Deep slate-blue anchoring structure, primary navigation headers,
+  // secondary/outlined button borders (DESIGN.md §Colors + §Buttons "Secondary
+  // / Administrative Action").
+  static const Color primary = Color(0xFF3A4F7A);
   static const Color onPrimary = Color(0xFFFFFFFF);
   static const Color primaryContainer = Color(0xFF3A4F7A);
   static const Color onPrimaryContainer = Color(0xFFACC2F3);
   static const Color inversePrimary = Color(0xFFB1C6F8);
 
-  // Secondary
-  static const Color secondary = Color(0xFF0051D5);
+  // Secondary / Accent — Primary Field Action button fill and focused-input
+  // color (DESIGN.md §Colors "Secondary/Accent" + §Buttons "Primary Field
+  // Action": `#2563EB`).
+  static const Color secondary = Color(0xFF2563EB);
   static const Color onSecondary = Color(0xFFFFFFFF);
   static const Color secondaryContainer = Color(0xFF316BF3);
   static const Color onSecondaryContainer = Color(0xFFFEFCFF);
+
+  /// Pressed state (ripple/overlay target) for the primary CTA buttons that
+  /// fill with [secondary] — the declared pressed shade is `#1D4ED8`
+  /// (DESIGN.md §Buttons "Pressed `#1D4ED8`").
+  static const Color buttonPressed = Color(0xFF1D4ED8);
 
   // Tertiary
   static const Color tertiary = Color(0xFF004225);

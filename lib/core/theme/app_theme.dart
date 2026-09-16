@@ -65,7 +65,12 @@ abstract final class AppTheme {
           ),
         ),
       ),
-      // 48dp minimum buttons, 12px radius, semibold 16px (DESIGN.md §Buttons).
+      // 48dp minimum buttons, 12px radius, semibold 16px, accent `#2563EB`
+      // fill that darkens to `#1D4ED8` while pressed (DESIGN.md §Buttons
+      // "Primary Field Action … Pressed `#1D4ED8`"). The pressed swap is a
+      // WidgetState transition on `backgroundColor`, matching overlay to the
+      // same shade so the ripple keeps the pressed color instead of washing
+      // it toward primary navy.
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(0, FieldOpsDesignTokens.minTouchTarget),
@@ -79,6 +84,26 @@ abstract final class AppTheme {
             fontWeight: FontWeight.w600,
             fontFamily: 'Inter',
           ),
+        ).copyWith(
+          backgroundColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) {
+              return FieldOpsDesignTokens.buttonPressed;
+            }
+            // Disabled keeps M3 default muted surface (on-surface @ 12%).
+            if (states.contains(WidgetState.disabled)) {
+              return FieldOpsDesignTokens.onSurface.withValues(alpha: 0.12);
+            }
+            return FieldOpsDesignTokens.secondary;
+          }),
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.pressed)) {
+              return FieldOpsDesignTokens.buttonPressed;
+            }
+            if (states.contains(WidgetState.hovered)) {
+              return FieldOpsDesignTokens.secondary.withValues(alpha: 0.25);
+            }
+            return null;
+          }),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
