@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:isp_onlinecer/core/constants/app_constants.dart';
+import 'package:isp_onlinecer/core/network/api_exceptions.dart';
 import 'package:isp_onlinecer/core/storage/secure_storage.dart';
+import 'package:isp_onlinecer/core/notifications/fcm_providers.dart';
 import 'package:isp_onlinecer/features/auth/presentation/providers.dart';
 import 'package:isp_onlinecer/features/installation/data/complete_installation_network.dart';
 import 'package:isp_onlinecer/features/installation/data/complete_installation_repository.dart';
@@ -10,14 +14,21 @@ import 'package:isp_onlinecer/features/installation/data/inventory_network.dart'
 import 'package:isp_onlinecer/features/installation/data/inventory_repository.dart';
 import 'package:isp_onlinecer/features/installation/presentation/complete_installation_screen.dart';
 import 'package:isp_onlinecer/features/installation/presentation/installation_providers.dart';
-import 'package:isp_onlinecer/features/installation/presentation/installation_request_detail_screen.dart';
+import 'package:isp_onlinecer/features/internal_tasks/presentation/internal_tasks_providers.dart';
+import 'package:isp_onlinecer/models/internal_task.dart';
+import 'package:isp_onlinecer/features/request_detail/presentation/request_detail_screen.dart';
+import 'package:isp_onlinecer/features/notifications/presentation/notification_providers.dart';
 import 'package:isp_onlinecer/shared/widgets/location_map.dart';
 
 import '../helpers/fake_tile_provider.dart';
+import '../helpers/fake_auth_network.dart';
+import '../helpers/fake_notification_network.dart';
+import '../helpers/fake_fcm.dart';
 import 'package:isp_onlinecer/features/survey/data/connection_request_network.dart';
 import 'package:isp_onlinecer/features/survey/data/connection_request_repository.dart';
 import 'package:isp_onlinecer/features/survey/data/dashboard_network.dart';
 import 'package:isp_onlinecer/features/survey/data/dashboard_repository.dart';
+import 'package:isp_onlinecer/features/survey/data/location_service.dart';
 import 'package:isp_onlinecer/features/survey/data/route_network.dart';
 import 'package:isp_onlinecer/features/survey/data/route_repository.dart';
 import 'package:isp_onlinecer/features/survey/presentation/connection_request_providers.dart';
@@ -142,6 +153,51 @@ const _detailMap = {
   'allowed_action': 'complete_installation',
 };
 
+/// The same request once the installation landed: the granted action is gone
+/// and the status has moved on. Stage recovery reads exactly this back when
+/// the submit itself reports a failure it cannot confirm, so the success flow
+/// still runs for work the server accepted.
+///
+/// Not `const`: the spread of `_requestMap` carries the original
+/// `installation_assigned` status, which this overrides.
+final _movedOnDetailMap = {
+  'data': {
+    ..._requestMap,
+    'status': 'splicing_assigned',
+    'requested_plan': {'id': 'plan_5', 'name': 'Fiber 40 Mbps', 'price_minor': 200000},
+    'current_team': {
+      'id': 'team_3',
+      'name': 'Splicing Team',
+      'functional_team_type': 'fiber_splicing',
+    },
+  },
+  'allowed_action': null,
+};
+
+/// Inventory already assigned a **company** ONU/ONT: the form must open with
+/// the ownership pre-selected and the assigned MAC/serial shown read-only —
+/// no scan button, no typing, exactly like the web console.
+const _detailCompanyDeviceMap = {
+  'data': {
+    ..._requestMap,
+    'requested_plan': {'id': 'plan_5', 'name': 'Fiber 40 Mbps', 'price_minor': 200000},
+    'current_team': {
+      'id': 'team_2',
+      'name': 'Installation Team',
+      'functional_team_type': 'installation',
+    },
+    'stage_data': {'olt_device_ownership': 'company'},
+    'installed_device': {
+      'id': 'dev_1',
+      'device_code': 'ONT-0001',
+      'serial_number': 'ZTEG12345678',
+      'mac_address': 'AA:BB:CC:DD:EE:FF',
+      'status': 'assigned',
+    },
+  },
+  'allowed_action': 'complete_installation',
+};
+
 const _fatNodesMap = {
   'data': [
     {
@@ -160,7 +216,6 @@ const _fatNodesMap = {
     },
   ],
 };
-
 const _inventoryMap = {
   'data': [
     {'id': 'item_1', 'name': 'Faceplate', 'unit': 'box'},
@@ -191,11 +246,25 @@ class _FakeDashboardNetwork implements DashboardNetwork {
 }
 
 class _FakeConnectionRequestNetwork implements ConnectionRequestNetwork {
+  _FakeConnectionRequestNetwork({this.detailMap = _detailMap, this.detailOnReload});
+
+  final Map<String, dynamic> detailMap;
+
+  /// Detail served from the second `GET /connection-requests/{id}` onward —
+  /// the stage-recovery read after a submit this client could not confirm.
+  final Map<String, dynamic>? detailOnReload;
+
+  int detailCalls = 0;
+
   @override
   Future<Map<String, dynamic>> fetchPage({required int page, String? status}) async => _pageMap;
 
   @override
-  Future<Map<String, dynamic>> fetchDetail(String id) async => _detailMap;
+  Future<Map<String, dynamic>> fetchDetail(String id) async {
+    detailCalls++;
+    if (detailCalls > 1 && detailOnReload != null) return detailOnReload!;
+    return detailMap;
+  }
 }
 
 class _FakeRouteNetwork implements RouteNetwork {
@@ -217,8 +286,12 @@ class _FakeCompleteInstallationNetwork implements CompleteInstallationNetwork {
   String? lastId;
   String? lastOwnership;
   String? lastFatNodeId;
+  String? lastInstalledDeviceMac;
+  String? lastInstalledDeviceSerial;
   double? lastDpLatitude;
   double? lastDpLongitude;
+  double? lastUserLatitude;
+  double? lastUserLongitude;
   num? lastWire;
   String? lastNotes;
   List<InventoryLine>? lastInventoryLines;
@@ -229,14 +302,23 @@ class _FakeCompleteInstallationNetwork implements CompleteInstallationNetwork {
   int jsonCalls = 0;
   int multipartCalls = 0;
 
+  /// Rejects the submission the way the transport does when the response
+  /// body cannot be read — the server may still have committed the write.
+  bool failSubmit = false;
+
   @override
   Future<Map<String, dynamic>> completeInstallationJson(
     String id, {
     required String oltDeviceOwnership,
     required String connectionFatNodeId,
+    required String installedDeviceMac,
+    String? installedDeviceSerial,
     required double dpLatitude,
     required double dpLongitude,
+    double? userLatitude,
+    double? userLongitude,
     num? totalWireUsed,
+    num? connectionChargesMinor,
     String? notes,
     List<InventoryLine>? inventoryLines,
   }) async {
@@ -244,11 +326,16 @@ class _FakeCompleteInstallationNetwork implements CompleteInstallationNetwork {
     lastId = id;
     lastOwnership = oltDeviceOwnership;
     lastFatNodeId = connectionFatNodeId;
+    lastInstalledDeviceMac = installedDeviceMac;
+    lastInstalledDeviceSerial = installedDeviceSerial;
     lastDpLatitude = dpLatitude;
     lastDpLongitude = dpLongitude;
+    lastUserLatitude = userLatitude;
+    lastUserLongitude = userLongitude;
     lastWire = totalWireUsed;
     lastNotes = notes;
     lastInventoryLines = inventoryLines;
+    if (failSubmit) throw const ServerFromException();
     return _submitResultMap;
   }
 
@@ -257,9 +344,14 @@ class _FakeCompleteInstallationNetwork implements CompleteInstallationNetwork {
     String id, {
     required String oltDeviceOwnership,
     required String connectionFatNodeId,
+    required String installedDeviceMac,
+    String? installedDeviceSerial,
     required double dpLatitude,
     required double dpLongitude,
+    double? userLatitude,
+    double? userLongitude,
     num? totalWireUsed,
+    num? connectionChargesMinor,
     String? notes,
     List<InventoryLine>? inventoryLines,
     List<InstallationPhoto>? photos,
@@ -270,8 +362,12 @@ class _FakeCompleteInstallationNetwork implements CompleteInstallationNetwork {
     lastId = id;
     lastOwnership = oltDeviceOwnership;
     lastFatNodeId = connectionFatNodeId;
+    lastInstalledDeviceMac = installedDeviceMac;
+    lastInstalledDeviceSerial = installedDeviceSerial;
     lastDpLatitude = dpLatitude;
     lastDpLongitude = dpLongitude;
+    lastUserLatitude = userLatitude;
+    lastUserLongitude = userLongitude;
     lastWire = totalWireUsed;
     lastNotes = notes;
     lastInventoryLines = inventoryLines;
@@ -285,6 +381,26 @@ class _FakeCompleteInstallationNetwork implements CompleteInstallationNetwork {
 class _FakeInventoryNetwork implements InventoryNetwork {
   @override
   Future<Map<String, dynamic>> fetchInventory() async => _inventoryMap;
+}
+
+/// Deterministic GPS fix behind the locations card's capture buttons.
+class _FakeLocationService implements LocationService {
+  static const double lat = 23.7314;
+  static const double lng = 90.3951;
+
+  @override
+  Future<Position> getCurrentPosition() async => Position(
+        latitude: lat,
+        longitude: lng,
+        timestamp: DateTime.now(),
+        accuracy: 5.0,
+        altitude: 0.0,
+        altitudeAccuracy: 0.0,
+        heading: 0.0,
+        headingAccuracy: 0.0,
+        speed: 0.0,
+        speedAccuracy: 0.0,
+      );
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -306,16 +422,40 @@ Future<SecureStorage> _sessionStorage() async {
 
 Widget _buildApp(
   SecureStorage storage,
-  _FakeCompleteInstallationNetwork completeNetwork,
-) {
+  _FakeCompleteInstallationNetwork completeNetwork, {
+  Map<String, dynamic> detailMap = _detailMap,
+  Map<String, dynamic>? detailOnReload,
+}) {
   return ProviderScope(
     overrides: [
       secureStorageProvider.overrideWithValue(storage),
+      fcmServiceProvider.overrideWithValue(FakeFcm()),
+      // The locations card's capture buttons resolve a GPS fix through this.
+      locationServiceProvider.overrideWithValue(_FakeLocationService()),
+      authNetworkProvider.overrideWithValue(
+        FakeAuthNetwork(
+          employee: const FakeEmployee(
+            id: 'emp_2',
+            name: 'Tanvir Installer',
+            email: 'tanvir@example.com',
+            teamType: 'installation',
+          ),
+        ),
+      ),
+      notificationNetworkProvider.overrideWithValue(
+        FakeNotificationNetwork(),
+      ),
+      tasksSummaryProvider.overrideWith((ref) => Future.value(const TasksSummary())),
       dashboardRepositoryProvider.overrideWithValue(
         DashboardRepository(network: _FakeDashboardNetwork()),
       ),
       connectionRequestRepositoryProvider.overrideWithValue(
-        ConnectionRequestRepository(network: _FakeConnectionRequestNetwork()),
+        ConnectionRequestRepository(
+          network: _FakeConnectionRequestNetwork(
+            detailMap: detailMap,
+            detailOnReload: detailOnReload,
+          ),
+        ),
       ),
       routeRepositoryProvider.overrideWithValue(
         RouteRepository(network: _FakeRouteNetwork()),
@@ -328,11 +468,11 @@ Widget _buildApp(
       ),
       mapTileProviderProvider.overrideWithValue(FakeTileProvider()),
     ],
-    child: IspOnlinecerApp(storage: storage),
+    child: IspOnlinecerApp(storage: storage, fcm: FakeFcm()),
   );
 }
 
-/// The completion form's submit button. It's the only 'Complete Installation'
+/// The completion form's submit button. It's the only 'Complete installation'
 /// label in the merged screen (the standalone-form AppBar is gone), scoped to
 /// the embedded form and matched by subtype because FilledButton.icon lives in
 /// a private subtype.
@@ -340,7 +480,7 @@ Finder _submitButton() {
   return find.ancestor(
     of: find.descendant(
       of: find.byType(CompleteInstallationForm),
-      matching: find.text('Complete Installation'),
+      matching: find.text('Complete installation'),
     ),
     matching: find.bySubtype<FilledButton>(),
   );
@@ -353,7 +493,7 @@ Finder _submitButton() {
 Finder _formScrollable() {
   return find
       .descendant(
-        of: find.byType(InstallationRequestDetailScreen),
+        of: find.byType(RequestDetailScreen),
         matching: find.byType(Scrollable),
       )
       .first;
@@ -408,21 +548,39 @@ Future<void> _tapSubmit(WidgetTester tester) async {
   await tester.tap(_submitButton());
 }
 
-Future<void> _openCompletionForm(WidgetTester tester, SecureStorage storage,
-    _FakeCompleteInstallationNetwork network) async {
-  // Device-tall viewport: the bottom logout bar pushes the dashboard's recent
-  // request card below the 800×600 test default's sliver build window.
+/// Dashboard → sidebar menu → Queue → the installation list, then into the
+/// request's detail. The bottom nav bar is gone: the dashboard no longer
+/// lists recent requests, so the queue is one sidebar hop away.
+Future<void> _openRequestDetail(WidgetTester tester) async {
+  await tester.tap(find.byTooltip('Menu'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Queue'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(_requestNumber));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openCompletionForm(
+  WidgetTester tester,
+  SecureStorage storage,
+  _FakeCompleteInstallationNetwork network, {
+  Map<String, dynamic> detailMap = _detailMap,
+  Map<String, dynamic>? detailOnReload,
+}) async {
+  // Device-tall viewport: the form's map card sits below the 800×600 test
+  // default's build window.
   tester.view.physicalSize = const Size(800, 1400);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
-  await tester.pumpWidget(_buildApp(storage, network));
+  await tester.pumpWidget(
+    _buildApp(storage, network, detailMap: detailMap, detailOnReload: detailOnReload),
+  );
   await tester.pumpAndSettle();
 
-  // Dashboard → detail. The completion form is embedded at the bottom of the
-  // merged scroll view — no separate completion-form page anymore.
-  await tester.tap(find.text(_requestNumber));
-  await tester.pumpAndSettle();
+  // The completion form is embedded at the bottom of the merged scroll view —
+  // no separate completion-form page anymore.
+  await _openRequestDetail(tester);
 }
 
 /// Selects the 'User' ownership segment and a FAT node from the dropdown.
@@ -431,6 +589,12 @@ Future<void> _openCompletionForm(WidgetTester tester, SecureStorage storage,
 /// request, pricing and map cards — scroll them into view before tapping.
 Future<void> _fillRequiredFields(WidgetTester tester) async {
   await _revealAndTap(tester, find.text('User'));
+  // New required MAC field: type it by hand (the scan dialog needs a camera,
+  // which tests don't have).
+  await tester.enterText(
+    find.widgetWithText(TextFormField, 'Device MAC address'),
+    'AA:BB:CC:DD:EE:FF',
+  );
   await _revealAndTap(tester, find.text('Select the FAT node used'));
   // `_revealAndTap` taps the trigger without pumping — let the menu overlay
   // render (bounded pumps: the FAT row sits right over the live map card,
@@ -461,8 +625,10 @@ void main() {
     expect(find.text('Select who the OLT device belongs to'), findsOneWidget);
     expect(find.text('Select a FAT node'), findsOneWidget);
 
-    // Still on the form — no navigation happened.
-    expect(find.text('Installation Requests'), findsNothing);
+    // Still on the form — no navigation happened. The queue list below stays
+    // mounted in the same branch, so assert on the route we must still be on.
+    expect(find.byType(RequestDetailScreen), findsOneWidget);
+    expect(find.textContaining('Installation submitted'), findsNothing);
   });
 
   testWidgets('submitting with only required fields completes the installation',
@@ -495,9 +661,36 @@ void main() {
     expect(network.multipartCalls, 0);
 
     // Success returns to the installation queue with the new status confirmed.
-    expect(find.text('Installation submitted → splicing assigned'), findsOneWidget);
+    expect(find.text('Installation submitted: splicing assigned'), findsOneWidget);
     expect(find.text('Installation Requests'), findsOneWidget);
     expect(find.text(_requestNumber), findsOneWidget);
+  });
+
+  testWidgets(
+      'a submit the client cannot confirm still completes once the request has moved on',
+      (tester) async {
+    final storage = await _sessionStorage();
+    final network = _FakeCompleteInstallationNetwork()..failSubmit = true;
+    await _openCompletionForm(
+      tester,
+      storage,
+      network,
+      detailOnReload: _movedOnDetailMap,
+    );
+
+    await _fillRequiredFields(tester);
+    await _tapSubmit(tester);
+    // Bounded pumps (the map's tile fades never let pumpAndSettle return).
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    // The POST came back as a failure, but re-reading the request shows the
+    // stage already advanced — so the success flow runs (message + navigation)
+    // instead of stranding the technician on a form whose action is gone.
+    expect(network.jsonCalls, 1);
+    expect(find.text('Installation submitted: splicing assigned'), findsOneWidget);
+    expect(find.text('Installation Requests'), findsOneWidget);
   });
 
   testWidgets('optional wire usage and installation notes are sent when entered',
@@ -524,8 +717,10 @@ void main() {
       200,
       scrollable: _formScrollable(),
     );
+    // The section card is titled 'Installation notes'; the TextFormField
+    // inside it carries the shorter 'Notes' label.
     await tester.enterText(
-      find.widgetWithText(TextFormField, 'Installation notes'),
+      find.widgetWithText(TextFormField, 'Notes'),
       'Drop cable pulled to the DP.',
     );
     await _tapSubmit(tester);
@@ -616,7 +811,8 @@ void main() {
 
     // Nothing was submitted.
     expect(network.lastId, isNull);
-    expect(find.text('Installation Requests'), findsNothing);
+    expect(find.byType(RequestDetailScreen), findsOneWidget);
+    expect(find.textContaining('Installation submitted'), findsNothing);
   });
 
   testWidgets(
@@ -650,5 +846,90 @@ void main() {
       find.text('Microphone permission needed to record a voice note.'),
       findsOneWidget,
     );
+  });
+
+  /// Inventory already assigned a company ONU/ONT: the ownership opens
+  /// pre-selected, the assigned values are shown read-only and the scan
+  /// affordance steps aside (there is nothing to scan or type). Choosing a
+  /// customer-owned unit restores the editable field + scan button.
+  testWidgets('company ONU/ONT opens pre-filled and read-only, user ownership scans',
+      (tester) async {
+    final storage = await _sessionStorage();
+    await _openCompletionForm(
+      tester,
+      storage,
+      _FakeCompleteInstallationNetwork(),
+      detailMap: _detailCompanyDeviceMap,
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('Company ONU/ONT assigned by inventory'),
+      300,
+      scrollable: _formScrollable(),
+    );
+    expect(find.text('Company ONU/ONT assigned by inventory'), findsOneWidget);
+    expect(find.text('Item: ONT-0001'), findsOneWidget);
+
+    final macField = find.widgetWithText(TextFormField, 'Device MAC address');
+    expect(macField, findsOneWidget);
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(of: macField, matching: find.byType(EditableText)),
+          )
+          .controller
+          .text,
+      'AA:BB:CC:DD:EE:FF',
+      reason: 'the assigned MAC is pre-filled, not left to type',
+    );
+    final serialField =
+        find.widgetWithText(TextFormField, 'Device serial number (optional)');
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(of: serialField, matching: find.byType(EditableText)),
+          )
+          .controller
+          .text,
+      'ZTEG12345678',
+    );
+    expect(find.byTooltip('Scan MAC label'), findsNothing);
+
+    // Customer-owned unit → editable field and the scan affordance come back.
+    await _revealAndTap(tester, find.text('User'));
+    await tester.pumpAndSettle();
+    expect(find.text('Company ONU/ONT assigned by inventory'), findsNothing);
+    expect(find.byTooltip('Scan MAC label'), findsOneWidget);
+  });
+
+  /// "Capture User Device Location" must ride along as `user_latitude` /
+  /// `user_longitude` (both optional per the API), while the DP coordinates
+  /// keep coming from the selected FAT node.
+  testWidgets('a captured user-device fix is sent as user_latitude/user_longitude',
+      (tester) async {
+    final storage = await _sessionStorage();
+    final network = _FakeCompleteInstallationNetwork();
+    await _openCompletionForm(tester, storage, network);
+
+    // The capture button lives on the locations card, above the map.
+    await _revealAndTap(tester, find.text(AppStrings.mapUseMyLocation));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    await _fillRequiredFields(tester);
+    await _tapSubmit(tester);
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    expect(network.lastUserLatitude, _FakeLocationService.lat);
+    expect(network.lastUserLongitude, _FakeLocationService.lng);
+    expect(network.lastDpLatitude, 23.7444);
+    expect(network.lastDpLongitude, 90.3788);
+    expect(network.jsonCalls, 1);
+    expect(network.multipartCalls, 0);
+
+    expect(find.text('Installation Requests'), findsOneWidget);
   });
 }

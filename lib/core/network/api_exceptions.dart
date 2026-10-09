@@ -100,6 +100,17 @@ class TicketAtFinalStageException extends ApiException {
 // Match the real response strings against these once the backend checklist
 // is available — the mapping only fires on an exact text match.
 //
+// Because that wording can't be relied on for the documented device
+// MAC/serial-mismatch 422, [ApiErrorMapper] additionally classifies a 422
+// whose `errors` object is keyed by `installed_device_mac` /
+// `installed_device_serial`, or whose message carries explicit
+// mismatch/assignment wording, into [DeviceMismatchException] /
+// [DeviceNotAvailableException]. A bare mention of "mac"/"serial" is NOT
+// enough: the scanner portal's duplicate ("already been taken") and
+// format-validation 422s name those identifiers too, and masking them as
+// "device mismatch" hides the real cause (and breaks Add Details' inline
+// duplicate handling).
+//
 // TODO(contract): confirm these three strings against the backend API.
 
 /// Thrown when the installation was already completed (duplicate submit).
@@ -123,6 +134,26 @@ class InvalidTotalWireUsedException extends ApiException {
   });
 }
 
+/// Thrown when the scanned ONU/ONT MAC/serial does not match the company
+/// device assigned during inventory approval (complete-installation 422).
+class DeviceMismatchException extends ApiException {
+  const DeviceMismatchException({
+    super.message =
+        'The scanned device does not match the device assigned to this request.',
+    super.statusCode,
+  });
+}
+
+/// Thrown when the scanned device is not registered in inventory, belongs to
+/// another organization, or is already assigned to another customer/request.
+class DeviceNotAvailableException extends ApiException {
+  const DeviceNotAvailableException({
+    super.message =
+        'This device is not available: it is unregistered, belongs to another organization, or is already assigned.',
+    super.statusCode,
+  });
+}
+
 /// Maps the backend's human-readable `message` strings to typed exceptions so
 /// the UI can branch on them (e.g. show a warning vs. navigate away).
 abstract final class ApiErrorMapper {
@@ -140,6 +171,8 @@ abstract final class ApiErrorMapper {
     installationAlreadyCompletedMessage: const InstallationAlreadyCompletedException(),
     invalidInstallationFatNodeMessage: const InvalidInstallationFatNodeException(),
     invalidTotalWireUsedMessage: const InvalidTotalWireUsedException(),
+    deviceMismatchMessage: const DeviceMismatchException(),
+    deviceNotAvailableMessage: const DeviceNotAvailableException(),
   };
 
   static const String invalidCredentialsMessage = 'The provided credentials are incorrect.';
@@ -158,6 +191,13 @@ abstract final class ApiErrorMapper {
       'The selected FAT node is not valid for this connection request.';
   static const String invalidTotalWireUsedMessage =
       'Total wire used must be a number greater than or equal to zero.';
+  // Best-guess wordings for the device-validation 422s (see the TODO note
+  // above): the scanner MAC/serial can mismatch the assigned company device,
+  // or the scanned device can be unregistered/foreign/already-assigned.
+  static const String deviceMismatchMessage =
+      'The scanned device does not match the device assigned to this request.';
+  static const String deviceNotAvailableMessage =
+      'This device is not available: it is unregistered, belongs to another organization, or is already assigned.';
 
   /// Returns a typed exception when [serverMessage] matches a known backend
   /// message, otherwise a generic [ApiException] carrying the original text.
@@ -169,19 +209,99 @@ abstract final class ApiErrorMapper {
     return ApiException(message: serverMessage, statusCode: statusCode);
   }
 
+  /// Field names the complete-installation endpoint validates against the
+  /// physical device assigned during inventory approval.
+  static const Set<String> _deviceFieldNames = <String>{
+    'installed_device_mac',
+    'installed_device_serial',
+  };
+
+  /// Phrases where the backend itself states a mismatch/assignment problem
+  /// (`does not match`, `must match`, `assigned to this request`, …). Free
+  /// text only classifies with wording like this — never on the strength of
+  /// an identifier alone (see the note at the top of this file).
+  static final RegExp _deviceMismatchPattern = RegExp(
+    r"does\s+not\s+match|doesn'?t\s+match|must\s+match|"
+    r'match(?:es)?\s+(?:the|this)|mismatch|'
+    r'assigned\s+to\s+(?:this|another|your|a\s+different)',
+    caseSensitive: false,
+  );
+
+  /// Phrases meaning the scanned device exists but cannot be used on this
+  /// request (unregistered / foreign / already assigned to someone else).
+  static final RegExp _deviceUnavailablePattern = RegExp(
+    r'unregistered|not registered|already\s+(?:been\s+|be\s+)?assigned|'
+    r'not available|belongs to another|'
+    r'another (?:organization|customer|connection request|request)',
+    caseSensitive: false,
+  );
+
+  /// Classifies a device-validation `422`.
+  ///
+  /// Returns [DeviceMismatchException] when the scanned MAC/serial does not
+  /// match the company device assigned during inventory approval, or
+  /// [DeviceNotAvailableException] when the device itself cannot be used
+  /// (unregistered / foreign / already assigned) — the two device-validation
+  /// 422s documented for the complete-installation endpoint. `null` means
+  /// "not device-related; keep the normal message mapping".
+  ///
+  /// Accepts both Laravel response shapes: a top-level `message` with
+  /// explicit mismatch/unavailability wording, and a validation dump whose
+  /// `errors` object is keyed by the device fields (the common "The given
+  /// data was invalid." case, where the top-level message alone would
+  /// surface a generic dump).
+  static ApiException? _deviceIssue422({
+    required int? statusCode,
+    required String? serverMessage,
+    required Map<String, dynamic>? errorFields,
+  }) {
+    if (statusCode != 422) return null;
+    final message = serverMessage ?? '';
+    final keyedByDeviceField =
+        errorFields?.keys.any(_deviceFieldNames.contains) ?? false;
+    final deviceWording = keyedByDeviceField ||
+        _deviceMismatchPattern.hasMatch(message) ||
+        _deviceUnavailablePattern.hasMatch(message);
+    if (!deviceWording) return null;
+    if (_deviceUnavailablePattern.hasMatch(message)) {
+      return DeviceNotAvailableException(statusCode: statusCode);
+    }
+    return DeviceMismatchException(statusCode: statusCode);
+  }
+
   /// Maps raw error parts to a typed [ApiException].
   /// Callers (the ApiClient) unwrap dio's exception first and pass the
   /// server `message`, status code, and whether it was a network failure.
+  ///
+  /// [errorFields] is the response's Laravel `errors` object (field name ->
+  /// messages) when present; it lets a field-level device MAC/serial mismatch
+  /// map to [DeviceMismatchException] instead of the generic top-level
+  /// validation message.
   static ApiException surfacing({
     required String? serverMessage,
     required int? statusCode,
     required bool isNetworkError,
+    Map<String, dynamic>? errorFields,
   }) {
     if (isNetworkError) {
       return const NetworkException();
     }
     if (serverMessage != null && serverMessage.isNotEmpty) {
-      return fromMessage(serverMessage, statusCode: statusCode);
+      final known = _messageToException[serverMessage];
+      if (known != null) {
+        return ApiException(message: known.message, statusCode: statusCode);
+      }
+    }
+    // Runs after the exact-text map so confirmed wordings still win, but
+    // before the raw fallback so the device-mismatch 422 never shows a dump.
+    final deviceIssue = _deviceIssue422(
+      statusCode: statusCode,
+      serverMessage: serverMessage,
+      errorFields: errorFields,
+    );
+    if (deviceIssue != null) return deviceIssue;
+    if (serverMessage != null && serverMessage.isNotEmpty) {
+      return ApiException(message: serverMessage, statusCode: statusCode);
     }
     return ApiException(message: 'Something went wrong. Please try again.', statusCode: statusCode);
   }
