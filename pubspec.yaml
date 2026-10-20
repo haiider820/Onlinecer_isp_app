@@ -69,6 +69,9 @@ dependencies:
   url_launcher: ^6.3.1
   # Lottie animations (login loading, empty states, success checkmarks).
   lottie: ^3.1.2
+  # Midnight Ops typography: Space Grotesk (display), Inter (body),
+  # IBM Plex Mono (instrument data). Runtime-fetched + cached on device.
+  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:

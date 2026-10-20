@@ -32,6 +32,8 @@ class IspOnlinecerApp extends StatelessWidget {
       title: 'ISP OnlineCER',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      themeMode: ThemeMode.system,
       routerConfig: router,
     );
   }

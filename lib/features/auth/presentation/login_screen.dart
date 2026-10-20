@@ -1,23 +1,20 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/device_info.dart';
-import '../../../core/notifications/fcm_providers.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/field_ops_design_tokens.dart';
+import '../../../shared/widgets/ops_widgets.dart';
 import 'providers.dart';
 
-/// Technician sign-in: a clean, left-aligned single column on the light page
-/// surface — the app name alone up top, then one bordered card holding the
-/// form (the primary action is the only cobalt fill on the screen).
+/// Technician sign-in — "Midnight Ops" edition.
 ///
-/// Only real fields remain: email, password (with show/hide), and the submit
-/// action. The remember-device checkbox is a local UI-only toggle — it carries
-/// no device data to the backend by design (no invented persistence).
+/// A full-bleed night-gradient hero (brand mark, mono tagline, display
+/// headline) with the sign-in card overlapping it. The primary action is the
+/// one glowing cyan fill on the screen. Follows the device theme (light/dark).
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -62,13 +59,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Token persisted AND write-verified (AuthRepository gates on a storage
       // read-back). The boot screen then proves the token end-to-end with a
       // real GET /me before any dashboard request fires.
-      //
-      // Now that the user is signed in, ask for notification permission
-      // (Android 13+ runtime POST_NOTIFICATIONS, iOS always) so push can
-      // arrive. Fire-and-forget: the dialog is non-blocking and dismissal
-      // must not delay the redirect. Registration itself already happened in
-      // AuthRepository.login.
-      unawaited(ref.read(fcmServiceProvider).requestPushPermission());
       context.go(Routes.boot);
     } else {
       final state = ref.read(authControllerProvider);
@@ -80,85 +70,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  /// Inputs: well fill, 1px hairline border, 2px cobalt focus ring.
-  /// Applied locally via a [Theme] wrapper so the rest of the app keeps its
-  /// global input theme.
-  InputDecorationTheme _inputTheme(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    OutlineInputBorder border(Color color, double width) => OutlineInputBorder(
-          borderRadius: BorderRadius.zero,
-          borderSide: BorderSide(color: color, width: width),
-        );
-
-    return InputDecorationTheme(
-      filled: true,
-      fillColor: scheme.surfaceContainerLow,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      labelStyle: FieldOpsDesignTokens.bodyMd.copyWith(
-        color: scheme.onSurfaceVariant,
-      ),
-      floatingLabelStyle: FieldOpsDesignTokens.bodySm.copyWith(
-        color: scheme.primary,
-        fontWeight: FontWeight.w600,
-      ),
-      hintStyle: FieldOpsDesignTokens.bodyMd.copyWith(
-        color: scheme.onSurfaceVariant,
-      ),
-      prefixIconColor: scheme.onSurfaceVariant,
-      suffixIconColor: scheme.onSurfaceVariant,
-      enabledBorder: border(scheme.outline, 1),
-      focusedBorder: border(scheme.primary, 2),
-      errorBorder: border(scheme.error, 1),
-      focusedErrorBorder: border(scheme.error, 2),
-      errorStyle: FieldOpsDesignTokens.bodySm.copyWith(
-        color: scheme.error,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
     final theme = Theme.of(context);
-
-    final inputStyle = FieldOpsDesignTokens.bodyLg.copyWith(
-      color: theme.colorScheme.onSurface,
-    );
+    final dark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
-      body: SafeArea(
-        child: Theme(
-          data: theme.copyWith(inputDecorationTheme: _inputTheme(context)),
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(
-              FieldOpsDesignTokens.spaceLg,
-              FieldOpsDesignTokens.spaceLg,
-              FieldOpsDesignTokens.spaceLg,
-              FieldOpsDesignTokens.spaceLg,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Brand: the app name alone — no logo plate.
-                Text(
-                  AppStrings.appName,
-                  style: FieldOpsDesignTokens.headlineLg.copyWith(
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: FieldOpsDesignTokens.spaceLg),
-
-                // Form card.
-                Container(
-                  padding: const EdgeInsets.all(FieldOpsDesignTokens.spaceLg),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerLowest,
-                    borderRadius:
-                        BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-                    border: Border.all(color: theme.colorScheme.outline),
-                    boxShadow: FieldOpsDesignTokens.shadowLevel1,
-                  ),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _LoginHero(dark: dark),
+            // Form card overlapping the hero.
+            Transform.translate(
+              offset: const Offset(0, -56),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: FieldOpsDesignTokens.pageMargin),
+                child: OpsCard(
+                  padding: const EdgeInsets.all(22),
                   child: Form(
                     key: _formKey,
                     child: Column(
@@ -166,16 +98,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       children: [
                         Text(
                           'Technician sign-in',
-                          style: FieldOpsDesignTokens.headlineSm.copyWith(
-                            color: theme.colorScheme.onSurface,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: FieldOpsDesignTokens.spaceLg),
+                        const SizedBox(
+                            height: FieldOpsDesignTokens.spaceMd),
                         TextFormField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
                           autocorrect: false,
-                          style: inputStyle,
+                          style: theme.textTheme.bodyLarge,
                           cursorColor: theme.colorScheme.primary,
                           decoration: const InputDecoration(
                             labelText: 'Work email',
@@ -190,15 +123,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: FieldOpsDesignTokens.spaceMd),
+                        const SizedBox(
+                            height: FieldOpsDesignTokens.spaceMd),
                         TextFormField(
                           controller: _passwordController,
                           obscureText: !_passwordVisible,
-                          style: inputStyle,
+                          style: theme.textTheme.bodyLarge,
                           cursorColor: theme.colorScheme.primary,
                           decoration: InputDecoration(
                             labelText: 'Password',
-                            prefixIcon: const Icon(Icons.lock_outline),
+                            prefixIcon:
+                                const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               tooltip: _passwordVisible
                                   ? 'Hide password'
@@ -209,7 +144,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     : Icons.visibility,
                               ),
                               onPressed: () => setState(
-                                () => _passwordVisible = !_passwordVisible,
+                                () => _passwordVisible =
+                                    !_passwordVisible,
                               ),
                             ),
                           ),
@@ -221,58 +157,51 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           },
                           onFieldSubmitted: (_) => _submit(),
                         ),
+                        const SizedBox(
+                            height: FieldOpsDesignTokens.spaceSm),
                         // Remember-this-handheld toggle (UI-only).
-                        const SizedBox(height: FieldOpsDesignTokens.spaceSm),
-                        Row(
-                          children: [
-                            _CheckboxTile(
-                              value: _rememberDevice,
-                              onChanged: (v) =>
-                                  setState(() => _rememberDevice = v),
-                            ),
-                            const SizedBox(width: FieldOpsDesignTokens.spaceSm),
-                            Expanded(
-                              child: Text(
-                                'Remember this handheld unit',
-                                style: FieldOpsDesignTokens.bodyMd.copyWith(
-                                  color: theme.colorScheme.onSurface,
+                        InkWell(
+                          onTap: () => setState(
+                              () => _rememberDevice = !_rememberDevice),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 12),
+                            child: Row(
+                              children: [
+                                _RememberCheck(
+                                    value: _rememberDevice),
+                                const SizedBox(
+                                    width: FieldOpsDesignTokens
+                                        .spaceSm),
+                                Expanded(
+                                  child: Text(
+                                    'Remember this handheld unit',
+                                    style: theme.textTheme.bodyMedium,
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                        const SizedBox(height: FieldOpsDesignTokens.spaceMd),
-                        // Primary action: the one cobalt fill on the screen.
+                        const SizedBox(
+                            height: FieldOpsDesignTokens.spaceMd),
+                        // Primary action: the one glowing fill on screen.
                         SizedBox(
-                          height: FieldOpsDesignTokens.inputHeight,
+                          height:
+                              FieldOpsDesignTokens.inputHeight,
                           child: FilledButton(
-                            onPressed:
-                                authState.isSubmitting ? null : _submit,
-                            // Keep the cobalt fill while submitting so the white
-                            // spinner stays readable (Material would otherwise
-                            // switch to its grey disabled fill).
-                            style: FilledButton.styleFrom(
-                              backgroundColor:
-                                  theme.colorScheme.primary,
-                              foregroundColor: Colors.white,
-                              disabledBackgroundColor:
-                                  theme.colorScheme.primary,
-                              disabledForegroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                    FieldOpsDesignTokens.controlRadius),
-                              ),
-                              textStyle: FieldOpsDesignTokens.bodyLg.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            onPressed: authState.isSubmitting
+                                ? null
+                                : _submit,
                             child: authState.isSubmitting
-                                ? const SizedBox(
+                                ? SizedBox(
                                     height: 22,
                                     width: 22,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2.4,
-                                      color: Colors.white,
+                                      color: theme
+                                          .colorScheme.onPrimary,
                                     ),
                                   )
                                 : const Text('Log in'),
@@ -282,108 +211,211 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: FieldOpsDesignTokens.spaceLg),
-
-                // Standalone device-scanning portal (scanner accounts are not
-                // employees): navigation only, the staff login flow above is
-                // untouched.
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed: () => context.push(Routes.scannerLogin),
-                    style: TextButton.styleFrom(
-                      foregroundColor: theme.colorScheme.primary,
-                      minimumSize: const Size(
-                        FieldOpsDesignTokens.minTouchTarget,
-                        FieldOpsDesignTokens.minTouchTarget,
-                      ),
-                    ),
-                    child: const Text('Device scanner? Sign in here'),
-                  ),
-                ),
-                const SizedBox(height: FieldOpsDesignTokens.spaceMd),
-
-                // Compliance and version.
-                Row(
+              ),
+            ),
+            // Compliance + version, pulled up under the overlap.
+            Transform.translate(
+              offset: const Offset(0, -32),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: FieldOpsDesignTokens.spaceLg),
+                child: Column(
                   children: [
-                    Icon(
-                      Icons.shield_outlined,
-                      size: 16,
-                      color: theme.colorScheme.onSurfaceVariant,
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.shield_outlined,
+                          size: 16,
+                          color:
+                              theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(
+                            width: FieldOpsDesignTokens.spaceXs),
+                        Expanded(
+                          child: Text(
+                            'AES-256 encrypted. Authorized operators only.',
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(
+                              color: theme
+                                  .colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: FieldOpsDesignTokens.spaceXs),
-                    Expanded(
-                      child: Text(
-                        'AES-256 encrypted. Authorized operators only.',
-                        style: FieldOpsDesignTokens.bodySm.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                    const SizedBox(
+                        height: FieldOpsDesignTokens.spaceXs),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Padding(
+                        padding:
+                            const EdgeInsets.only(left: 22),
+                        child: Text(
+                          'Version ${AppConstants.isDebug ? 'dev' : '1.0'}',
+                          style: FieldOpsDesignTokens.dataSm
+                              .copyWith(
+                            color: theme
+                                .colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ),
                     ),
+                    const SizedBox(height: 24),
                   ],
                 ),
-                const SizedBox(height: FieldOpsDesignTokens.spaceXs),
-                Padding(
-                  padding: const EdgeInsets.only(left: 22),
-                  child: Text(
-                    'Version ${AppConstants.isDebug ? 'dev' : '1.0'}',
-                    style: FieldOpsDesignTokens.bodySm.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// 24dp rounded check box with a 6px radius inside a 48dp touch target.
-/// Checked = cobalt fill with a white check; unchecked = hairline border.
-class _CheckboxTile extends StatelessWidget {
-  const _CheckboxTile({required this.value, required this.onChanged});
+/// Full-bleed hero: night gradient, glow orbs, brand mark + wordmark,
+/// mono tagline, display headline.
+class _LoginHero extends StatelessWidget {
+  const _LoginHero({required this.dark});
 
-  final bool value;
-  final ValueChanged<bool> onChanged;
+  final bool dark;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: () => onChanged(!value),
-      borderRadius: BorderRadius.circular(FieldOpsDesignTokens.controlRadius),
-      child: SizedBox(
-        width: FieldOpsDesignTokens.minTouchTarget,
-        height: FieldOpsDesignTokens.minTouchTarget,
-        child: Center(
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              color: value
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.surfaceContainerLowest,
-              borderRadius: BorderRadius.zero,
-              border: Border.all(
-                color: value
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.outlineVariant,
-              ),
-            ),
-            child: value
-                ? const Icon(
-                    Icons.check,
-                    size: 16,
-                    color: Colors.white,
-                  )
-                : null,
-          ),
+    final primary = theme.colorScheme.primary;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 64, 24, 88),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: dark
+              ? const [Color(0xFF0A1230), Color(0xFF05080F)]
+              : const [Color(0xFF0E3A52), Color(0xFF0B1220)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
+      child: Stack(
+        children: [
+          // Glow orbs.
+          Positioned(
+            top: -70,
+            right: -50,
+            child: Container(
+              width: 190,
+              height: 190,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: primary.withValues(alpha: 0.28),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -50,
+            left: -40,
+            child: Container(
+              width: 150,
+              height: 150,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: theme.colorScheme.secondary
+                    .withValues(alpha: 0.25),
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      color: Colors.white.withValues(alpha: 0.12),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.2),
+                      ),
+                    ),
+                    padding: const EdgeInsets.all(7),
+                    child: Image.asset(
+                      'assets/images/malik_fiber_logo.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Icon(
+                        Icons.bolt,
+                        color: primary,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'MALIK FIBER',
+                    style: FieldOpsDesignTokens.headlineMd.copyWith(
+                      color: Colors.white,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 26),
+              Text(
+                'FIELD OPERATIONS · v2.4',
+                style: FieldOpsDesignTokens.dataSm.copyWith(
+                  color: Colors.white.withValues(alpha: 0.65),
+                  letterSpacing: 2.5,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Start your\nshift.',
+                style: FieldOpsDesignTokens.displayLg.copyWith(
+                  color: Colors.white,
+                  fontSize: 38,
+                  height: 1.1,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Rounded checkbox tile with a glow when checked.
+class _RememberCheck extends StatelessWidget {
+  const _RememberCheck({required this.value});
+
+  final bool value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      width: 26,
+      height: 26,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(9),
+        color: value
+            ? theme.colorScheme.primary
+            : Colors.transparent,
+        border: Border.all(
+          color: value
+              ? theme.colorScheme.primary
+              : theme.colorScheme.outlineVariant,
+          width: 1.5,
+        ),
+        boxShadow: value ? opsGlow(context) : null,
+      ),
+      child: value
+          ? Icon(
+              Icons.check,
+              size: 16,
+              color: theme.colorScheme.onPrimary,
+            )
+          : null,
     );
   }
 }

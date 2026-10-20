@@ -1,261 +1,276 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-/// Design tokens extracted from `DESIGN.md` — the single source of truth for
-/// colors, typography, spacing, shapes, and component constants across every
-/// field-ops screen.
+/// Design tokens for the "Midnight Ops" design system — the single source of
+/// truth for colors, typography, spacing, shapes, and component constants.
 ///
-/// All screens import from here instead of hardcoding hex values or magic
-/// numbers. When the DESIGN.md tokens change, update this one file and every
-/// screen picks up the change on hot-reload.
+/// [FieldOpsDesignTokens] carries the LIGHT palette; [FieldOpsDarkTokens]
+/// mirrors the exact same API for DARK mode. [AppTheme] maps each set onto a
+/// Material 3 [ColorScheme]. Screens must keep importing from here instead of
+/// hardcoding hex values — when the palette changes, update this one file.
+///
+/// Typography is served through the `google_fonts` package (no bundled font
+/// binaries): Space Grotesk for display, Inter for body/labels, IBM Plex Mono
+/// for instrument data (request numbers, IDs, counts, coordinates).
 abstract final class FieldOpsDesignTokens {
   FieldOpsDesignTokens._();
 
-  // ─── Color Palette ──────────────────────────────────────────────────────
+  // ─── Color Palette (light) ────────────────────────────────────────────
 
   // Surfaces
-  static const Color surface = Color(0xFFF7F9FD);
-  static const Color surfaceDim = Color(0xFFD8DADE);
+  static const Color surface = Color(0xFFEDF1F7);
+  static const Color surfaceDim = Color(0xFFD8DEE9);
   static const Color surfaceBright = Color(0xFFF7F9FD);
   static const Color surfaceContainerLowest = Color(0xFFFFFFFF);
-  static const Color surfaceContainerLow = Color(0xFFF2F4F8);
-  static const Color surfaceContainer = Color(0xFFECEEF2);
-  static const Color surfaceContainerHigh = Color(0xFFE6E8EC);
-  static const Color surfaceContainerHighest = Color(0xFFE0E3E6);
-  static const Color onSurface = Color(0xFF191C1F);
-  static const Color onSurfaceVariant = Color(0xFF44474F);
-  static const Color inverseSurface = Color(0xFF2D3134);
-  static const Color inverseOnSurface = Color(0xFFEFF1F5);
+  static const Color surfaceContainerLow = Color(0xFFF7F9FD);
+  static const Color surfaceContainer = Color(0xFFF0F4F9);
+  static const Color surfaceContainerHigh = Color(0xFFE8EEF6);
+  static const Color surfaceContainerHighest = Color(0xFFDFE7F2);
+  static const Color onSurface = Color(0xFF0B1220);
+  static const Color onSurfaceVariant = Color(0xFF5B6B8C);
+  static const Color inverseSurface = Color(0xFF0B1220);
+  static const Color inverseOnSurface = Color(0xFFF2F6FF);
 
   // Outline
-  static const Color outline = Color(0xFF75777F);
-  static const Color outlineVariant = Color(0xFFC5C6D0);
+  static const Color outline = Color(0xFF9AA9C4);
+  static const Color outlineVariant = Color(0xFFD9E2F0);
+  static const Color cardBorder = Color(0xFFD9E2F0);
 
-  // Primary — Deep slate-blue anchoring structure, primary navigation headers,
-  // secondary/outlined button borders (DESIGN.md §Colors + §Buttons "Secondary
-  // / Administrative Action").
-  static const Color primary = Color(0xFF3A4F7A);
+  // Primary — signal cyan. Every primary CTA, active indicator and focus
+  // ring. Ink on top is white in light mode.
+  static const Color primary = Color(0xFF0891B2);
   static const Color onPrimary = Color(0xFFFFFFFF);
-  static const Color primaryContainer = Color(0xFF3A4F7A);
-  static const Color onPrimaryContainer = Color(0xFFACC2F3);
-  static const Color inversePrimary = Color(0xFFB1C6F8);
+  static const Color primaryContainer = Color(0xFFCFFAFE);
+  static const Color onPrimaryContainer = Color(0xFF0E7490);
+  static const Color inversePrimary = Color(0xFF22D3EE);
 
-  // Secondary / Accent — Primary Field Action button fill and focused-input
-  // color (DESIGN.md §Colors "Secondary/Accent" + §Buttons "Primary Field
-  // Action": `#2563EB`).
-  static const Color secondary = Color(0xFF2563EB);
+  // Secondary — violet, used for gradients, internal-note accents and
+  // secondary highlights. Never a second CTA color on the same screen.
+  static const Color secondary = Color(0xFF7C3AED);
   static const Color onSecondary = Color(0xFFFFFFFF);
-  static const Color secondaryContainer = Color(0xFF316BF3);
-  static const Color onSecondaryContainer = Color(0xFFFEFCFF);
+  static const Color secondaryContainer = Color(0xFFEDE9FE);
+  static const Color onSecondaryContainer = Color(0xFF5B21B6);
 
-  /// Pressed state (ripple/overlay target) for the primary CTA buttons that
-  /// fill with [secondary] — the declared pressed shade is `#1D4ED8`
-  /// (DESIGN.md §Buttons "Pressed `#1D4ED8`").
-  static const Color buttonPressed = Color(0xFF1D4ED8);
+  /// Pressed state for the primary CTA (a deeper cyan, never grey).
+  static const Color buttonPressed = Color(0xFF0E7490);
 
   // Tertiary
-  static const Color tertiary = Color(0xFF004225);
+  static const Color tertiary = Color(0xFF047857);
   static const Color onTertiary = Color(0xFFFFFFFF);
-  static const Color tertiaryContainer = Color(0xFF005C36);
-  static const Color onTertiaryContainer = Color(0xFF77D59C);
+  static const Color tertiaryContainer = Color(0xFFD1FAE5);
+  static const Color onTertiaryContainer = Color(0xFF065F46);
 
   // Error
-  static const Color error = Color(0xFFBA1A1A);
+  static const Color error = Color(0xFFDC2626);
   static const Color onError = Color(0xFFFFFFFF);
-  static const Color errorContainer = Color(0xFFFFDAD6);
-  static const Color onErrorContainer = Color(0xFF93000A);
+  static const Color errorContainer = Color(0xFFFEE2E2);
+  static const Color onErrorContainer = Color(0xFF991B1B);
 
   // Fixed
-  static const Color primaryFixed = Color(0xFFD8E2FF);
-  static const Color primaryFixedDim = Color(0xFFB1C6F8);
-  static const Color onPrimaryFixed = Color(0xFF001A42);
-  static const Color onPrimaryFixedVariant = Color(0xFF314671);
-  static const Color secondaryFixed = Color(0xFFDBE1FF);
-  static const Color secondaryFixedDim = Color(0xFFB4C5FF);
-  static const Color onSecondaryFixed = Color(0xFF00174B);
-  static const Color onSecondaryFixedVariant = Color(0xFF003EA8);
-  static const Color tertiaryFixed = Color(0xFF97F6BB);
-  static const Color tertiaryFixedDim = Color(0xFF7BDAA0);
-  static const Color onTertiaryFixed = Color(0xFF002110);
-  static const Color onTertiaryFixedVariant = Color(0xFF00522F);
+  static const Color primaryFixed = Color(0xFFCFFAFE);
+  static const Color primaryFixedDim = Color(0xFFA5F3FC);
+  static const Color onPrimaryFixed = Color(0xFF083344);
+  static const Color onPrimaryFixedVariant = Color(0xFF0E7490);
+  static const Color secondaryFixed = Color(0xFFEDE9FE);
+  static const Color secondaryFixedDim = Color(0xFFDDD6FE);
+  static const Color onSecondaryFixed = Color(0xFF2E1065);
+  static const Color onSecondaryFixedVariant = Color(0xFF6D28D9);
+  static const Color tertiaryFixed = Color(0xFFA7F3D0);
+  static const Color tertiaryFixedDim = Color(0xFF6EE7B7);
+  static const Color onTertiaryFixed = Color(0xFF064E3B);
+  static const Color onTertiaryFixedVariant = Color(0xFF047857);
 
   // Background (alias for surface in MD3)
-  static const Color background = Color(0xFFF7F9FD);
-  static const Color onBackground = Color(0xFF191C1F);
-  static const Color surfaceVariant = Color(0xFFE0E3E6);
+  static const Color background = Color(0xFFEDF1F7);
+  static const Color onBackground = Color(0xFF0B1220);
+  static const Color surfaceVariant = Color(0xFFDFE7F2);
 
   // Surface tint
-  static const Color surfaceTint = Color(0xFF495E8A);
+  static const Color surfaceTint = Color(0xFF0891B2);
 
-  // ─── Semantic Status Badge Colors (DESIGN.md §Semantic Status Badges) ───
+  // ─── Semantic Status Badge Colors ─────────────────────────────────────
 
-  /// Assigned / In-Progress
-  static const Color assignedBackground = Color(0xFFEBF2FE);
-  static const Color assignedForeground = Color(0xFF1D4ED8);
+  /// Assigned / In-Progress — signal cyan.
+  static const Color assignedBackground = Color(0xFFCFFAFE);
+  static const Color assignedForeground = Color(0xFF0E7490);
 
-  /// Completed / Verified
-  static const Color completedBackground = Color(0xFFE8F8F0);
-  static const Color completedForeground = Color(0xFF0D7A4A);
+  /// Completed / Verified — green.
+  static const Color completedBackground = Color(0xFFD1FAE5);
+  static const Color completedForeground = Color(0xFF047857);
 
-  /// Pending / Scheduled
+  /// Pending / Scheduled — amber.
   static const Color pendingBackground = Color(0xFFFEF3C7);
   static const Color pendingForeground = Color(0xFFB45309);
 
-  /// Urgent / Outage / Escalation
+  /// Urgent / Outage / Escalation — red.
   static const Color urgentBackground = Color(0xFFFEE2E2);
   static const Color urgentForeground = Color(0xFFB91C1C);
 
-    /// Initials-avatar background (#17b9eb — brand accent applied to every
-  /// user/customer avatar that renders initials, per DESIGN.md avatar note).
-  static const Color avatarBackground = Color(0xFF17B9EB);
+  /// Needs review — violet.
+  static const Color reviewBackground = Color(0xFFEDE9FE);
+  static const Color reviewForeground = Color(0xFF6D28D9);
 
-  // ─── Ticket Status Colors (progress bar / badge tinting) ───────────────
+  /// Initials-avatar gradient base (cyan → violet painted by widgets).
+  static const Color avatarBackground = Color(0xFF0891B2);
+
+  // ─── Ticket Status Colors ─────────────────────────────────────────────
 
   /// Opened tickets → green tinted background / accent.
-  static const Color ticketOpenedBackground = Color(0xFFDCFCE7);
-  static const Color ticketOpenedForeground = Color(0xFF166534);
+  static const Color ticketOpenedBackground = Color(0xFFD1FAE5);
+  static const Color ticketOpenedForeground = Color(0xFF047857);
 
   /// Closed tickets → grey muted background / foreground.
-  static const Color ticketClosedBackground = Color(0xFFF1F5F9);
-  static const Color ticketClosedForeground = Color(0xFF475569);
+  static const Color ticketClosedBackground = Color(0xFFE8EEF6);
+  static const Color ticketClosedForeground = Color(0xFF5B6B8C);
 
-  /// In-progress tickets → amber tinted background.
-  static const Color ticketInProgressBackground = Color(0xFFFEF3C7);
-  static const Color ticketInProgressForeground = Color(0xFF924001);
+  /// In-progress tickets → cyan tinted background.
+  static const Color ticketInProgressBackground = Color(0xFFCFFAFE);
+  static const Color ticketInProgressForeground = Color(0xFF0E7490);
 
   /// Neutral ink colors for text hierarchy
-  static const Color textPrimary = Color(0xFF0F172A);
-  static const Color textSubtext = Color(0xFF475569);
+  static const Color textPrimary = Color(0xFF0B1220);
+  static const Color textSubtext = Color(0xFF5B6B8C);
 
-  // ─── Typography (DESIGN.md §Typography — Inter, 10 levels) ─────────────
+  // ─── Typography ───────────────────────────────────────────────────────
   //
-  // Inter is not bundled with Flutter by default. Without the google_fonts
-  // package the font family name resolves to the platform default (Roboto).
-  // The design intent is captured in font-size / weight / height / spacing;
-  // swapping in the real Inter file later is a one-line package add.
+  // Served via google_fonts (runtime-fetched, cached on device). In widget
+  // tests the fetch is disabled — see test setup — and styles fall back
+  // gracefully, so tests never touch the network.
 
-  static const String _fontFamily = 'Inter';
+  static const String displayFamily = 'Space Grotesk';
+  static const String bodyFamily = 'Inter';
+  static const String monoFamily = 'IBM Plex Mono';
 
-  /// 32 / 700 / 40 / -0.02em
-  static const TextStyle displayLg = TextStyle(
-    fontFamily: _fontFamily,
-    fontSize: 32,
-    fontWeight: FontWeight.w700,
-    height: 40 / 32,
-    letterSpacing: -0.02,
-  );
+  /// 30 / 700 — hero titles, screen display.
+  static TextStyle get displayLg => GoogleFonts.spaceGrotesk(
+        fontSize: 30,
+        fontWeight: FontWeight.w700,
+        height: 1.15,
+        letterSpacing: -0.01,
+      );
 
-  /// 24 / 700 / 32 / -0.01em
-  static const TextStyle headlineLg = TextStyle(
-    fontFamily: _fontFamily,
-    fontSize: 24,
-    fontWeight: FontWeight.w700,
-    height: 32 / 24,
-    letterSpacing: -0.01,
-  );
+  /// 22 / 700 — screen titles.
+  static TextStyle get headlineLg => GoogleFonts.spaceGrotesk(
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        height: 1.25,
+      );
 
-  /// 20 / 600 / 28
-  static const TextStyle headlineMd = TextStyle(
-    fontFamily: _fontFamily,
-    fontSize: 20,
-    fontWeight: FontWeight.w600,
-    height: 28 / 20,
-  );
+  /// 19 / 600 — section headers, card titles.
+  static TextStyle get headlineMd => GoogleFonts.spaceGrotesk(
+        fontSize: 19,
+        fontWeight: FontWeight.w600,
+        height: 1.3,
+      );
 
-  /// 18 / 600 / 24
-  static const TextStyle headlineSm = TextStyle(
-    fontFamily: _fontFamily,
-    fontSize: 18,
-    fontWeight: FontWeight.w600,
-    height: 24 / 18,
-  );
+  /// 17 / 600 — card titles.
+  static TextStyle get headlineSm => GoogleFonts.spaceGrotesk(
+        fontSize: 17,
+        fontWeight: FontWeight.w600,
+        height: 1.3,
+      );
 
-  /// 16 / 500 / 24
-  static const TextStyle bodyLg = TextStyle(
-    fontFamily: _fontFamily,
-    fontSize: 16,
-    fontWeight: FontWeight.w500,
-    height: 24 / 16,
-  );
+  /// 15 / 500 — primary content.
+  static TextStyle get bodyLg => GoogleFonts.inter(
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+        height: 1.5,
+      );
 
-  /// 14 / 400 / 20
-  static const TextStyle bodyMd = TextStyle(
-    fontFamily: _fontFamily,
-    fontSize: 14,
-    fontWeight: FontWeight.w400,
-    height: 20 / 14,
-  );
+  /// 14 / 400 — secondary content.
+  static TextStyle get bodyMd => GoogleFonts.inter(
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        height: 1.5,
+      );
 
-  /// 12 / 400 / 16
-  static const TextStyle bodySm = TextStyle(
-    fontFamily: _fontFamily,
-    fontSize: 12,
-    fontWeight: FontWeight.w400,
-    height: 16 / 12,
-  );
+  /// 12 / 400 — captions, timestamps.
+  static TextStyle get bodySm => GoogleFonts.inter(
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        height: 1.45,
+      );
 
-  /// 14 / 600 / 20 / 0.01em
-  static const TextStyle labelLg = TextStyle(
-    fontFamily: _fontFamily,
-    fontSize: 14,
-    fontWeight: FontWeight.w600,
-    height: 20 / 14,
-    letterSpacing: 0.01,
-  );
+  /// 13.5 / 700 — button text, emphasized labels.
+  static TextStyle get labelLg => GoogleFonts.inter(
+        fontSize: 13.5,
+        fontWeight: FontWeight.w700,
+        height: 1.4,
+        letterSpacing: 0.01,
+      );
 
-  /// 12 / 600 / 16 / 0.02em
-  static const TextStyle labelMd = TextStyle(
-    fontFamily: _fontFamily,
-    fontSize: 12,
-    fontWeight: FontWeight.w600,
-    height: 16 / 12,
-    letterSpacing: 0.02,
-  );
+  /// 12 / 700 — form labels.
+  static TextStyle get labelMd => GoogleFonts.inter(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        height: 1.35,
+        letterSpacing: 0.02,
+      );
 
-  /// 11 / 700 / 14 / 0.04em
-  static const TextStyle labelSm = TextStyle(
-    fontFamily: _fontFamily,
-    fontSize: 11,
-    fontWeight: FontWeight.w700,
-    height: 14 / 11,
-    letterSpacing: 0.04,
-  );
+  /// 11 / 700 — tags, eyebrows (sentence case).
+  static TextStyle get labelSm => GoogleFonts.inter(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        height: 1.3,
+        letterSpacing: 0.04,
+      );
 
-  // ─── Spacing (DESIGN.md §Layout & Spacing — 8pt baseline) ──────────────
+  /// 22 / 700 mono — hero instrument readouts.
+  static TextStyle get dataLg => GoogleFonts.ibmPlexMono(
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        height: 1.2,
+      );
 
-  static const double spaceXs = 4; // 0.25rem
-  static const double spaceSm = 8; // 0.5rem
-  static const double spaceMd = 16; // 1rem
-  static const double spaceLg = 24; // 1.5rem
-  static const double spaceXl = 32; // 2rem
+  /// 14 / 600 mono — request numbers, IDs, inline values.
+  static TextStyle get dataMd => GoogleFonts.ibmPlexMono(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        height: 1.35,
+      );
+
+  /// 11.5 / 500 mono — captions, coordinates, timestamps.
+  static TextStyle get dataSm => GoogleFonts.ibmPlexMono(
+        fontSize: 11.5,
+        fontWeight: FontWeight.w500,
+        height: 1.35,
+      );
+
+  // ─── Spacing (8pt baseline) ───────────────────────────────────────────
+
+  static const double spaceXs = 4;
+  static const double spaceSm = 8;
+  static const double spaceMd = 16;
+  static const double spaceLg = 24;
+  static const double spaceXl = 32;
 
   /// Outer page margin (16px gutter).
   static const double pageMargin = 16;
 
   /// Vertical gap between cards.
-  static const double cardGap = 16;
+  static const double cardGap = 12;
 
   /// Inner card padding.
   static const double cardPadding = 16;
 
-  // ─── Shapes (DESIGN.md §Shapes) ────────────────────────────────────────
+  // ─── Shapes ───────────────────────────────────────────────────────────
 
-  /// Cards & Bottom Sheets: 12–16px
-  static const double radiusSm = 4; // 0.25rem
-  static const double radiusMd = 8; // 0.5rem
-  static const double radiusLg = 12; // 0.75rem
-  static const double radiusXl = 16; // 1rem
-  static const double radiusXxl = 24; // 1.5rem
+  static const double radiusSm = 8;
+  static const double radiusMd = 12;
+  static const double radiusLg = 16;
+  static const double radiusXl = 18;
+  static const double radiusXxl = 24;
   static const double radiusFull = 9999;
 
   /// Default card border radius.
-  static const double cardRadius = 14;
+  static const double cardRadius = 18;
 
   /// Default input / button border radius.
-  static const double controlRadius = 12;
+  static const double controlRadius = 14;
 
-  // ─── Component Dimensions (DESIGN.md §Components) ──────────────────────
+  // ─── Component Dimensions ─────────────────────────────────────────────
 
-  /// Minimum touch target (MD3 ergonomics).
+  /// Minimum touch target.
   static const double minTouchTarget = 48;
 
   /// Standard input field height.
@@ -273,42 +288,230 @@ abstract final class FieldOpsDesignTokens {
   /// Status badge icon size.
   static const double badgeIconSize = 14;
 
-  // ─── Elevation Shadows (DESIGN.md §Elevation & Depth) ──────────────────
+  // ─── Elevation Shadows ────────────────────────────────────────────────
 
-  /// Level 1: Work Order & Metric Cards
+  /// Level 1: cards at rest.
   static const List<BoxShadow> shadowLevel1 = [
     BoxShadow(
-      color: Color(0x0D0F172A), // 0.05
-      blurRadius: 3,
-      offset: Offset(0, 1),
-    ),
-    BoxShadow(
-      color: Color(0x060F172A), // 0.025
-      blurRadius: 6,
-      offset: Offset(0, -2),
+      color: Color(0x140B1220), // 0.08
+      blurRadius: 16,
+      offset: Offset(0, 4),
     ),
   ];
 
-  /// Level 2: Active / Selected Cards
+  /// Level 2: raised / active cards.
   static const List<BoxShadow> shadowLevel2 = [
     BoxShadow(
-      color: Color(0x140F172A), // 0.08
-      blurRadius: 15,
-      offset: Offset(0, -3),
-    ),
-    BoxShadow(
-      color: Color(0x0A0F172A), // 0.04
-      blurRadius: 6,
-      offset: Offset(0, -2),
+      color: Color(0x1F0B1220), // 0.12
+      blurRadius: 24,
+      offset: Offset(0, 8),
     ),
   ];
 
-  /// Level 3: Floating modals, bottom sheets, nav bars
+  /// Level 3: floating modals, bottom sheets, nav bars.
   static const List<BoxShadow> shadowLevel3 = [
     BoxShadow(
-      color: Color(0x0F0F172A), // 0.06
-      blurRadius: 12,
-      offset: Offset(0, -4),
+      color: Color(0x290B1220), // 0.16
+      blurRadius: 32,
+      offset: Offset(0, 12),
     ),
+  ];
+
+  /// Signature cyan glow for primary CTAs and live indicators (light).
+  static const List<BoxShadow> glowCyan = [
+    BoxShadow(
+      color: Color(0x590891B2), // 0.35
+      blurRadius: 22,
+      offset: Offset(0, 0),
+    ),
+  ];
+}
+
+/// Dark-mode twin of [FieldOpsDesignTokens]: identical API, "Midnight Ops"
+/// night palette — near-black blue canvas, glowing signal cyan, violet depth.
+abstract final class FieldOpsDarkTokens {
+  FieldOpsDarkTokens._();
+
+  // Surfaces
+  static const Color surface = Color(0xFF05080F);
+  static const Color surfaceDim = Color(0xFF030509);
+  static const Color surfaceBright = Color(0xFF0E1524);
+  static const Color surfaceContainerLowest = Color(0xFF0B101D);
+  static const Color surfaceContainerLow = Color(0xFF0A0F1E);
+  static const Color surfaceContainer = Color(0xFF0D1424);
+  static const Color surfaceContainerHigh = Color(0xFF111A2E);
+  static const Color surfaceContainerHighest = Color(0xFF16203A);
+  static const Color onSurface = Color(0xFFF2F6FF);
+  static const Color onSurfaceVariant = Color(0xFF8B98B8);
+  static const Color inverseSurface = Color(0xFFF2F6FF);
+  static const Color inverseOnSurface = Color(0xFF0B1220);
+
+  // Outline
+  static const Color outline = Color(0xFF3A4A6B);
+  static const Color outlineVariant = Color(0xFF1B2540);
+  static const Color cardBorder = Color(0xFF1B2540);
+
+  // Primary — glowing signal cyan; ink on top is near-black.
+  static const Color primary = Color(0xFF22D3EE);
+  static const Color onPrimary = Color(0xFF04121A);
+  static const Color primaryContainer = Color(0xFF0E3A46);
+  static const Color onPrimaryContainer = Color(0xFFA5F3FC);
+  static const Color inversePrimary = Color(0xFF0891B2);
+
+  // Secondary — violet.
+  static const Color secondary = Color(0xFF8B5CF6);
+  static const Color onSecondary = Color(0xFF0B0620);
+  static const Color secondaryContainer = Color(0xFF2E1A5E);
+  static const Color onSecondaryContainer = Color(0xFFDDD6FE);
+
+  /// Pressed state for the primary CTA.
+  static const Color buttonPressed = Color(0xFF67E8F9);
+
+  // Tertiary
+  static const Color tertiary = Color(0xFF34D399);
+  static const Color onTertiary = Color(0xFF04120C);
+  static const Color tertiaryContainer = Color(0xFF064E3B);
+  static const Color onTertiaryContainer = Color(0xFFA7F3D0);
+
+  // Error
+  static const Color error = Color(0xFFF87171);
+  static const Color onError = Color(0xFF1A0505);
+  static const Color errorContainer = Color(0xFF4C1010);
+  static const Color onErrorContainer = Color(0xFFFECACA);
+
+  // Fixed
+  static const Color primaryFixed = Color(0xFF0E3A46);
+  static const Color primaryFixedDim = Color(0xFF155E75);
+  static const Color onPrimaryFixed = Color(0xFFECFEFF);
+  static const Color onPrimaryFixedVariant = Color(0xFFA5F3FC);
+  static const Color secondaryFixed = Color(0xFF2E1A5E);
+  static const Color secondaryFixedDim = Color(0xFF4C1D95);
+  static const Color onSecondaryFixed = Color(0xFFF5F3FF);
+  static const Color onSecondaryFixedVariant = Color(0xFFDDD6FE);
+  static const Color tertiaryFixed = Color(0xFF064E3B);
+  static const Color tertiaryFixedDim = Color(0xFF047857);
+  static const Color onTertiaryFixed = Color(0xFFECFDF5);
+  static const Color onTertiaryFixedVariant = Color(0xFFA7F3D0);
+
+  // Background (alias for surface in MD3)
+  static const Color background = Color(0xFF05080F);
+  static const Color onBackground = Color(0xFFF2F6FF);
+  static const Color surfaceVariant = Color(0xFF16203A);
+
+  // Surface tint
+  static const Color surfaceTint = Color(0xFF22D3EE);
+
+  // ─── Semantic Status Badge Colors (dark) ──────────────────────────────
+
+  static const Color assignedBackground = Color(0xFF0E3A46);
+  static const Color assignedForeground = Color(0xFF67E8F9);
+
+  static const Color completedBackground = Color(0xFF064E3B);
+  static const Color completedForeground = Color(0xFF6EE7B7);
+
+  static const Color pendingBackground = Color(0xFF4A2E0A);
+  static const Color pendingForeground = Color(0xFFFBBF24);
+
+  static const Color urgentBackground = Color(0xFF4C1010);
+  static const Color urgentForeground = Color(0xFFFCA5A5);
+
+  static const Color reviewBackground = Color(0xFF2E1A5E);
+  static const Color reviewForeground = Color(0xFFC4B5FD);
+
+  static const Color avatarBackground = Color(0xFF22D3EE);
+
+  // ─── Ticket Status Colors (dark) ──────────────────────────────────────
+
+  static const Color ticketOpenedBackground = Color(0xFF064E3B);
+  static const Color ticketOpenedForeground = Color(0xFF6EE7B7);
+
+  static const Color ticketClosedBackground = Color(0xFF16203A);
+  static const Color ticketClosedForeground = Color(0xFF8B98B8);
+
+  static const Color ticketInProgressBackground = Color(0xFF0E3A46);
+  static const Color ticketInProgressForeground = Color(0xFF67E8F9);
+
+  static const Color textPrimary = Color(0xFFF2F6FF);
+  static const Color textSubtext = Color(0xFF8B98B8);
+
+  // ─── Typography (same scale as light) ─────────────────────────────────
+
+  static const String displayFamily = 'Space Grotesk';
+  static const String bodyFamily = 'Inter';
+  static const String monoFamily = 'IBM Plex Mono';
+
+  static TextStyle get displayLg => GoogleFonts.spaceGrotesk(
+      fontSize: 30, fontWeight: FontWeight.w700, height: 1.15, letterSpacing: -0.01);
+  static TextStyle get headlineLg => GoogleFonts.spaceGrotesk(
+      fontSize: 22, fontWeight: FontWeight.w700, height: 1.25);
+  static TextStyle get headlineMd => GoogleFonts.spaceGrotesk(
+      fontSize: 19, fontWeight: FontWeight.w600, height: 1.3);
+  static TextStyle get headlineSm => GoogleFonts.spaceGrotesk(
+      fontSize: 17, fontWeight: FontWeight.w600, height: 1.3);
+  static TextStyle get bodyLg =>
+      GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w500, height: 1.5);
+  static TextStyle get bodyMd =>
+      GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w400, height: 1.5);
+  static TextStyle get bodySm =>
+      GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w400, height: 1.45);
+  static TextStyle get labelLg => GoogleFonts.inter(
+      fontSize: 13.5, fontWeight: FontWeight.w700, height: 1.4, letterSpacing: 0.01);
+  static TextStyle get labelMd => GoogleFonts.inter(
+      fontSize: 12, fontWeight: FontWeight.w700, height: 1.35, letterSpacing: 0.02);
+  static TextStyle get labelSm => GoogleFonts.inter(
+      fontSize: 11, fontWeight: FontWeight.w700, height: 1.3, letterSpacing: 0.04);
+  static TextStyle get dataLg => GoogleFonts.ibmPlexMono(
+      fontSize: 22, fontWeight: FontWeight.w700, height: 1.2);
+  static TextStyle get dataMd => GoogleFonts.ibmPlexMono(
+      fontSize: 14, fontWeight: FontWeight.w600, height: 1.35);
+  static TextStyle get dataSm => GoogleFonts.ibmPlexMono(
+      fontSize: 11.5, fontWeight: FontWeight.w500, height: 1.35);
+
+  // ─── Spacing ──────────────────────────────────────────────────────────
+
+  static const double spaceXs = 4;
+  static const double spaceSm = 8;
+  static const double spaceMd = 16;
+  static const double spaceLg = 24;
+  static const double spaceXl = 32;
+  static const double pageMargin = 16;
+  static const double cardGap = 12;
+  static const double cardPadding = 16;
+
+  // ─── Shapes ───────────────────────────────────────────────────────────
+
+  static const double radiusSm = 8;
+  static const double radiusMd = 12;
+  static const double radiusLg = 16;
+  static const double radiusXl = 18;
+  static const double radiusXxl = 24;
+  static const double radiusFull = 9999;
+  static const double cardRadius = 18;
+  static const double controlRadius = 14;
+
+  // ─── Component Dimensions ─────────────────────────────────────────────
+
+  static const double minTouchTarget = 48;
+  static const double inputHeight = 52;
+  static const double badgeHeight = 26;
+  static const double badgePaddingH = 10;
+  static const double badgeDotSize = 6;
+  static const double badgeIconSize = 14;
+
+  // ─── Elevation Shadows (dark) ─────────────────────────────────────────
+
+  static const List<BoxShadow> shadowLevel1 = [
+    BoxShadow(color: Color(0x66000000), blurRadius: 16, offset: Offset(0, 4)),
+  ];
+  static const List<BoxShadow> shadowLevel2 = [
+    BoxShadow(color: Color(0x80000000), blurRadius: 24, offset: Offset(0, 8)),
+  ];
+  static const List<BoxShadow> shadowLevel3 = [
+    BoxShadow(color: Color(0x99000000), blurRadius: 32, offset: Offset(0, 12)),
+  ];
+
+  /// Signature cyan glow (dark) — primary CTAs, live indicators.
+  static const List<BoxShadow> glowCyan = [
+    BoxShadow(color: Color(0x5922D3EE), blurRadius: 24, offset: Offset(0, 0)),
   ];
 }
