@@ -21,6 +21,7 @@ class SecureStorage {
   static const _kEmployeeEmail = 'employee.email';
   static const _kTeamType = 'employee.functional_team_type';
   static const _kTeamName = 'employee.team_name';
+  static const _kThemeMode = 'ui.theme_mode';
 
   // Session
   Future<void> saveSession({
@@ -50,6 +51,14 @@ class SecureStorage {
   Future<String?> getEmployeeName() => _storage.read(key: _kEmployeeName);
   Future<String?> getFunctionalTeamType() => _storage.read(key: _kTeamType);
   Future<String?> getTeamName() => _storage.read(key: _kTeamName);
+
+  /// Persisted UI theme choice: 'light', 'dark', or null/'system'.
+  Future<String?> getThemeMode() => _storage.read(key: _kThemeMode);
+
+  Future<void> setThemeMode(String? value) {
+    if (value == null) return _storage.delete(key: _kThemeMode);
+    return _storage.write(key: _kThemeMode, value: value);
+  }
 
   Future<void> updateEmployeeContext({
     required String employeeId,

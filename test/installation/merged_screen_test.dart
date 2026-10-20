@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:isp_onlinecer/core/constants/app_constants.dart';
 import 'package:isp_onlinecer/core/storage/secure_storage.dart';
 import 'package:isp_onlinecer/features/auth/presentation/providers.dart';
@@ -288,11 +289,11 @@ Future<ProviderContainer> _openDetail(
       child: IspOnlinecerApp(storage: storage),
     ),
   );
-  await tester.pumpAndSettle();
+  await _settle(tester);
 
   // Dashboard → installation detail.
   await tester.tap(find.text(_requestNumber));
-  await tester.pumpAndSettle();
+  await _settle(tester);
 
   return container;
 }
@@ -315,14 +316,30 @@ Finder _detailScrollable() {
 /// fails otherwise) and that `route`/`routeNote` are final.
 Future<void> _settleMap(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 600));
-  await tester.pumpAndSettle();
+  await _settle(tester);
   await tester.pump(const Duration(milliseconds: 400));
-  await tester.pumpAndSettle();
+  await _settle(tester);
+}
+
+/// Bounded settle: pumps frames until nothing is scheduled, but gives up
+/// after a bounded number of frames. The dashboard's live PulseDot repeats
+/// forever by design, so an unbounded `pumpAndSettle` can never complete
+/// while it is on screen.
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 30; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+    if (!tester.binding.hasScheduledFrame) break;
+  }
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
 void main() {
+  // google_fonts serves typefaces via runtime HTTP fetch; disable that in
+  // tests so widget pumps never touch the network (styles fall back to the
+  // platform default, which is fine for assertions).
+  GoogleFonts.config.allowRuntimeFetching = false;
+
   testWidgets('pricing card renders the subscription amount and the connection placeholder',
       (tester) async {
     final storage = await _sessionStorage();
@@ -380,11 +397,11 @@ void main() {
       scrollable: _detailScrollable(),
     );
     await tester.ensureVisible(find.text('Select the FAT node used'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('Select the FAT node used'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('FAT-A Dhanmondi').last);
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     // The DP marker follows the selection (FAT-A Dhanmondi) and is not marked
     // manual — Phase 5 keeps the FAT auto-fill as the source of truth. Assert

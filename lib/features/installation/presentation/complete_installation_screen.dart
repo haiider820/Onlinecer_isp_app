@@ -14,18 +14,20 @@ import 'package:record/record.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_exceptions.dart';
 import '../../../core/router/app_router.dart';
+import '../../../core/theme/field_ops_design_tokens.dart';
 import '../../../models/fat_node.dart';
 import '../../../models/inventory_item.dart';
-import '../../../shared/widgets/voice_note_section.dart';
+import '../../../shared/widgets/ops_widgets.dart';
 import '../../survey/presentation/route_providers.dart';
 import '../data/complete_installation_network.dart';
 import 'installation_map_providers.dart';
 import 'installation_providers.dart';
 
-/// Collects the installation fields — OLT device ownership (segmented
-/// control), the FAT node used (dropdown backed by the FAT-node lookup the
-/// survey flow already uses), optional wire usage and notes, and repeatable
-/// inventory item rows — then submits them via `POST .../complete-installation`.
+/// Collects the installation fields — OLT device ownership (tappable tiles),
+/// the FAT node used (picker card backed by the FAT-node lookup the survey
+/// flow already uses), wire usage (stepper), installation notes (voice-first),
+/// and repeatable inventory item rows — then submits them via
+/// `POST .../complete-installation`.
 ///
 /// Since the module's Phase 1 merge, this is **not a whole screen**: it is the
 /// editable tail of the merged installation detail screen (information →
@@ -39,6 +41,10 @@ import 'installation_providers.dart';
 /// live point lives in [InstallationMapController], so the map above updates
 /// instantly (Phase 4) and the submit reads from there.
 ///
+/// The parent drives the sticky bottom CTA: [progress] is updated (0..1) as
+/// the submit-blocking requirements complete, and [CompleteInstallationFormState.submit]
+/// is the public entry point the CTA calls.
+///
 /// On success: confirms the new request status, then returns to the request
 /// list (fresh instance → refetch, moving the completed request out of the
 /// installation queue per the API checklist).
@@ -47,6 +53,7 @@ class CompleteInstallationForm extends ConsumerStatefulWidget {
     super.key,
     required this.requestId,
     this.scrollController,
+    this.progress,
   });
 
   final String requestId;
@@ -55,9 +62,13 @@ class CompleteInstallationForm extends ConsumerStatefulWidget {
   /// top of this form when validation fails.
   final ScrollController? scrollController;
 
+  /// Updated (0..1) as the submit-blocking requirements complete:
+  /// OLT ownership chosen, FAT node chosen, DP location known.
+  final ValueNotifier<double>? progress;
+
   @override
   ConsumerState<CompleteInstallationForm> createState() =>
-      _CompleteInstallationFormState();
+      CompleteInstallationFormState();
 }
 
 /// One editable inventory row: the catalog item (id) plus its quantity.
@@ -71,11 +82,12 @@ class _InventoryRow {
   String? itemId;
 }
 
-class _CompleteInstallationFormState
+class CompleteInstallationFormState
     extends ConsumerState<CompleteInstallationForm> {
   final _formKey = GlobalKey<FormState>();
   final _wireController = TextEditingController();
   final _notesController = TextEditingController();
+  final _notesFocusNode = FocusNode();
 
   /// Owned by the customer (user) or the company; `null` until chosen.
   String? _ownership;
@@ -83,6 +95,14 @@ class _CompleteInstallationFormState
 
   /// Selected FAT node id; sent as `connection_fat_node_id`.
   String? _fatNodeId;
+
+  /// Inline error under the wire stepper (the stepper only writes valid
+  /// values; this is defensive for programmatic/legacy controller content).
+  String? _wireError;
+
+  /// Inline error under the inventory section when a row has an item picked
+  /// but no quantity.
+  String? _inventoryError;
 
   final List<_InventoryRow> _inventoryRows = [];
   int _nextRowId = 0;
@@ -120,6 +140,7 @@ class _CompleteInstallationFormState
     _recordingTicker?.cancel();
     _wireController.dispose();
     _notesController.dispose();
+    _notesFocusNode.dispose();
     _inventorySearch.dispose();
     _inventorySearchDebounce?.cancel();
     for (final row in _inventoryRows) {
@@ -128,6 +149,24 @@ class _CompleteInstallationFormState
     _recorder.dispose();
     _player.dispose();
     super.dispose();
+  }
+
+  /// Fraction (0..1) of the submit-blocking requirements currently met.
+  double _computeProgress(bool dpKnown) {
+    var done = 0;
+    if (_ownership != null) done++;
+    if (_fatNodeId != null) done++;
+    if (dpKnown) done++;
+    return done / 3;
+  }
+
+  void _syncProgress(double value) {
+    final notifier = widget.progress;
+    if (notifier != null && notifier.value != value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        notifier.value = value;
+      });
+    }
   }
 
   void _addInventoryRow() {
@@ -290,78 +329,171 @@ class _CompleteInstallationFormState
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  // ─── Wire stepper ─────────────────────────────────────────────────────
+
+  num _wireValue() {
+    final text = _wireController.text.trim();
+    if (text.isEmpty) return 0;
+    return num.tryParse(text) ?? 0;
+  }
+
+  static String _trimNum(num value) {
+    final raw = value.toString();
+    if (!raw.contains('.')) return raw;
+    return raw
+        .replaceAll(RegExp(r'0+$'), '')
+        .replaceAll(RegExp(r'\.$'), '');
+  }
+
+  void _stepWire(num delta) {
+    final next = _wireValue() + delta;
+    setState(() {
+      _wireController.text = next <= 0 ? '' : _trimNum(next);
+      _wireError = null;
+    });
+  }
+
+  // ─── FAT node picker ──────────────────────────────────────────────────
+
+  static String _fatMeta(FatNode node, LatLng? userLoc) {
+    if (userLoc != null) {
+      final meters =
+          Distance()(userLoc, LatLng(node.latitude, node.longitude));
+      final dist = meters >= 1000
+          ? '${(meters / 1000).toStringAsFixed(1)} km'
+          : '${meters.toStringAsFixed(0)} m';
+      return '$dist away';
+    }
+    return 'Lat ${node.latitude.toStringAsFixed(5)}, '
+        'lng ${node.longitude.toStringAsFixed(5)}';
+  }
+
+  Future<void> _pickFatNode(
+    BuildContext context,
+    List<FatNode> nodes,
+    FormFieldState<String> field,
+  ) async {
+    final userLoc =
+        ref.read(installationMapControllerProvider(widget.requestId)).userLocation;
+    final selected = await showModalBottomSheet<FatNode>(
+      context: context,
+      builder: (sheetContext) {
+        final sheetTheme = Theme.of(sheetContext);
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  'Choose FAT node',
+                  style: sheetTheme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final node in nodes)
+                      ListTile(
+                        leading: Icon(
+                          Icons.cell_tower,
+                          color: sheetTheme.colorScheme.primary,
+                        ),
+                        title: Text(node.name),
+                        subtitle: Text(_fatMeta(node, userLoc)),
+                        trailing: node.id == _fatNodeId
+                            ? Icon(
+                                Icons.check_circle,
+                                color: sheetTheme.colorScheme.primary,
+                              )
+                            : null,
+                        onTap: () => Navigator.of(sheetContext).pop(node),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected == null) return;
+    field.didChange(selected.id);
+    setState(() => _fatNodeId = selected.id);
+    // DP auto-fills from the FAT node; the map card above reacts instantly
+    // through the shared map controller.
+    ref
+        .read(installationMapControllerProvider(widget.requestId).notifier)
+        .setDpFromFat(LatLng(selected.latitude, selected.longitude));
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final controller = ref.watch(completeInstallationControllerProvider);
     final fatNodes = ref.watch(fatNodesProvider(widget.requestId));
     final inventory = ref.watch(inventoryItemsProvider);
+    final dpKnown = ref
+        .watch(installationMapControllerProvider(widget.requestId))
+        .dpLocation !=
+        null;
+    _syncProgress(_computeProgress(dpKnown));
 
     return Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SectionTitle(title: 'OLT device ownership', icon: Icons.devices_other_outlined),
+          _FieldTitle('OLT device ownership'),
           const SizedBox(height: 8),
-          // The segmented control and its inline error share ONE cell so the
+          // The ownership tiles and their inline error share ONE cell so the
           // parent list's child set keeps a constant shape; a
-          // conditionally-inserted sibling above the FAT dropdown would shift
-          // every later child's slot and remount the dropdown, wiping its
-          // validator error on submit.
-          SizedBox(
-            width: double.infinity,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Quiet-surface card housing the ownership segmented control.
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.surfaceContainerLow,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+          // conditionally-inserted sibling above the FAT picker would shift
+          // every later child's slot and remount it, wiping its validator
+          // error on submit.
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  OptionTile(
+                    label: 'User',
+                    icon: Icons.person_outline,
+                    selected: _ownership == OltOwnership.user,
+                    onTap: () => setState(() {
+                      _ownership = OltOwnership.user;
+                      _ownershipError = null;
+                    }),
                   ),
-                  child: SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(
-                        value: OltOwnership.user,
-                        label: Text('User'),
-                        icon: Icon(Icons.person_outline),
-                      ),
-                      ButtonSegment(
-                        value: OltOwnership.company,
-                        label: Text('Company'),
-                        icon: Icon(Icons.domain_outlined),
-                      ),
-                    ],
-                    selected: _ownership == null
-                        ? const <String>{}
-                        : {_ownership!},
-                    emptySelectionAllowed: true,
-                    onSelectionChanged: (selection) {
-                      setState(() {
-                        _ownership = selection.isEmpty ? null : selection.first;
-                        _ownershipError = null;
-                      });
-                    },
+                  const SizedBox(width: 10),
+                  OptionTile(
+                    label: 'Company',
+                    icon: Icons.domain_outlined,
+                    selected: _ownership == OltOwnership.company,
+                    onTap: () => setState(() {
+                      _ownership = OltOwnership.company;
+                      _ownershipError = null;
+                    }),
+                  ),
+                ],
+              ),
+              if (_ownershipError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    _ownershipError!,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.error),
                   ),
                 ),
-                if (_ownershipError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      _ownershipError!,
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: theme.colorScheme.error),
-                    ),
-                  ),
-              ],
-            ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          _SectionTitle(title: 'FAT node', icon: Icons.account_tree_outlined),
+          _FieldTitle('FAT node'),
           const SizedBox(height: 8),
           fatNodes.when(
             loading: () => const Padding(
@@ -387,105 +519,143 @@ class _CompleteInstallationFormState
                 ),
               ],
             ),
-            data: (list) => DropdownButtonFormField<String>(
-              initialValue: _fatNodeId,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'FAT node',
-                hintText: 'Select the FAT node used',
-              ),
-              items: list.data
-                  .map(
-                    (node) => DropdownMenuItem(
-                      value: node.id,
-                      child: Text(node.name),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) {
-                setState(() => _fatNodeId = value);
-                FatNode? node;
-                for (final n in list.data) {
-                  if (n.id == value) {
-                    node = n;
-                    break;
-                  }
-                }
-                // DP auto-fills from the FAT node; the map card above reacts
-                // instantly through the shared map controller (Phase 4).
-                ref
-                    .read(installationMapControllerProvider(widget.requestId).notifier)
-                    .setDpFromFat(
-                      node == null
-                          ? null
-                          : LatLng(node.latitude, node.longitude),
-                    );
-              },
-              validator: (value) =>
-                  value == null ? 'Select a FAT node' : null,
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          TextFormField(
-            controller: _wireController,
-            keyboardType: const TextInputType.numberWithOptions(
-              decimal: true,
-              signed: false,
-            ),
-            decoration: const InputDecoration(
-              labelText: 'Total wire used (m)',
-              hintText: 'Optional',
-            ),
-            validator: (value) {
-              final text = value?.trim() ?? '';
-              if (text.isEmpty) return null;
-              final parsed = num.tryParse(text);
-              if (parsed == null || parsed < 0) {
-                return 'Enter a valid amount (0 or more)';
+            data: (list) {
+              FatNode? selected;
+              for (final node in list.data) {
+                if (node.id == _fatNodeId) selected = node;
               }
-              return null;
+              final userLoc = ref
+                  .watch(installationMapControllerProvider(widget.requestId))
+                  .userLocation;
+              return FormField<String>(
+                initialValue: _fatNodeId,
+                validator: (value) =>
+                    value == null ? 'Select a FAT node' : null,
+                builder: (field) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    FatPickerCard(
+                      nodeId: selected?.name ?? 'Select the FAT node used',
+                      meta: selected == null
+                          ? '${list.data.length} node${list.data.length == 1 ? '' : 's'} nearby — tap to choose'
+                          : _fatMeta(selected, userLoc),
+                      onTap: () => _pickFatNode(context, list.data, field),
+                    ),
+                    if (field.hasError)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          field.errorText!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.error,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
             },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
+          _FieldTitle('Total wire used (m)'),
+          const SizedBox(height: 8),
+          WireStepper(
+            value: _wireController.text.trim().isEmpty
+                ? '0'
+                : _wireController.text.trim(),
+            unit: 'meters',
+            onDecrement: () => _stepWire(-1),
+            onIncrement: () => _stepWire(1),
+          ),
+          if (_wireError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                _wireError!,
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.error),
+              ),
+            ),
+          const SizedBox(height: 20),
+
+          VoiceRecorderCard(
+            title: 'Installation notes',
+            subtitle: 'Tap the mic to record a voice note — or type below.',
+            elapsedLabel: _isRecording
+                ? _recordingLabel
+                : (_recordedPath != null ? 'Voice note ready' : '00:00'),
+            isRecording: _isRecording,
+            onMicTap: _micBusy ? () {} : _toggleRecording,
+            onTypeTap: () => _notesFocusNode.requestFocus(),
+          ),
+          if (_recordedPath != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                IconButton(
+                  tooltip:
+                      _isPlaying ? 'Pause voice note' : 'Play voice note',
+                  onPressed: _playRecording,
+                  icon: Icon(
+                    _isPlaying
+                        ? Icons.pause_circle_filled
+                        : Icons.play_circle_fill,
+                  ),
+                  color: theme.colorScheme.primary,
+                ),
+                Expanded(
+                  child: Text(
+                    'Voice note attached',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => setState(() {
+                    _recordedPath = null;
+                    _recordedMime = null;
+                    _recordingTime = Duration.zero;
+                  }),
+                  child: const Text('Remove'),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
           TextFormField(
             controller: _notesController,
+            focusNode: _notesFocusNode,
             maxLines: 4,
             maxLength: 1000,
             decoration: const InputDecoration(
-              labelText: 'Installation notes',
+              labelText: 'Typed notes',
               hintText: 'Optional',
               alignLabelWithHint: true,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          _SectionTitle(title: 'Inventory used (optional)', icon: Icons.inventory_2_outlined),
+          _FieldTitle('Inventory used (optional)'),
           const SizedBox(height: 8),
           // Search filter for the inventory catalog dropdown items.
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: TextField(
-              controller: _inventorySearch,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search, size: 20),
-                hintText: 'Search items…',
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                isDense: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
-              ),
-              onChanged: (value) {
-                _inventorySearchDebounce?.cancel();
-                _inventorySearchDebounce = Timer(
-                  const Duration(milliseconds: 250),
-                  () => setState(() => _inventorySearchQuery = value),
-                );
-              },
+          TextField(
+            controller: _inventorySearch,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search, size: 20),
+              hintText: 'Search items…',
+              isDense: true,
             ),
+            onChanged: (value) {
+              _inventorySearchDebounce?.cancel();
+              _inventorySearchDebounce = Timer(
+                const Duration(milliseconds: 250),
+                () => setState(() => _inventorySearchQuery = value),
+              );
+            },
           ),
+          const SizedBox(height: 8),
           inventory.when(
             loading: () => const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
@@ -509,139 +679,133 @@ class _CompleteInstallationFormState
               ],
             ),
             data: (list) {
-                final q = _inventorySearchQuery.toLowerCase();
-                final filtered = list.data.where((item) =>
-                    item.name.toLowerCase().contains(q) ||
-                    (item.category?.toLowerCase().contains(q) ?? false)).toList();
-                final message = q.isEmpty
-                    ? 'No inventory catalog items available.'
-                    : 'No items match "${_inventorySearchQuery.trim()}".';
-                return filtered.isEmpty
-                ? Text(
-                    message,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (final row in _inventoryRows)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: _InventoryRowCell(
-                            // Keyed so adding/removing a sibling row
-                            // reconciles by key instead of remounting
-                            // (which would wipe the row's two FormField errors).
-                            key: ValueKey(row.id),
-                            row: row,
-                            items: filtered,
-                            onChanged: (itemId) =>
-                                setState(() => row.itemId = itemId),
-                            onRemove: () => _removeInventoryRow(row),
-                          ),
-                        ),
-                      OutlinedButton.icon(
-                        onPressed: _addInventoryRow,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add item'),
-                      ),
-                    ],
-                  );
-            },
-          ),
-          const SizedBox(height: 8),
-
-          _SectionTitle(title: 'Photos (optional, max 2 MB each)', icon: Icons.photo_library_outlined),
-          const SizedBox(height: 8),
-          // One Card = one column child, so the photo list growing inside it
-          // can't shift any sibling slot (Phase 4 rule).
-          Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              final q = _inventorySearchQuery.toLowerCase();
+              final filtered = list.data
+                  .where((item) =>
+                      item.name.toLowerCase().contains(q) ||
+                      (item.category?.toLowerCase().contains(q) ?? false))
+                  .toList();
+              final message = q.isEmpty
+                  ? 'No inventory catalog items available.'
+                  : 'No items match "${_inventorySearchQuery.trim()}".';
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (_photoPaths.isEmpty)
+                  if (filtered.isEmpty)
                     Text(
-                      'No photos attached.',
+                      message,
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     )
-                  else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final photo in _photoPaths)
-                          SizedBox(
-                            width: 110,
-                            child: Stack(
-                              alignment: Alignment.topRight,
-                              children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    File(photo.path),
+                  else ...[
+                    for (final row in _inventoryRows)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _InventoryRowCell(
+                          // Keyed so adding/removing a sibling row
+                          // reconciles by key instead of remounting
+                          // (which would wipe the row's FormField error).
+                          key: ValueKey(row.id),
+                          row: row,
+                          items: filtered,
+                          onChanged: (itemId) =>
+                              setState(() => row.itemId = itemId),
+                          onRemove: () => _removeInventoryRow(row),
+                        ),
+                      ),
+                    OutlinedButton.icon(
+                      onPressed: _addInventoryRow,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add item'),
+                    ),
+                  ],
+                  if (_inventoryError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        _inventoryError!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.error,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+
+          _FieldTitle('Photos (optional, max 2 MB each)'),
+          const SizedBox(height: 8),
+          // One card = one column child, so the photo list growing inside it
+          // can't shift any sibling slot.
+          OpsCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_photoPaths.isEmpty)
+                  Text(
+                    'No photos attached.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final photo in _photoPaths)
+                        SizedBox(
+                          width: 110,
+                          child: Stack(
+                            alignment: Alignment.topRight,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.file(
+                                  File(photo.path),
+                                  width: 110,
+                                  height: 110,
+                                  fit: BoxFit.cover,
+                                  errorBuilder:
+                                      (context, error, stackTrace) =>
+                                          Container(
                                     width: 110,
                                     height: 110,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) =>
-                                        Container(
-                                      width: 110,
-                                      height: 110,
-                                      color: theme.colorScheme.surfaceContainerHighest,
-                                      child: const Icon(Icons.broken_image_outlined),
-                                    ),
+                                    color: theme.colorScheme
+                                        .surfaceContainerHighest,
+                                    child: const Icon(
+                                        Icons.broken_image_outlined),
                                   ),
                                 ),
-                                IconButton(
-                                  tooltip: 'Remove photo',
-                                  visualDensity: VisualDensity.compact,
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: theme
-                                        .colorScheme.surface
-                                        .withValues(alpha: 0.9),
-                                  ),
-                                  icon: const Icon(Icons.close, size: 18),
-                                  onPressed: () => _removePhoto(photo),
+                              ),
+                              IconButton(
+                                tooltip: 'Remove photo',
+                                visualDensity: VisualDensity.compact,
+                                style: IconButton.styleFrom(
+                                  backgroundColor: theme.colorScheme.surface
+                                      .withValues(alpha: 0.9),
                                 ),
-                              ],
-                            ),
+                                icon: const Icon(Icons.close, size: 18),
+                                onPressed: () => _removePhoto(photo),
+                              ),
+                            ],
                           ),
-                      ],
-                    ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: OutlinedButton.icon(
-                      onPressed: _pickPhotos,
-                      icon: const Icon(Icons.add_a_photo_outlined),
-                      label: const Text('Add photo'),
-                    ),
+                        ),
+                    ],
                   ),
-                ],
-              ),
+                const SizedBox(height: 12),
+                Center(
+                  child: OutlinedButton.icon(
+                    onPressed: _pickPhotos,
+                    icon: const Icon(Icons.add_a_photo_outlined),
+                    label: const Text('Add photo'),
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 16),
-
-          _SectionTitle(title: 'Voice note (optional, max 10 MB)', icon: Icons.mic_none),
-          const SizedBox(height: 8),
-          VoiceNoteSection(
-            hasPermission: _micPermission,
-            isBusy: _micBusy,
-            isRecording: _isRecording,
-            recordingLabel: _recordingLabel,
-            recordedPath: _recordedPath,
-            onToggle: _toggleRecording,
-            onClear: () => setState(() {
-              _recordedPath = null;
-              _recordedMime = null;
-              _recordingTime = Duration.zero;
-            }),
-            onPlay: _playRecording,
           ),
           const SizedBox(height: 8),
 
@@ -673,18 +837,8 @@ class _CompleteInstallationFormState
             ),
             const SizedBox(height: 8),
           ],
-
-          FilledButton.icon(
-            onPressed: controller.isSubmitting ? null : _submit,
-            icon: controller.isSubmitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.check_circle_outline),
-            label: const Text('Complete Installation'),
-          ),
+          // The submit CTA lives in the parent's sticky bottom bar —
+          // [CompleteInstallationFormState.submit] is its entry point.
         ],
       ),
     );
@@ -706,16 +860,32 @@ class _CompleteInstallationFormState
     return lines;
   }
 
-  Future<void> _submit() async {
+  /// Validates and submits. Public so the parent's sticky bottom CTA can
+  /// drive it.
+  Future<void> submit() async {
     FocusScope.of(context).unfocus();
 
     final ownership = _ownership;
     final fatNodeId = _fatNodeId;
     final formValid = _formKey.currentState?.validate() ?? false;
+
+    final wireText = _wireController.text.trim();
+    final wire = wireText.isEmpty ? null : num.tryParse(wireText);
+    final wireError = wireText.isNotEmpty && (wire == null || wire < 0)
+        ? 'Enter a valid amount (0 or more)'
+        : null;
+
+    final inventoryError = _inventoryRows.any((row) =>
+            row.itemId != null &&
+            row.quantityController.text.trim().isEmpty)
+        ? 'Enter a quantity for every selected item'
+        : null;
+
     setState(() {
-      _ownershipError = ownership == null
-          ? 'Select who the OLT device belongs to'
-          : null;
+      _ownershipError =
+          ownership == null ? 'Select who the OLT device belongs to' : null;
+      _wireError = wireError;
+      _inventoryError = inventoryError;
     });
 
     // DP comes from whatever the map card knows right now — the FAT auto-fill
@@ -723,7 +893,12 @@ class _CompleteInstallationFormState
     final dpPoint = ref
         .read(installationMapControllerProvider(widget.requestId))
         .dpLocation;
-    if (!formValid || ownership == null || fatNodeId == null || dpPoint == null) {
+    if (!formValid ||
+        ownership == null ||
+        fatNodeId == null ||
+        dpPoint == null ||
+        wireError != null ||
+        inventoryError != null) {
       // Bring the top of this form into view so the ownership / FAT errors
       // (the first fields) are visible.
       final formContext = _formKey.currentContext;
@@ -753,11 +928,10 @@ class _CompleteInstallationFormState
       return;
     }
 
-    final wireText = _wireController.text.trim();
-    final wire = wireText.isEmpty ? null : num.tryParse(wireText);
     final notes = _notesController.text.trim();
     final inventoryLines = _buildInventoryLines();
-    final photos = _photoPaths.isEmpty ? null : List<InstallationPhoto>.of(_photoPaths);
+    final photos =
+        _photoPaths.isEmpty ? null : List<InstallationPhoto>.of(_photoPaths);
 
     final result = await ref
         .read(completeInstallationControllerProvider.notifier)
@@ -808,47 +982,31 @@ class _CompleteInstallationFormState
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle({required this.title, this.icon = Icons.tag});
+/// Section title used across the completion form (kept sentence-case so
+/// test-visible labels stay identical).
+class _FieldTitle extends StatelessWidget {
+  const _FieldTitle(this.title);
 
   final String title;
-  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Row(
-      children: [
-        Container(
-          width: 24,
-          height: 24,
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Icon(
-            icon,
-            size: 14,
-            color: theme.colorScheme.onPrimaryContainer,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: theme.colorScheme.onSurface,
-          ),
-        ),
-      ],
+    return Text(
+      title,
+      style: theme.textTheme.titleSmall?.copyWith(
+        fontWeight: FontWeight.w700,
+        color: theme.colorScheme.onSurface,
+      ),
     );
   }
 }
 
-/// One inventory row: a catalog-item dropdown + a quantity field, plus a
-/// remove control. Both members are `FormField`s, so they participate in the
-/// form's single [FormState.validate]. An untouched row (no item, no
-/// quantity) passes both validators and is stripped from the payload.
+/// One inventory row: a catalog-item dropdown + a glove-friendly quantity
+/// stepper, plus a remove control. The item dropdown is a [FormField], so it
+/// participates in the form's single [FormState.validate]; the stepper writes
+/// into [row]'s quantity controller, and a manual check in [submit] covers the
+/// "item picked but no quantity" case (shown as [_inventoryError]).
 class _InventoryRowCell extends StatelessWidget {
   const _InventoryRowCell({
     super.key,
@@ -865,56 +1023,136 @@ class _InventoryRowCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                initialValue: row.itemId,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Item'),
+                items: [
+                  for (final item in items)
+                    DropdownMenuItem(
+                      value: item.id,
+                      child:
+                          Text(item.name, overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                onChanged: onChanged,
+                validator: (value) {
+                  if (value != null) return null;
+                  final text = row.quantityController.text.trim();
+                  return text.isEmpty ? null : 'Select an item';
+                },
+              ),
+            ),
+            IconButton(
+              tooltip: 'Remove item',
+              icon: const Icon(Icons.close),
+              onPressed: onRemove,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _QuantityStepper(row: row),
+      ],
+    );
+  }
+}
+
+/// Glove-friendly − / + stepper bound to the row's quantity controller.
+/// Empty means untouched (stripped from the payload); decrementing from 1
+/// clears back to untouched.
+class _QuantityStepper extends StatefulWidget {
+  const _QuantityStepper({required this.row});
+
+  final _InventoryRow row;
+
+  @override
+  State<_QuantityStepper> createState() => _QuantityStepperState();
+}
+
+class _QuantityStepperState extends State<_QuantityStepper> {
+  int get _qty =>
+      int.tryParse(widget.row.quantityController.text.trim()) ?? 0;
+
+  void _step(int delta) {
+    final next = _qty + delta;
+    setState(() {
+      widget.row.quantityController.text = next <= 0 ? '' : '$next';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        _StepButton(icon: Icons.remove, onTap: () => _step(-1)),
+        const SizedBox(width: 8),
         Expanded(
-          child: DropdownButtonFormField<String>(
-            initialValue: row.itemId,
-            isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Item'),
-            items: [
-              for (final item in items)
-                DropdownMenuItem(
-                  value: item.id,
-                  child: Text(item.name, overflow: TextOverflow.ellipsis),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border:
+                  Border.all(color: theme.colorScheme.outlineVariant),
+              color: theme.colorScheme.surfaceContainerLow,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$_qty',
+                  style: FieldOpsDesignTokens.dataMd.copyWith(
+                    color: theme.colorScheme.onSurface,
+                  ),
                 ),
-            ],
-            onChanged: onChanged,
-            validator: (value) {
-              if (value != null) return null;
-              final text = row.quantityController.text.trim();
-              return text.isEmpty ? null : 'Select an item';
-            },
+                Text(
+                  'QTY',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 9,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(width: 8),
-        Expanded(
-          child: TextFormField(
-            controller: row.quantityController,
-            keyboardType: const TextInputType.numberWithOptions(
-              decimal: true,
-              signed: false,
-            ),
-            decoration: const InputDecoration(labelText: 'Quantity'),
-            validator: (value) {
-              final text = value?.trim() ?? '';
-              if (row.itemId == null && text.isEmpty) return null; // untouched
-              if (text.isEmpty) return 'Enter a quantity';
-              final qty = num.tryParse(text);
-              if (qty == null || qty < 1) {
-                return 'Enter a valid quantity (1 or more)';
-              }
-              return null;
-            },
-          ),
-        ),
-        IconButton(
-          tooltip: 'Remove item',
-          icon: const Icon(Icons.close),
-          onPressed: onRemove,
-        ),
+        _StepButton(icon: Icons.add, onTap: () => _step(1)),
       ],
+    );
+  }
+}
+
+class _StepButton extends StatelessWidget {
+  const _StepButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+          color: theme.colorScheme.surfaceContainerLowest,
+        ),
+        child: Icon(icon, size: 18, color: theme.colorScheme.primary),
+      ),
     );
   }
 }

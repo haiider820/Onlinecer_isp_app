@@ -6,6 +6,7 @@ import '../../../core/network/api_exceptions.dart';
 import '../../../core/theme/field_ops_design_tokens.dart';
 import '../../../models/ticket.dart';
 import '../../../shared/widgets/branded_header.dart';
+import '../../../shared/widgets/ops_widgets.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../survey/presentation/dashboard_providers.dart';
@@ -180,20 +181,14 @@ class _TicketDetailBody extends StatelessWidget {
                 ],
               ),
 
-              // ── Activity timeline ──
-              SectionCard(
-                title: 'Activity',
-                icon: Icons.timeline_outlined,
-                children: [
-                  if (detail.activities.isEmpty)
-                    Text('No activity recorded yet.', style: theme.textTheme.bodySmall)
-                  else
-                    _Timeline(activities: detail.activities),
-                ],
-              ),
+              // ── Discussion thread ──
+              _DiscussionSection(detail: detail),
             ],
           ),
         ),
+        // ── Sticky composer ──
+        _DiscussionComposer(),
+
         // ── Advance action shelf ──
         if (detail.nextStatus != null)
           Material(
@@ -284,167 +279,209 @@ class _TicketBanner extends StatelessWidget {
   }
 }
 
-/// Vertical activity timeline with a 1px connecting rail.
-class _Timeline extends StatelessWidget {
-  const _Timeline({required this.activities});
+/// Chat-style discussion thread replacing the old activity timeline.
+///
+/// Maps each [TicketActivity] onto a thread item:
+///  - status change → tiny "Status changed" caption + centered glowing
+///    [SystemPill] ("OPEN → IN_PROGRESS · 09:00"),
+///  - internal note → violet dashed [InternalNoteCard],
+///  - message → [ChatBubble] (right-aligned + cyan-tinted when the author is
+///    the signed-in technician).
+///
+/// Filter chips (All / Messages / Status / Internal) filter the rendered list
+/// locally; no backend query changes.
+class _DiscussionSection extends ConsumerStatefulWidget {
+  const _DiscussionSection({required this.detail});
 
-  final List<TicketActivity> activities;
+  final TicketDetail detail;
+
+  @override
+  ConsumerState<_DiscussionSection> createState() =>
+      _DiscussionSectionState();
+}
+
+class _DiscussionSectionState extends ConsumerState<_DiscussionSection> {
+  String _filter = 'all';
+
+  static const _options = [
+    FilterOption('all', 'All'),
+    FilterOption('messages', 'Messages'),
+    FilterOption('status', 'Status'),
+    FilterOption('internal', 'Internal'),
+  ];
+
+  bool _visible(TicketActivity a) => switch (_filter) {
+        'messages' => !a.isStatusChange && !a.isInternal,
+        'status' => a.isStatusChange,
+        'internal' => a.isInternal,
+        _ => true,
+      };
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final activities =
+        widget.detail.activities.where(_visible).toList(growable: false);
+    // The signed-in technician's name, for right-aligning their own messages.
+    final myName =
+        ref.watch(dashboardSummaryProvider).valueOrNull?.employee?.name;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (var i = 0; i < activities.length; i++)
-          _TimelineRow(
-            activity: activities[i],
-            isLast: i == activities.length - 1,
-          ),
-      ],
-    );
-  }
-}
-
-class _TimelineRow extends StatelessWidget {
-  const _TimelineRow({required this.activity, required this.isLast});
-
-  final TicketActivity activity;
-  final bool isLast;
-
-  Color _barColor(BuildContext context) {
-    final theme = Theme.of(context);
-    return activity.isStatusChange
-        ? theme.colorScheme.primary
-        : theme.colorScheme.onSurfaceVariant;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final barColor = _barColor(context);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      // IntrinsicHeight gives the Row a finite height so the rail's
-      // CrossAxisAlignment.stretch can resolve. Without it the Row (which
-      // lives inside an unbounded-height scroll column) would be laid out
-      // with an infinite height constraint and throw every frame.
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        Row(
           children: [
-            SizedBox(
-              width: 4,
-              child: Container(color: barColor),
-            ),
-            const SizedBox(width: 10),
+            Icon(Icons.forum_outlined,
+                size: 18, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
             Expanded(
-              child: _ActivityEntry(activity: activity, barColor: barColor),
+              child: Text(
+                'Discussion',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 10),
+        FilterChips(
+          options: [
+            for (final o in _options)
+              FilterOption(
+                o.value,
+                o.label,
+                widget.detail.activities
+                    .where((a) => o.value == 'all' ? true : _matches(o.value, a))
+                    .length,
+              ),
+          ],
+          selected: _filter,
+          onSelected: (v) => setState(() => _filter = v),
+        ),
+        const SizedBox(height: 14),
+        if (activities.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text('No activity recorded yet.',
+                style: theme.textTheme.bodySmall),
+          )
+        else
+          for (var i = 0; i < activities.length; i++) ...[
+            _ThreadItem(
+              activity: activities[i],
+              isMine: myName != null &&
+                  activities[i].author != null &&
+                  activities[i].author == myName,
+            ),
+            if (i < activities.length - 1) const SizedBox(height: 12),
+          ],
+      ],
     );
   }
+
+  static bool _matches(String filter, TicketActivity a) => switch (filter) {
+        'messages' => !a.isStatusChange && !a.isInternal,
+        'status' => a.isStatusChange,
+        'internal' => a.isInternal,
+        _ => true,
+      };
 }
 
-class _ActivityEntry extends StatelessWidget {
-  const _ActivityEntry({required this.activity, required this.barColor});
+/// One activity rendered as a chat-thread item.
+class _ThreadItem extends StatelessWidget {
+  const _ThreadItem({required this.activity, required this.isMine});
+
   final TicketActivity activity;
-  final Color barColor;
+  final bool isMine;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final author = activity.author;
-    final isStatus = activity.isStatusChange;
-    final bgColor = isStatus
-        ? theme.colorScheme.primary.withValues(alpha: 0.06)
-        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6);
+    final time = _timeLabel(activity.createdAt);
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius:
-            BorderRadius.circular(FieldOpsDesignTokens.radiusMd),
-        border: Border.all(color: barColor.withValues(alpha: 0.2)),
-        boxShadow: FieldOpsDesignTokens.shadowLevel1,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    if (activity.isStatusChange) {
+      final old = activity.oldValue ?? '—';
+      final newValue = activity.newValue ?? '—';
+      return Column(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(
-                  color: barColor.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isStatus ? Icons.refresh : Icons.notes_outlined,
-                  size: 13,
-                  color: barColor,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (isStatus) ...[
-                      Text(
-                        'Status changed',
-                        style:
-                            theme.textTheme.labelLarge?.copyWith(color: barColor),
-                      ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          if (activity.oldValue != null)
-                            StatusBadge(status: activity.oldValue!, ticket: true),
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.arrow_forward,
-                            size: 12,
-                            color: Colors.grey,
-                          ),
-                          const SizedBox(width: 4),
-                          if (activity.newValue != null)
-                            StatusBadge(status: activity.newValue!, ticket: true),
-                        ],
-                      ),
-                    ] else if (activity.message?.isNotEmpty == true)
-                      Text(activity.message!),
-                    if (activity.isInternal)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          'Internal note',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          if (author != null || activity.createdAt != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              [if (author != null) author,
-                      if (activity.createdAt != null) activity.createdAt!]
-                  .join(' · '),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+          // Exact string kept: existing tests assert find.text('Status changed').
+          Text(
+            'Status changed',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
             ),
-          ],
+          ),
+          const SizedBox(height: 6),
+          SystemPill(text: '$old → $newValue', timeLabel: time),
         ],
-      ),
+      );
+    }
+
+    if (activity.isInternal) {
+      return InternalNoteCard(
+        message: activity.message ?? '',
+        author: activity.author ?? 'Staff',
+        timeLabel: time,
+      );
+    }
+
+    return ChatBubble(
+      message: activity.message ?? '',
+      author: activity.author ?? 'Unknown',
+      timeLabel: time,
+      isMine: isMine,
+    );
+  }
+
+  /// 'HH:MM' from an ISO timestamp; falls back to the raw value.
+  static String _timeLabel(String? raw) {
+    if (raw == null || raw.isEmpty) return '';
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw;
+    final local = parsed.toLocal();
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+/// Sticky bottom composer for the discussion thread.
+///
+/// There is no backend post endpoint for discussion notes on this screen, so
+/// every action currently explains itself with a SnackBar instead of
+/// inventing an API call.
+class _DiscussionComposer extends StatefulWidget {
+  const _DiscussionComposer();
+
+  @override
+  State<_DiscussionComposer> createState() => _DiscussionComposerState();
+}
+
+class _DiscussionComposerState extends State<_DiscussionComposer> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _soon(String what) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$what coming soon')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OpsComposer(
+      controller: _controller,
+      hintText: 'Write a note…',
+      onAttach: () => _soon('Attachments'),
+      onMic: () => _soon('Voice notes'),
+      onSend: () => _soon('Notes posting'),
     );
   }
 }

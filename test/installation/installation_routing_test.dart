@@ -259,7 +259,18 @@ Future<void> _pumpDashboard(WidgetTester tester, SecureStorage storage,
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(_buildApp(storage, network));
-  await tester.pumpAndSettle();
+  await _settle(tester);
+}
+
+/// Bounded settle: pumps frames until nothing is scheduled, but gives up
+/// after a bounded number of frames. The dashboard's live PulseDot repeats
+/// forever by design, so an unbounded `pumpAndSettle` can never complete
+/// while it is on screen.
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 30; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+    if (!tester.binding.hasScheduledFrame) break;
+  }
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -289,7 +300,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     await tester.tap(find.text('View All Installation Requests'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Installation Requests'), findsOneWidget);
     expect(find.text(_requestNumber), findsOneWidget);
@@ -303,9 +314,9 @@ void main() {
 
     // Go dashboard → detail via the recent request.
     await tester.tap(find.text(_requestNumber));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
-    expect(find.text('Installation Detail'), findsOneWidget);
+    expect(find.text(_requestNumber), findsOneWidget);
     expect(find.text('Fiber 40 Mbps'), findsOneWidget);
     expect(find.text('Installation Team'), findsOneWidget);
 
@@ -314,19 +325,19 @@ void main() {
     // flutter_map's internal tile-fade timer settle too, so nothing is
     // pending at teardown (a pending Timer fails testWidgets).
     await tester.pump(const Duration(milliseconds: 600));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     // Survey-stage notes and prior locations sit below the (now longer) merged
     // scroll — the pricing and map cards push them under the fold, so reveal
     // them before asserting.
     await tester.scrollUntilVisible(
-      find.text('Survey Notes'),
+      find.text('SURVEY NOTES'),
       200,
       scrollable: _detailScrollable(),
     );
-    expect(find.text('Survey Notes'), findsOneWidget);
+    expect(find.text('SURVEY NOTES'), findsOneWidget);
     expect(find.text('FAT port 3 free, roof access confirmed.'), findsOneWidget);
 
     // Prior locations are shown read-only.
@@ -351,16 +362,16 @@ void main() {
     await _pumpDashboard(tester, storage, _FakeConnectionRequestNetwork());
 
     await tester.tap(find.text(_requestNumber));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     // The ref.listen seed fills both markers from the saved survey locations
     // and schedules the 500 ms debounced route call. Fire the timer and let
     // the route-triggered map refit + tile-fade timer settle so none is
     // pending at teardown.
     await tester.pump(const Duration(milliseconds: 600));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.pump(const Duration(milliseconds: 400));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     // The fake route response carries no geometry → graceful straight-line
     // fallback note, never a crash or a stuck loading state.
@@ -384,9 +395,9 @@ void main() {
     await _pumpDashboard(tester, storage, network);
 
     await tester.tap(find.text(_requestNumber));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
-    expect(find.text('Installation Detail'), findsOneWidget);
+    expect(find.text(_requestNumber), findsOneWidget);
 
     // The read-only notice sits at the bottom of the merged scroll — the
     // pricing card + map placeholder push it under the fold, so reveal it

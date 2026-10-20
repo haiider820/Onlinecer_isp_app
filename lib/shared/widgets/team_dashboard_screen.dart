@@ -6,6 +6,7 @@ import 'package:lottie/lottie.dart';
 import '../../core/network/api_exceptions.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/field_ops_design_tokens.dart';
+import '../../core/theme/theme_mode_provider.dart';
 import '../../features/auth/presentation/providers.dart';
 import '../../features/notifications/presentation/notification_providers.dart';
 import '../../features/survey/presentation/dashboard_providers.dart';
@@ -79,6 +80,7 @@ class TeamDashboardScreen extends ConsumerWidget {
           title: featureName,
           onLogout: () => _confirmLogout(context, ref),
           actions: [
+            _ThemeToggleAction(),
             _NotificationBellAction(
               onTap: () => context.push(Routes.notifications),
             ),
@@ -134,6 +136,32 @@ class TeamDashboardScreen extends ConsumerWidget {
     await ref.read(secureStorageProvider).clearSession();
     ref.invalidate(dashboardSummaryProvider);
     if (context.mounted) context.go(Routes.login);
+  }
+}
+
+/// Theme toggle in the shared dashboard header — cycles system → light →
+/// dark. The choice is persisted by [ThemeModeNotifier].
+class _ThemeToggleAction extends ConsumerWidget {
+  const _ThemeToggleAction();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(themeModeProvider);
+    final icon = switch (mode) {
+      ThemeMode.light => Icons.light_mode_outlined,
+      ThemeMode.dark => Icons.dark_mode_outlined,
+      ThemeMode.system => Icons.brightness_auto_outlined,
+    };
+    final label = switch (mode) {
+      ThemeMode.light => 'Theme: light (tap for dark)',
+      ThemeMode.dark => 'Theme: dark (tap for system)',
+      ThemeMode.system => 'Theme: system (tap for light)',
+    };
+    return IconButton(
+      tooltip: label,
+      onPressed: () => ref.read(themeModeProvider.notifier).cycle(),
+      icon: Icon(icon),
+    );
   }
 }
 

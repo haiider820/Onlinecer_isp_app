@@ -37,8 +37,19 @@ class NavigateButton extends StatelessWidget {
 
   Future<void> _navigate(BuildContext context) async {
     if (!_hasCoords) return;
-    final lat = latitude!.toStringAsFixed(6);
-    final lng = longitude!.toStringAsFixed(6);
+    await openMaps(context, latitude: latitude, longitude: longitude);
+  }
+
+  /// Opens the platform map application for the given coordinates.
+  /// Shows a snackbar when coordinates are missing or the launch fails.
+  static Future<void> openMaps(
+    BuildContext context, {
+    required double? latitude,
+    required double? longitude,
+  }) async {
+    if (latitude == null || longitude == null) return;
+    final lat = latitude.toStringAsFixed(6);
+    final lng = longitude.toStringAsFixed(6);
 
     final Uri uri;
     if (Theme.of(context).platform == TargetPlatform.android) {
@@ -53,15 +64,13 @@ class NavigateButton extends StatelessWidget {
 
     try {
       final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!ok && context.mounted) {
-        _snack(context);
-      }
+      if (!ok && context.mounted) _snackStatic(context);
     } catch (_) {
-      if (context.mounted) _snack(context);
+      if (context.mounted) _snackStatic(context);
     }
   }
 
-  void _snack(BuildContext context) {
+  static void _snackStatic(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Could not open the map application.')),
     );

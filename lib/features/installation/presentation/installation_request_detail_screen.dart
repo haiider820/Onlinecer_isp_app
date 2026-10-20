@@ -2,35 +2,43 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_exceptions.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/field_ops_design_tokens.dart';
 import '../../../models/connection_request.dart';
 import '../../../models/locations.dart';
 import '../../../shared/formatting/format_minor_price.dart';
-import '../../../shared/widgets/branded_header.dart';
 import '../../../shared/widgets/location_map.dart';
 import '../../../shared/widgets/navigate_action.dart';
+import '../../../shared/widgets/ops_widgets.dart';
 import '../../../shared/widgets/section_card.dart';
-import '../../../shared/widgets/status_badge.dart';
 import '../../survey/presentation/connection_request_providers.dart';
 import 'complete_installation_screen.dart';
 import 'installation_map_providers.dart';
+import 'installation_providers.dart';
 
-/// The merged installation screen for one connection request (module Phase 1).
+/// The merged installation screen for one connection request — the
+/// "Mission Console" layout (Midnight Ops design system).
 ///
-/// One scroll view carries, top to bottom:
-///  1. read-only customer/request info,
-///  2. the **pricing** cards — Subscription Charges from the requested plan's
-///     `price_minor`, plus the Connection Charges placeholder (Phase 2),
-///  3. the **route map** with the User + DP markers and the debounced route
-///     line (Phases 3–4),
-///  4. and, when the backend grants it via `allowed_action`, the editable
-///     completion form, ending in the Complete Installation submit (Phase 1).
+/// A sticky mission header (mono request number, live status pill, 5-stage
+/// stepper) sits above a sticky tab bar (Overview / Route / Work). The tabs
+/// jump to anchored sections of ONE scroll view (not a TabBarView), so every
+/// section stays in the tree and deep-link/scroll semantics never break:
 ///
-/// When `allowed_action` is anything other than `complete_installation` the
-/// form is hidden and only the read-only view renders.
+///  1. **Overview** — hero customer card, Call/Navigate/WhatsApp action dock,
+///     glowing-mono pricing, the survey notes as a voice-quote card, and any
+///     already-saved locations (read-only).
+///  2. **Route** — the route map with the User + DP markers and the debounced
+///     route line, plus the GPS capture buttons when the team may complete.
+///  3. **Work** — the editable completion form, ending in the sticky bottom
+///     CTA with checklist progress (only when the backend grants
+///     `allowed_action == complete_installation`).
+///
+/// All data loading, providers, navigation and submit logic are unchanged —
+/// only the presentation/layout was restructured.
 class InstallationRequestDetailScreen extends ConsumerStatefulWidget {
   const InstallationRequestDetailScreen({super.key, required this.requestId});
 
@@ -71,18 +79,22 @@ class _InstallationRequestDetailScreenState
       });
     });
 
-    return Scaffold(
-      appBar: BrandedHeader(
-        title: 'Installation Detail',
-        onBack: () => context.pop(),
+    return detail.when(
+      loading: () => Scaffold(
+        appBar: AppBar(title: const Text('Installation Detail')),
+        body: const Center(child: CircularProgressIndicator()),
       ),
-      body: detail.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => _ErrorView(
+      error: (e, _) => Scaffold(
+        appBar: AppBar(title: const Text('Installation Detail')),
+        body: _ErrorView(
           message: e is ApiException ? e.message : 'Something went wrong.',
-          onRetry: () => ref.invalidate(connectionRequestDetailProvider(widget.requestId)),
+          onRetry: () =>
+              ref.invalidate(connectionRequestDetailProvider(widget.requestId)),
         ),
-        data: (d) => _DetailBody(detail: d, scrollController: _scrollController),
+      ),
+      data: (d) => _DetailScaffold(
+        detail: d,
+        scrollController: _scrollController,
       ),
     );
   }
@@ -95,217 +107,635 @@ class _InstallationRequestDetailScreenState
   }
 }
 
-class _DetailBody extends StatelessWidget {
-  const _DetailBody({required this.detail, required this.scrollController});
+/// The mission-console scaffold: sticky mission header, sticky tab bar,
+/// single anchored scroll view, and the sticky bottom CTA (when actionable).
+class _DetailScaffold extends ConsumerStatefulWidget {
+  const _DetailScaffold({required this.detail, required this.scrollController});
 
   final ConnectionRequestDetail detail;
   final ScrollController scrollController;
 
   @override
+  ConsumerState<_DetailScaffold> createState() => _DetailScaffoldState();
+}
+
+class _DetailScaffoldState extends ConsumerState<_DetailScaffold> {
+  static const _steps = [
+    'Assigned',
+    'En route',
+    'On site',
+    'Installing',
+    'Done',
+  ];
+
+  int _tab = 0;
+  final _overviewKey = GlobalKey();
+  final _routeKey = GlobalKey();
+  final _workKey = GlobalKey();
+  final _formKey = GlobalKey<CompleteInstallationFormState>();
+  final _progress = ValueNotifier<double>(0);
+
+  @override
+  void dispose() {
+    _progress.dispose();
+    super.dispose();
+  }
+
+  static int _stepIndex(String status) {
+    final s = status.toLowerCase();
+    if (s.contains('complete') ||
+        s.contains('done') ||
+        s.contains('verif')) {
+      return 4;
+    }
+    if (s.contains('installing')) return 3;
+    if (s.contains('on_site') || s.contains('on site')) return 2;
+    if (s.contains('en_route') || s.contains('en route')) return 1;
+    return 0;
+  }
+
+  void _jumpTo(int index) {
+    setState(() => _tab = index);
+    final key = [_overviewKey, _routeKey, _workKey][index];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = key.currentContext;
+      if (ctx != null) {
+        Scrollable.ensureVisible(
+          ctx,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+          alignment: 0,
+        );
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final detail = widget.detail;
     final request = detail.request;
-    final surveyNotes = request.stageData?.surveyNotes?.trim();
     final actionable =
         detail.action == ConnectionRequestAction.completeInstallation;
+    final submitting =
+        ref.watch(completeInstallationControllerProvider).isSubmitting;
 
-    return RefreshIndicator(
-      onRefresh: () async {},
-      child: SingleChildScrollView(
-        controller: scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        // A fixed document of read-only cards + one form — non-lazy, so every
-        // section (survey notes, saved locations, map) is always present in the
-        // tree regardless of scroll position.
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          // Header banner: request number + semantic status + area line.
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
-              boxShadow: FieldOpsDesignTokens.shadowLevel1,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        request.requestNumber,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      if (request.customerArea != null) ...[
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.location_on_outlined,
-                              size: 14,
-                              color: theme.colorScheme.outline,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                request.customerArea!,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                StatusBadge(status: request.status),
-              ],
-            ),
+    return Scaffold(
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(124),
+        child: SafeArea(
+          child: MissionHeader(
+            requestId: request.requestNumber,
+            statusLabel: request.status.replaceAll('_', ' '),
+            steps: _steps,
+            currentStep: _stepIndex(request.status),
+            onBack: () => context.pop(),
           ),
-          const SizedBox(height: 8),
-
-          // Navigate — uses the DP coordinates (or installation point fallback)
-          // for the maps deep-link. Disabled until coordinates exist.
-          NavigateButton(
-            latitude: request.locations?.dp?.latitude ??
-                request.locations?.installation?.latitude,
-            longitude: request.locations?.dp?.longitude ??
-                request.locations?.installation?.longitude,
-            label: 'Navigate to Customer',
-          ),
-          const SizedBox(height: 4),
-
-          // Customer info
-          SectionCard(
-            title: 'Customer',
-            icon: Icons.person_outline,
-            children: [
-              InfoRow(label: 'Name', value: request.customerName),
-              if (request.customerType != null)
-                InfoRow(label: 'Type', value: request.customerType),
-              if (request.customerPhone != null)
-                InfoRow(label: 'Phone', value: request.customerPhone),
-              if (request.customerArea != null)
-                InfoRow(label: 'Area', value: request.customerArea),
-              if (request.customerAddress != null)
-                InfoRow(label: 'Address', value: request.customerAddress),
-            ],
-          ),
-
-          // Request info
-          SectionCard(
-            title: 'Request',
-            icon: Icons.router_outlined,
-            children: [
-              InfoRow(label: 'Status', value: request.status.replaceAll('_', ' ')),
-              if (request.requestedPlan != null)
-                InfoRow(label: 'Plan', value: request.requestedPlan!.name),
-              if (request.currentTeam != null)
-                InfoRow(label: 'Team', value: request.currentTeam!.name),
-            ],
-          ),
-
-          // Pricing card (Phase 2): subscription charge from the requested
-          // plan; connection charge is a placeholder until the backend exposes
-          // the field on the detail response (contract note).
-          _PriceCard(request: request),
-
-          // Read-only survey-stage notes. Rendered independently of whether the
-          // installation stage has written any data yet.
-          if (surveyNotes != null && surveyNotes.isNotEmpty)
-            SectionCard(
-              title: 'Survey Notes',
-              icon: Icons.notes,
-              children: [
-                Text(
-                  request.stageData!.surveyNotes!,
-                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
-                ),
-              ],
-            ),
-
-          // Locations already captured on this request (e.g. a partial attempt),
-          // read-only.
-          if (request.locations != null)
-            _LocationsSection(locations: request.locations!),
-
-          // Route map with live User + DP markers and auto-debounced route
-          // (Phases 3–4).
-          _MapCard(requestId: request.id, actionable: actionable),
-
-          // Editable tail (Phase 1): only when the team may complete.
-          if (actionable)
-            CompleteInstallationForm(
-              requestId: request.id,
-              scrollController: scrollController,
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Text(
-                'No action available for this request.',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+        ),
+      ),
+      body: Column(
+        children: [
+          _SectionTabBar(selected: _tab, onSelect: _jumpTo),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {},
+              child: SingleChildScrollView(
+                controller: widget.scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                // One non-lazy scroll view: every section (pricing, map, form)
+                // is always in the tree regardless of scroll position.
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _OverviewSection(
+                      key: _overviewKey,
+                      detail: detail,
+                    ),
+                    _RouteSection(
+                      key: _routeKey,
+                      requestId: request.id,
+                      actionable: actionable,
+                    ),
+                    _WorkSection(
+                      key: _workKey,
+                      detail: detail,
+                      formKey: _formKey,
+                      progress: _progress,
+                      scrollController: widget.scrollController,
+                    ),
+                  ],
                 ),
               ),
             ),
+          ),
         ],
+      ),
+      bottomNavigationBar: actionable
+          ? _StickyCta(
+              progress: _progress,
+              submitting: submitting,
+              onSubmit: () => _formKey.currentState?.submit(),
+            )
+          : null,
+    );
+  }
+}
+
+/// Sticky tab bar: Overview / Route / Work jump to their anchored sections.
+class _SectionTabBar extends StatelessWidget {
+  const _SectionTabBar({required this.selected, required this.onSelect});
+
+  final int selected;
+  final ValueChanged<int> onSelect;
+
+  static const _labels = ['Overview', 'Route', 'Work'];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      color: theme.colorScheme.surface,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: theme.colorScheme.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            for (var i = 0; i < _labels.length; i++)
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => onSelect(i),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      color: selected == i
+                          ? theme.colorScheme.primary
+                          : Colors.transparent,
+                      boxShadow:
+                          selected == i ? opsGlow(context) : null,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      _labels[i],
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: selected == i
+                            ? theme.colorScheme.onPrimary
+                            : theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Phase 2 pricing card: the requested plan's subscription charge (from
-/// `price_minor`, already on the detail response) plus the connection charge
-/// placeholder.
-class _PriceCard extends StatelessWidget {
-  const _PriceCard({required this.request});
+// ─── Overview ─────────────────────────────────────────────────────────────
+
+class _OverviewSection extends StatelessWidget {
+  const _OverviewSection({super.key, required this.detail});
+
+  final ConnectionRequestDetail detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final request = detail.request;
+    final surveyNotes = request.stageData?.surveyNotes?.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _CustomerHeroCard(request: request),
+        const SizedBox(height: 12),
+        _ActionDockRow(request: request),
+        const OpsSectionLabel('Pricing'),
+        _PricingCard(request: request),
+        if (surveyNotes != null && surveyNotes.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          _SurveyQuoteCard(notes: surveyNotes),
+        ],
+        if (request.locations != null) ...[
+          const SizedBox(height: 4),
+          _LocationsSection(locations: request.locations!),
+        ],
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+/// Hero customer card: gradient avatar, name, mono phone, area line.
+class _CustomerHeroCard extends StatelessWidget {
+  const _CustomerHeroCard({required this.request});
 
   final ConnectionRequest request;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final plan = request.requestedPlan;
-    final priceMinor = plan?.priceMinor;
+    final muted = theme.colorScheme.onSurfaceVariant;
+    final area = request.customerArea;
+    final address = request.customerAddress;
+    return OpsCard(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          OpsAvatar(
+            initials:
+                OpsAvatar.initialsOf(request.customerName ?? '—'),
+            size: 54,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  request.customerName ?? '—',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                if (request.customerPhone != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    request.customerPhone!,
+                    style: FieldOpsDesignTokens.dataMd.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ],
+                if (area != null || address != null) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.location_on_outlined,
+                        size: 14,
+                        color: theme.colorScheme.outline,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          [if (area != null) area, if (address != null) address]
+                              .join(' · '),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: muted,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (request.currentTeam?.name != null) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.groups_outlined,
+                        size: 14,
+                        color: theme.colorScheme.outline,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        request.currentTeam!.name,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: muted,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                if (request.requestedPlan != null) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.router_outlined,
+                        size: 14,
+                        color: theme.colorScheme.outline,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          request.requestedPlan!.name,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: muted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-    return SectionCard(
-      title: 'Pricing',
-      icon: Icons.payments_outlined,
-      children: [
-        InfoRow(
-          label: 'Subscription',
-          value: priceMinor != null ? formatMinorPrice(priceMinor) : '—',
+/// Call / Navigate / WhatsApp action dock.
+class _ActionDockRow extends StatelessWidget {
+  const _ActionDockRow({required this.request});
+
+  final ConnectionRequest request;
+
+  LatLng? _target() {
+    final locs = request.locations;
+    if (locs == null) return null;
+    for (final p in [
+      locs.dp,
+      locs.installation,
+      locs.userDevice,
+      locs.fatNode
+    ]) {
+      if (p?.latitude != null && p?.longitude != null) {
+        return LatLng(p!.latitude!, p.longitude!);
+      }
+    }
+    return null;
+  }
+
+  Future<void> _call(BuildContext context, String phone) async {
+    final digits = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    if (digits.isEmpty) return;
+    final uri = Uri.parse('tel:$digits');
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && context.mounted) _snack(context, 'Could not open the phone app.');
+    } catch (_) {
+      if (context.mounted) _snack(context, 'Could not open the phone app.');
+    }
+  }
+
+  Future<void> _whatsapp(BuildContext context, String phone) async {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return;
+    final uri = Uri.parse('https://wa.me/$digits');
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && context.mounted) _snack(context, 'Could not open WhatsApp.');
+    } catch (_) {
+      if (context.mounted) _snack(context, 'Could not open WhatsApp.');
+    }
+  }
+
+  void _snack(BuildContext context, String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final phone = request.customerPhone;
+    final target = _target();
+    return ActionDock(
+      actions: [
+        if (phone != null)
+          DockAction(
+            label: 'Call',
+            icon: Icons.call_outlined,
+            onTap: () => _call(context, phone),
+          ),
+        DockAction(
+          label: 'Navigate',
+          icon: Icons.navigation_outlined,
+          primary: true,
+          onTap: target == null
+              ? null
+              : () => NavigateButton.openMaps(
+                    context,
+                    latitude: target.latitude,
+                    longitude: target.longitude,
+                  ),
         ),
-        InfoRow(label: 'Connection', value: AppStrings.connectionChargePending),
-        Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
+        if (phone != null)
+          DockAction(
+            label: 'WhatsApp',
+            icon: Icons.chat_outlined,
+            onTap: () => _whatsapp(context, phone),
+          ),
+      ],
+    );
+  }
+}
+
+/// Pricing with glowing mono figures: subscription charge from the requested
+/// plan's `price_minor`, plus the connection charge placeholder (the backend
+/// doesn't expose the field on the detail response yet — contract note).
+class _PricingCard extends StatelessWidget {
+  const _PricingCard({required this.request});
+
+  final ConnectionRequest request;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    final priceMinor = request.requestedPlan?.priceMinor;
+    return OpsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Subscription',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Text(
+                priceMinor != null ? formatMinorPrice(priceMinor) : '—',
+                style: FieldOpsDesignTokens.dataLg.copyWith(
+                  color: primary,
+                  shadows: [
+                    Shadow(
+                      color: primary.withValues(alpha: 0.45),
+                      blurRadius: 14,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Divider(
+              height: 1,
+              color:
+                  theme.colorScheme.outlineVariant.withValues(alpha: 0.6),
+            ),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Connection',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Text(
+                AppStrings.connectionChargePending,
+                style: FieldOpsDesignTokens.dataMd.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
             AppStrings.connectionChargeNote,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
-        ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Survey-stage notes rendered as a voice-quote card.
+class _SurveyQuoteCard extends StatelessWidget {
+  const _SurveyQuoteCard({required this.notes});
+
+  final String notes;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    return OpsCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.format_quote, size: 18, color: primary),
+              const SizedBox(width: 6),
+              Text(
+                'SURVEY NOTES',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  letterSpacing: 1.4,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.only(left: 12),
+            decoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(color: primary, width: 3),
+              ),
+            ),
+            child: Text(
+              notes,
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontStyle: FontStyle.italic,
+                height: 1.55,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '— captured during survey',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LocationsSection extends StatelessWidget {
+  const _LocationsSection({required this.locations});
+
+  final Locations locations;
+
+  static String _format(double? value) {
+    if (value == null) return '';
+    return value.toStringAsFixed(6);
+  }
+
+  /// Renders a point as ISO-style latitude, longitude; falls back to an id /
+  /// address only when the point has no coordinates.
+  static String _point(GeoPoint? point) {
+    if (point == null) return '—';
+    final lat = _format(point.latitude);
+    final lng = _format(point.longitude);
+    if (lat.isNotEmpty || lng.isNotEmpty) {
+      return [if (lat.isNotEmpty) lat, if (lng.isNotEmpty) lng].join(', ');
+    }
+    return point.nodeId ?? point.address ?? '—';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionCard(
+      title: 'Saved Locations',
+      icon: Icons.place_outlined,
+      children: [
+        InfoRow(label: 'Installation', value: _point(locations.installation)),
+        InfoRow(label: 'DP', value: _point(locations.dp)),
+        InfoRow(label: 'User device', value: _point(locations.userDevice)),
+        InfoRow(label: 'FAT node', value: _point(locations.fatNode)),
+      ],
+    );
+  }
+}
+
+// ─── Route ──────────────────────────────────────────────────────────────
+
+class _RouteSection extends StatelessWidget {
+  const _RouteSection({
+    super.key,
+    required this.requestId,
+    required this.actionable,
+  });
+
+  final String requestId;
+  final bool actionable;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const OpsSectionLabel('Route'),
+        _MapCard(requestId: requestId, actionable: actionable),
+        const SizedBox(height: 8),
       ],
     );
   }
 }
 
 /// Route map card: the live map plus, for the actionable form, the GPS capture
-/// buttons that seed the User/DP markers (Phase 4/5).
+/// buttons that seed the User/DP markers.
 class _MapCard extends ConsumerWidget {
   const _MapCard({required this.requestId, required this.actionable});
 
@@ -339,12 +769,13 @@ class _MapCard extends ConsumerWidget {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 ),
                 const SizedBox(width: 8),
-                Text(AppStrings.mapRouteCalculating, style: theme.textTheme.bodySmall),
+                Text(AppStrings.mapRouteCalculating,
+                    style: theme.textTheme.bodySmall),
               ],
             ),
           ),
 
-        // Graceful fallback notes (Phase 6): route API failure or undecodable
+        // Graceful fallback notes: route API failure or undecodable
         // geometry is reported rather than silently leaving the map empty.
         if (mapState.routeNote != null)
           Padding(
@@ -396,7 +827,8 @@ class _MapCard extends ConsumerWidget {
         .read(installationMapControllerProvider(requestId).notifier)
         .captureUserLocation();
     if (error != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error)));
     }
   }
 
@@ -405,44 +837,164 @@ class _MapCard extends ConsumerWidget {
         .read(installationMapControllerProvider(requestId).notifier)
         .captureDpLocation();
     if (error != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error)));
     }
   }
 }
 
-class _LocationsSection extends StatelessWidget {
-  const _LocationsSection({required this.locations});
+// ─── Work ───────────────────────────────────────────────────────────────
 
-  final Locations locations;
+class _WorkSection extends StatelessWidget {
+  const _WorkSection({
+    super.key,
+    required this.detail,
+    required this.formKey,
+    required this.progress,
+    required this.scrollController,
+  });
 
-  static String _format(double? value) {
-    if (value == null) return '';
-    return value.toStringAsFixed(6);
-  }
-
-  /// Renders a point as ISO-style latitude, longitude; falls back to an id /
-  /// address only when the point has no coordinates.
-  static String _point(GeoPoint? point) {
-    if (point == null) return '—';
-    final lat = _format(point.latitude);
-    final lng = _format(point.longitude);
-    if (lat.isNotEmpty || lng.isNotEmpty) {
-      return [if (lat.isNotEmpty) lat, if (lng.isNotEmpty) lng].join(', ');
-    }
-    return point.nodeId ?? point.address ?? '—';
-  }
+  final ConnectionRequestDetail detail;
+  final GlobalKey<CompleteInstallationFormState> formKey;
+  final ValueNotifier<double> progress;
+  final ScrollController scrollController;
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
-      title: 'Saved Locations',
-      icon: Icons.place_outlined,
+    final theme = Theme.of(context);
+    final actionable =
+        detail.action == ConnectionRequestAction.completeInstallation;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        InfoRow(label: 'Installation', value: _point(locations.installation)),
-        InfoRow(label: 'DP', value: _point(locations.dp)),
-        InfoRow(label: 'User device', value: _point(locations.userDevice)),
-        InfoRow(label: 'FAT node', value: _point(locations.fatNode)),
+        const OpsSectionLabel('Work'),
+        if (actionable)
+          CompleteInstallationForm(
+            key: formKey,
+            requestId: detail.request.id,
+            scrollController: scrollController,
+            progress: progress,
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              'No action available for this request.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
       ],
+    );
+  }
+}
+
+/// Sticky bottom CTA: completion-checklist progress + the submit action.
+/// The submit itself is disabled while a submission is in flight.
+class _StickyCta extends StatelessWidget {
+  const _StickyCta({
+    required this.progress,
+    required this.submitting,
+    required this.onSubmit,
+  });
+
+  final ValueNotifier<double> progress;
+  final bool submitting;
+  final VoidCallback onSubmit;
+
+  static const _requiredCount = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primary = theme.colorScheme.primary;
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          border: Border(
+            top: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ValueListenableBuilder<double>(
+              valueListenable: progress,
+              builder: (_, value, __) {
+                final done = (value * _requiredCount).round();
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Completion checklist',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '$done / $_requiredCount',
+                          style:
+                              FieldOpsDesignTokens.dataSm.copyWith(
+                            color: primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(999),
+                      child: LinearProgressIndicator(
+                        value: value,
+                        minHeight: 6,
+                        backgroundColor: theme
+                            .colorScheme.surfaceContainerHighest,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(primary),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                );
+              },
+            ),
+            SizedBox(
+              height: 52,
+              child: FilledButton.icon(
+                onPressed: submitting ? null : onSubmit,
+                icon: submitting
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: theme.colorScheme.onPrimary,
+                        ),
+                      )
+                    : const Icon(Icons.check_circle_outline),
+                label: const Text('Complete Installation'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

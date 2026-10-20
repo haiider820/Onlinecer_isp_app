@@ -85,6 +85,17 @@ class _FakeTicketNetwork implements TicketNetwork {
   }
 }
 
+/// Bounded settle: pumps frames until nothing is scheduled, but gives up
+/// after a bounded number of frames. The dashboard's live PulseDot repeats
+/// forever by design, so an unbounded `pumpAndSettle` can never complete
+/// while it is on screen.
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 30; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+    if (!tester.binding.hasScheduledFrame) break;
+  }
+}
+
 void main() {
   testWidgets(
     'ticket list, timeline, note and empty-note advances refresh through final stage',
@@ -125,11 +136,11 @@ void main() {
           child: MaterialApp.router(routerConfig: router),
         ),
       );
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(find.text('TKT-1'), findsOneWidget);
       await tester.tap(find.text('TKT-1'));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(find.text('Status changed'), findsOneWidget);
       expect(find.text('Technician has been assigned.'), findsOneWidget);
@@ -141,7 +152,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
       await tester.enterText(find.byType(TextField), 'Technician confirmed repair.');
       await tester.tap(find.text('Confirm'));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(network.advanceNotes, ['Technician confirmed repair.']);
       expect(find.text('Advance to CLOSED'), findsOneWidget);
@@ -149,7 +160,7 @@ void main() {
       await tester.tap(find.text('Advance to CLOSED'));
       await tester.pump(const Duration(milliseconds: 200));
       await tester.tap(find.text('Confirm'));
-      await tester.pumpAndSettle();
+      await _settle(tester);
 
       expect(network.advanceNotes, orderedEquals(['Technician confirmed repair.', isNull]));
       expect(find.textContaining('Advance to'), findsNothing);

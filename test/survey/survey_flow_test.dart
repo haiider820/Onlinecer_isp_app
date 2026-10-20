@@ -285,6 +285,18 @@ Widget _buildApp(
   );
 }
 
+
+/// Bounded settle: pumps frames until nothing is scheduled, but gives up
+/// after a bounded number of frames. The dashboard's live PulseDot repeats
+/// forever by design, so an unbounded `pumpAndSettle` can never complete
+/// while it is on screen.
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 30; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+    if (!tester.binding.hasScheduledFrame) break;
+  }
+}
+
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
 void main() {
@@ -294,7 +306,7 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(_buildApp(storage));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     // 1. Dashboard loads with header + recent request.
     expect(find.text('Survey'), findsOneWidget);
@@ -303,14 +315,14 @@ void main() {
 
     // 2. Tap the recent request → detail.
     await tester.tap(find.text(_requestNumber));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.text('Request Detail'), findsOneWidget);
     expect(find.text('Complete Survey'), findsOneWidget);
     expect(find.text('Plan Route'), findsOneWidget);
 
     // 3. Plan Route → FAT node list; calculate disabled until location known.
     await tester.tap(find.text('Plan Route'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.text('Select FAT node'), findsOneWidget);
     expect(find.text('FAT-A Dhanmondi'), findsOneWidget);
     // FilledButton.icon lives in a private subtype, so match by subtype.
@@ -321,32 +333,32 @@ void main() {
 
     // 4. Pick a FAT node, use my location, calculate.
     await tester.tap(find.text('FAT-A Dhanmondi'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('Use my location'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('Calculate Route'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.text('Route Summary'), findsOneWidget);
     expect(find.text('1.3 km'), findsOneWidget);
 
     // 5. Back to detail, then the complete-survey flow.
     await tester.pageBack();
-    await tester.pumpAndSettle();
+    await _settle(tester);
     expect(find.text('Request Detail'), findsOneWidget);
 
     // The detail page now leads with the Navigate quick action, so the submit
     // button can sit below the fold in the test viewport — scroll to it first.
     await tester.ensureVisible(find.text('Complete Survey'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('Complete Survey'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     final notesField = find.byType(TextField);
     expect(notesField, findsOneWidget);
     await tester.enterText(notesField, 'All wiring checked. FAT accessible.');
     await tester.tap(
       find.ancestor(of: find.text('Submit Survey'), matching: find.bySubtype<FilledButton>()),
     );
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     // 6. Success returns to the request list with the completed request.
     expect(find.text('Survey Requests'), findsOneWidget);
@@ -364,16 +376,16 @@ void main() {
         error: const LocationException('Location permission denied.'),
       ),
     ));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     // Navigate to the route screen via dashboard → detail → Plan Route.
     await tester.tap(find.text(_requestNumber));
-    await tester.pumpAndSettle();
+    await _settle(tester);
     await tester.tap(find.text('Plan Route'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     await tester.tap(find.text('Use my location'));
-    await tester.pumpAndSettle();
+    await _settle(tester);
 
     expect(find.text('Location permission denied.'), findsOneWidget);
     // Still no position and no node selection → cannot calculate.
