@@ -62,9 +62,9 @@ class BrandedHeader extends StatelessWidget implements PreferredSizeWidget {
           height: height,
           padding: const EdgeInsets.symmetric(horizontal: FieldOpsDesignTokens.pageMargin),
           decoration: BoxDecoration(
-            color: const Color(0xFFF7F9FD).withValues(alpha: 0.86),
-            border: const Border(
-              bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+            color: theme.colorScheme.surface.withValues(alpha: 0.92),
+            border: Border(
+              bottom: BorderSide(color: theme.colorScheme.outlineVariant, width: 1),
             ),
             boxShadow: const [
               BoxShadow(
@@ -99,7 +99,7 @@ class BrandedHeader extends StatelessWidget implements PreferredSizeWidget {
                         textAlign: TextAlign.center,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.headlineSmall?.copyWith(
-                          color: theme.colorScheme.primary,
+                          color: theme.colorScheme.onSurface,
                           fontWeight: FontWeight.w700,
                         ),
                       )
@@ -108,7 +108,7 @@ class BrandedHeader extends StatelessWidget implements PreferredSizeWidget {
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,
                         style: theme.textTheme.headlineSmall?.copyWith(
-                          color: theme.colorScheme.primary,
+                          color: theme.colorScheme.onSurface,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -129,9 +129,9 @@ class BrandedHeader extends StatelessWidget implements PreferredSizeWidget {
                     tooltip: 'Log out',
                     onPressed: onLogout,
                     icon: const Icon(Icons.logout, size: 24),
-                    color: const Color(0xFFDC2626), // Material red / error color
+                    color: theme.colorScheme.error,
                     style: IconButton.styleFrom(
-                      backgroundColor: const Color(0xFFDC2626).withValues(alpha: 0.1),
+                      backgroundColor: theme.colorScheme.error.withValues(alpha: 0.1),
                     ),
                   ),
                 ),

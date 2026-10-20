@@ -30,11 +30,11 @@ class SectionCard extends StatelessWidget {
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-        side: const BorderSide(color: Color(0xFFE2E8F0)),
+        side: BorderSide(color: theme.colorScheme.outlineVariant),
       ),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: theme.colorScheme.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
           boxShadow: FieldOpsDesignTokens.shadowLevel1,
         ),
@@ -82,9 +82,9 @@ class InfoRow extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: Color(0xFFF1F5F9), width: 1),
+          bottom: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5), width: 1),
         ),
       ),
       child: Row(

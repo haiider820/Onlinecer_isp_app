@@ -12,6 +12,7 @@ import '../../features/survey/presentation/dashboard_providers.dart';
 import '../../models/dashboard.dart';
 import '../../models/ticket.dart';
 import 'branded_header.dart';
+import 'ops_widgets.dart';
 import 'request_card.dart';
 import 'ticket_card.dart';
 
@@ -228,104 +229,75 @@ class _DashboardBody extends StatelessWidget {
             onNotificationsTap: onNotificationsTap,
           ),
 
-          // ── Stat cards ──
+          // ── Stat cards: mono instrument readouts ──
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-                boxShadow: FieldOpsDesignTokens.shadowLevel1,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _StatTile(
-                      label: pendingLabel,
-                      value: counts?.pending ?? 0,
-                      icon: Icons.schedule,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                  Expanded(
-                    child: _StatTile(
-                      label: 'Completed',
-                      value: counts?.completed ?? 0,
-                      icon: Icons.check_circle_outline,
-                      color: FieldOpsDesignTokens.completedForeground,
-                    ),
-                  ),
-                  Expanded(
-                    child: _StatTile(
-                      label: 'Total',
-                      value: counts?.total ?? 0,
-                      icon: Icons.assignment_turned_in_outlined,
-                      color: theme.colorScheme.tertiary,
-                    ),
-                  ),
-                ],
-              ),
+            child: Row(
+              children: [
+                StatTile(
+                  label: pendingLabel,
+                  value: '${counts?.pending ?? 0}',
+                  accent: true,
+                ),
+                const SizedBox(width: 10),
+                StatTile(
+                  label: 'Completed',
+                  value: '${counts?.completed ?? 0}',
+                ),
+                const SizedBox(width: 10),
+                StatTile(
+                  label: 'Total',
+                  value: '${counts?.total ?? 0}',
+                ),
+              ],
             ),
           ),
 
           // ── My Tickets strip ──
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-                boxShadow: FieldOpsDesignTokens.shadowLevel1,
-              ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-                onTap: onTicketsTap,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(
-                        Icons.confirmation_number_outlined,
-                        color: theme.colorScheme.onPrimaryContainer,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'My Tickets',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${ticketCounts?.pending ?? 0} open · ${ticketCounts?.total ?? 0} total',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      Icons.chevron_right,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ]),
+            child: OpsCard(
+              onTap: onTicketsTap,
+              child: Row(children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary
+                        .withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(
+                    Icons.confirmation_number_outlined,
+                    color: theme.colorScheme.primary,
+                  ),
                 ),
-              ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'My Tickets',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${ticketCounts?.pending ?? 0} open · ${ticketCounts?.total ?? 0} total',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ]),
             ),
           ),
 
@@ -438,7 +410,8 @@ class _DashboardBody extends StatelessWidget {
   }
 }
 
-/// Diagonal gradient banner with employee greeting, team info, GPS status ribbon.
+/// Midnight Ops hero: night gradient, glow orbs, gradient avatar, greeting,
+/// team line and a live GPS ribbon.
 class _GreetingBanner extends StatelessWidget {
   const _GreetingBanner({
     required this.employeeName,
@@ -453,62 +426,122 @@ class _GreetingBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
     final hour = DateTime.now().hour;
     final greeting = hour < 12
         ? 'Good morning'
         : hour < 17
             ? 'Good afternoon'
             : 'Good evening';
-    final initials = _initials(employeeName);
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            theme.colorScheme.primary,
-            theme.colorScheme.primary.withValues(alpha: 0.85),
-            theme.colorScheme.primaryContainer,
-          ],
+          colors: dark
+              ? const [Color(0xFF0A1230), Color(0xFF05080F)]
+              : const [Color(0xFF0E3A52), Color(0xFF0B1220)],
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 26,
-                backgroundColor: FieldOpsDesignTokens.avatarBackground,
-                child: Text(
-                  initials,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                  ),
-                ),
+          Positioned(
+            top: -60,
+            right: -40,
+            child: Container(
+              width: 150,
+              height: 150,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: theme.colorScheme.primary.withValues(alpha: 0.25),
               ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      greeting,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.85),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  OpsAvatar(
+                    initials: OpsAvatar.initialsOf(employeeName),
+                    size: 52,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          greeting,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color:
+                                Colors.white.withValues(alpha: 0.7),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          employeeName,
+                          style: FieldOpsDesignTokens.headlineMd
+                              .copyWith(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(
+                    Icons.work_outline,
+                    size: 15,
+                    color: Colors.white.withValues(alpha: 0.75),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      teamName,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.9),
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Live GPS ribbon.
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 9),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.14),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    PulseDot(color: const Color(0xFF34D399)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'GPS SIGNAL ACTIVE',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                    ),
                     Text(
-                      employeeName,
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
+                      '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
+                      style: FieldOpsDesignTokens.dataSm.copyWith(
+                        color: Colors.white.withValues(alpha: 0.85),
                       ),
                     ),
                   ],
@@ -516,131 +549,8 @@ class _GreetingBanner extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Icon(
-                Icons.work_outline,
-                size: 16,
-                color: Colors.white.withValues(alpha: 0.9),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  teamName,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // GPS status ribbon.
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(FieldOpsDesignTokens.cardRadius),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.signal_cellular_alt,
-                  size: 16,
-                  color: FieldOpsDesignTokens.completedForeground,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'GPS Signal Active · Strong',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.9),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    'Tech ID: FT-0041',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
-    );
-  }
-
-  static String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-    if (parts.isEmpty) return '?';
-    if (parts.length == 1) return parts.first[0].toUpperCase();
-    return (parts.first[0] + parts.last[0]).toUpperCase();
-  }
-}
-
-/// Stat tile: icon in a tinted circle, the count, and its label.
-///
-/// Deliberately has no mini progress bar: the previous hairline under each
-/// figure was decorative rather than a real proportion, and the "Total" tile's
-/// ratio would always be 1:1. Rather than ship misleading data-viz, the count
-/// and label are shown alone.
-class _StatTile extends StatelessWidget {
-  const _StatTile({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  final String label;
-  final int value;
-  final IconData icon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, size: 22, color: color),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          '$value',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
     );
   }
 }

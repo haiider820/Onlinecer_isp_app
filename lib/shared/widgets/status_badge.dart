@@ -123,7 +123,7 @@ class StatusBadge extends StatelessWidget {
               fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.04,
-              fontFamily: 'Inter',
+              fontFamily: FieldOpsDesignTokens.bodyFamily,
             ),
           ),
         ],

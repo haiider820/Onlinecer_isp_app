@@ -32,9 +32,9 @@ class TicketCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         boxShadow: FieldOpsDesignTokens.shadowLevel1,
       ),
       clipBehavior: Clip.antiAlias,
@@ -167,6 +167,7 @@ class _PriorityPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final lower = priority.toLowerCase();
     final urgent = lower.contains('high') || lower.contains('urgent') || lower.contains('critical');
     final medium = lower.contains('medium') || lower.contains('normal') || lower.contains('low');
@@ -174,7 +175,7 @@ class _PriorityPill extends StatelessWidget {
         ? FieldOpsDesignTokens.urgentBackground
         : medium
             ? FieldOpsDesignTokens.pendingBackground
-            : const Color(0xFFF1F5F9);
+            : theme.colorScheme.surfaceContainerHighest;
     final fg = urgent
         ? FieldOpsDesignTokens.urgentForeground
         : medium
@@ -196,7 +197,7 @@ class _PriorityPill extends StatelessWidget {
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.04,
-          fontFamily: 'Inter',
+          fontFamily: FieldOpsDesignTokens.bodyFamily,
         ),
       ),
     );

@@ -107,9 +107,9 @@ class RequestCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         boxShadow: FieldOpsDesignTokens.shadowLevel1,
       ),
       clipBehavior: Clip.antiAlias,
@@ -231,7 +231,7 @@ class RequestCard extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: 10),
-                  const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                  Divider(height: 1, thickness: 1, color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
                 ],
               ),
             ),
