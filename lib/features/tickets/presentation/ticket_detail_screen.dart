@@ -192,7 +192,7 @@ class _TicketDetailBody extends StatelessWidget {
         // ── Advance action shelf ──
         if (detail.nextStatus != null)
           Material(
-            color: Colors.white,
+            color: theme.colorScheme.surfaceContainerLowest,
             elevation: 8,
             child: SafeArea(
               top: false,
@@ -239,9 +239,9 @@ class _TicketBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         boxShadow: FieldOpsDesignTokens.shadowLevel1,
       ),
       child: Column(
@@ -273,9 +273,46 @@ class _TicketBanner extends StatelessWidget {
               if (ticket.status != null) StatusBadge(status: ticket.status!, ticket: true),
             ],
           ),
+          // Last-updated label from the ticket's own `updated_at` field —
+          // no sync engine exists yet, so this is a data label, not a
+          // sync state (see ticket providers: FutureProvider only).
+          if (ticket.updatedAt != null && ticket.updatedAt!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Icon(
+                  Icons.schedule,
+                  size: 14,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Last updated ${_updatedLabel(ticket.updatedAt)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  /// 'd MMM yyyy · HH:mm' from an ISO timestamp; falls back to the raw value.
+  static String _updatedLabel(String? raw) {
+    if (raw == null || raw.isEmpty) return '';
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw;
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final local = parsed.toLocal();
+    return '${local.day} ${months[local.month - 1]} ${local.year} · '
+        '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
   }
 }
 
@@ -492,6 +529,8 @@ class _PriorityBadge extends StatelessWidget {
   final String priority;
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
     final lower = priority.toLowerCase();
     final urgent = lower.contains('high') ||
         lower.contains('urgent') ||
@@ -499,16 +538,26 @@ class _PriorityBadge extends StatelessWidget {
     final medium = lower.contains('medium') ||
         lower.contains('normal') ||
         lower.contains('low');
+    // Brightness-aware: dark token tints in dark mode, light token tints in
+    // light mode; the neutral fallback is theme surface + muted ink.
     final bg = urgent
-        ? FieldOpsDesignTokens.urgentBackground
+        ? (dark
+            ? FieldOpsDarkTokens.urgentBackground
+            : FieldOpsDesignTokens.urgentBackground)
         : medium
-            ? FieldOpsDesignTokens.pendingBackground
-            : const Color(0xFFF1F5F9);
+            ? (dark
+                ? FieldOpsDarkTokens.pendingBackground
+                : FieldOpsDesignTokens.pendingBackground)
+            : theme.colorScheme.surfaceContainerHighest;
     final fg = urgent
-        ? FieldOpsDesignTokens.urgentForeground
+        ? (dark
+            ? FieldOpsDarkTokens.urgentForeground
+            : FieldOpsDesignTokens.urgentForeground)
         : medium
-            ? FieldOpsDesignTokens.pendingForeground
-            : const Color(0xFF475569);
+            ? (dark
+                ? FieldOpsDarkTokens.pendingForeground
+                : FieldOpsDesignTokens.pendingForeground)
+            : theme.colorScheme.onSurfaceVariant;
     return Container(
       height: FieldOpsDesignTokens.badgeHeight,
       padding: const EdgeInsets.symmetric(horizontal: FieldOpsDesignTokens.badgePaddingH),

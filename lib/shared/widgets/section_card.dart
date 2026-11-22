@@ -36,7 +36,6 @@ class SectionCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-          boxShadow: FieldOpsDesignTokens.shadowLevel1,
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),

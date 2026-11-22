@@ -110,7 +110,6 @@ class RequestCard extends StatelessWidget {
         color: theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
         border: Border.all(color: theme.colorScheme.outlineVariant),
-        boxShadow: FieldOpsDesignTokens.shadowLevel1,
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -123,14 +122,18 @@ class RequestCard extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Customer initials avatar.
+                  // Customer initials avatar (brightness-aware fill,
+                  // onPrimary ink — white on the bright primary fails
+                  // contrast in dark mode).
                   CircleAvatar(
                     radius: 22,
-                                        backgroundColor: FieldOpsDesignTokens.avatarBackground,
+                    backgroundColor: theme.brightness == Brightness.dark
+                        ? FieldOpsDarkTokens.avatarBackground
+                        : FieldOpsDesignTokens.avatarBackground,
                     child: Text(
                       _initials(request.customerName ?? request.customerArea ?? '?'),
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: theme.colorScheme.onPrimary,
                         fontWeight: FontWeight.w800,
                         fontSize: 14,
                       ),

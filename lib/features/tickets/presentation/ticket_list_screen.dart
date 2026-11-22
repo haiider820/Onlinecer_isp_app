@@ -83,6 +83,7 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final page = ref.watch(ticketPageProvider((query: _query, page: _page)));
     final canPop = Navigator.of(context).canPop();
     final activeCount = _meta?.total ?? _tickets.length;
@@ -112,12 +113,12 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                     child: TextField(
                       controller: _search,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search),
                         hintText: 'Search tickets',
                         filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: EdgeInsets.symmetric(
+                        fillColor: theme.colorScheme.surfaceContainerLowest,
+                        contentPadding: const EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 10,
                         ),
@@ -267,7 +268,7 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen> {
       onSelected: (_) => onSelected(),
       showCheckmark: false,
       selectedColor: FieldOpsDesignTokens.secondaryFixed,
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
       side: BorderSide.none,
       labelStyle: TextStyle(
         fontSize: 12,

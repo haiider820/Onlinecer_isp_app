@@ -130,9 +130,9 @@ class _StatusBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         boxShadow: FieldOpsDesignTokens.shadowLevel1,
       ),
       child: Row(
@@ -223,9 +223,9 @@ class _CustomerContactCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         boxShadow: FieldOpsDesignTokens.shadowLevel1,
       ),
       child: Padding(
@@ -240,8 +240,8 @@ class _CustomerContactCard extends StatelessWidget {
                   backgroundColor: theme.colorScheme.primaryContainer,
                   child: Text(
                     _initials(name),
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: theme.colorScheme.onPrimaryContainer,
                       fontWeight: FontWeight.w800,
                       fontSize: 16,
                     ),
@@ -366,9 +366,9 @@ class _MapPreviewCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         boxShadow: FieldOpsDesignTokens.shadowLevel1,
       ),
       child: Column(
@@ -480,7 +480,7 @@ class _NotesQuoteCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         boxShadow: FieldOpsDesignTokens.shadowLevel1,
       ),
       child: Column(
@@ -557,9 +557,9 @@ class _PlanSummaryCard extends StatelessWidget {
         : null;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         boxShadow: FieldOpsDesignTokens.shadowLevel1,
       ),
       child: Padding(
@@ -635,7 +635,7 @@ class _BottomShelf extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Material(
-      color: Colors.white,
+      color: theme.colorScheme.surfaceContainerLowest,
       elevation: 8,
       child: SafeArea(
         top: false,
@@ -664,8 +664,8 @@ class _BottomShelf extends StatelessWidget {
                   label: const Text('Flag'),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 52),
-                    foregroundColor: const Color(0xFF93000A),
-                    side: const BorderSide(color: Color(0xFFFFDAD6)),
+                    foregroundColor: theme.colorScheme.error,
+                    side: BorderSide(color: theme.colorScheme.errorContainer),
                   ),
                 ),
               ),

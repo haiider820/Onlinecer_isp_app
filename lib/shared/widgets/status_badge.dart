@@ -3,11 +3,18 @@ import 'package:flutter/material.dart';
 import '../../core/theme/field_ops_design_tokens.dart';
 
 /// Renders a connection-request / ticket status as a capsule badge using the
-/// four-color semantic map from DESIGN.md:
-///  - Assigned / In-Progress:   soft blue   (#EBF2FE / #1D4ED8)
-///  - Completed / Verified:     soft green  (#E8F8F0 / #0D7A4A)
-///  - Pending / Scheduled:      soft amber  (#FEF3C7 / #B45309)
-///  - Urgent / Outage / Escal.: soft red    (#FEE2E2 / #B91C1C)
+/// kit-standard semantic pairs (DESIGN.md Rule 4 + APP_BRIEF §4):
+///  - Assigned / In-Progress:   sky   (assigned bg/fg tokens)
+///  - Completed / Verified:     green (completed bg/fg tokens)
+///  - Pending / Scheduled:      amber (pending bg/fg tokens)
+///  - Urgent / Outage / Escal.: red   (urgent bg/fg tokens)
+///  - Review:                   violet (review bg/fg tokens)
+///
+/// The badge always shows a dot + word, never colour alone. All colour
+/// helpers are brightness-aware: pass [Brightness.dark] (from
+/// `Theme.of(context).brightness`) to pick [FieldOpsDarkTokens], otherwise
+/// the light [FieldOpsDesignTokens] are used. Unknown statuses fall back to
+/// `onSurfaceVariant` ink on `surfaceContainerHighest`.
 class StatusBadge extends StatelessWidget {
   const StatusBadge({super.key, required this.status, this.ticket = false});
 
@@ -18,93 +25,214 @@ class StatusBadge extends StatelessWidget {
   /// amber, closed → grey) instead of the request palette above.
   final bool ticket;
 
-  static Color colorForStatus(String status) {
+  static bool _isDark(Brightness brightness) =>
+      brightness == Brightness.dark;
+
+  static Color colorForStatus(String status,
+      {Brightness brightness = Brightness.light}) {
+    final dark = _isDark(brightness);
     final s = status.toLowerCase();
-    if (s.contains('completed') || s.contains('approved') || s.contains('verified')) {
-      return FieldOpsDesignTokens.completedForeground;
+    if (s.contains('completed') ||
+        s.contains('approved') ||
+        s.contains('verified')) {
+      return dark
+          ? FieldOpsDarkTokens.completedForeground
+          : FieldOpsDesignTokens.completedForeground;
     }
-    if (s.contains('urgent') || s.contains('cancel') || s.contains('reject') || s.contains('failed')) {
-      return FieldOpsDesignTokens.urgentForeground;
+    if (s.contains('urgent') ||
+        s.contains('cancel') ||
+        s.contains('reject') ||
+        s.contains('failed')) {
+      return dark
+          ? FieldOpsDarkTokens.urgentForeground
+          : FieldOpsDesignTokens.urgentForeground;
     }
-    if (s.contains('pending') || s.contains('assigned')) {
-      return FieldOpsDesignTokens.assignedForeground;
+    if (s.contains('review')) {
+      return dark
+          ? FieldOpsDarkTokens.reviewForeground
+          : FieldOpsDesignTokens.reviewForeground;
     }
-    return const Color(0xFF475569);
+    if (s.contains('pending') || s.contains('scheduled')) {
+      return dark
+          ? FieldOpsDarkTokens.pendingForeground
+          : FieldOpsDesignTokens.pendingForeground;
+    }
+    if (s.contains('assigned') ||
+        s.contains('in_progress') ||
+        s.contains('in progress') ||
+        s.contains('progress')) {
+      return dark
+          ? FieldOpsDarkTokens.assignedForeground
+          : FieldOpsDesignTokens.assignedForeground;
+    }
+    return dark
+        ? FieldOpsDarkTokens.onSurfaceVariant
+        : FieldOpsDesignTokens.onSurfaceVariant;
   }
 
   /// Soft background paired with the [colorForStatus] ink color.
-  static Color backgroundForStatus(String status) {
+  static Color backgroundForStatus(String status,
+      {Brightness brightness = Brightness.light}) {
+    final dark = _isDark(brightness);
     final s = status.toLowerCase();
-    if (s.contains('completed') || s.contains('approved') || s.contains('verified')) {
-      return FieldOpsDesignTokens.completedBackground;
+    if (s.contains('completed') ||
+        s.contains('approved') ||
+        s.contains('verified')) {
+      return dark
+          ? FieldOpsDarkTokens.completedBackground
+          : FieldOpsDesignTokens.completedBackground;
     }
-    if (s.contains('urgent') || s.contains('cancel') || s.contains('reject') || s.contains('failed')) {
-      return FieldOpsDesignTokens.urgentBackground;
+    if (s.contains('urgent') ||
+        s.contains('cancel') ||
+        s.contains('reject') ||
+        s.contains('failed')) {
+      return dark
+          ? FieldOpsDarkTokens.urgentBackground
+          : FieldOpsDesignTokens.urgentBackground;
     }
-    if (s.contains('pending') || s.contains('assigned')) {
-      return FieldOpsDesignTokens.assignedBackground;
+    if (s.contains('review')) {
+      return dark
+          ? FieldOpsDarkTokens.reviewBackground
+          : FieldOpsDesignTokens.reviewBackground;
     }
-    return const Color(0xFFF1F5F9);
+    if (s.contains('pending') || s.contains('scheduled')) {
+      return dark
+          ? FieldOpsDarkTokens.pendingBackground
+          : FieldOpsDesignTokens.pendingBackground;
+    }
+    if (s.contains('assigned') ||
+        s.contains('in_progress') ||
+        s.contains('in progress') ||
+        s.contains('progress')) {
+      return dark
+          ? FieldOpsDarkTokens.assignedBackground
+          : FieldOpsDesignTokens.assignedBackground;
+    }
+    return dark
+        ? FieldOpsDarkTokens.surfaceContainerHighest
+        : FieldOpsDesignTokens.surfaceContainerHighest;
   }
 
   /// Accent ink for a ticket lifecycle status: OPEN / RESOLVED → green,
   /// IN_PROGRESS / WAITING_CUSTOMER → amber, CLOSED → grey.
-  static Color ticketColorForStatus(String status) {
+  static Color ticketColorForStatus(String status,
+      {Brightness brightness = Brightness.light}) {
+    final dark = _isDark(brightness);
     final s = status.toLowerCase();
     if (s.contains('closed')) {
-      return FieldOpsDesignTokens.ticketClosedForeground;
+      return dark
+          ? FieldOpsDarkTokens.ticketClosedForeground
+          : FieldOpsDesignTokens.ticketClosedForeground;
     }
-    if (s.contains('completed') || s.contains('approved') || s.contains('verified')) {
-      return FieldOpsDesignTokens.ticketOpenedForeground;
+    if (s.contains('completed') ||
+        s.contains('approved') ||
+        s.contains('verified')) {
+      return dark
+          ? FieldOpsDarkTokens.ticketOpenedForeground
+          : FieldOpsDesignTokens.ticketOpenedForeground;
     }
-    if (s.contains('urgent') || s.contains('cancel') || s.contains('reject') || s.contains('failed')) {
-      return FieldOpsDesignTokens.urgentForeground;
+    if (s.contains('urgent') ||
+        s.contains('cancel') ||
+        s.contains('reject') ||
+        s.contains('failed')) {
+      return dark
+          ? FieldOpsDarkTokens.urgentForeground
+          : FieldOpsDesignTokens.urgentForeground;
     }
-    if (s.contains('in_progress') || s.contains('in progress') || s.contains('progress') ||
+    if (s.contains('in_progress') ||
+        s.contains('in progress') ||
+        s.contains('progress') ||
         s.contains('waiting')) {
-      return FieldOpsDesignTokens.ticketInProgressForeground;
+      return dark
+          ? FieldOpsDarkTokens.ticketInProgressForeground
+          : FieldOpsDesignTokens.ticketInProgressForeground;
     }
-    if (s.contains('opened') || s.contains('open') || s.contains('resolved')) {
-      return FieldOpsDesignTokens.ticketOpenedForeground;
+    if (s.contains('opened') ||
+        s.contains('open') ||
+        s.contains('resolved')) {
+      return dark
+          ? FieldOpsDarkTokens.ticketOpenedForeground
+          : FieldOpsDesignTokens.ticketOpenedForeground;
     }
-    if (s.contains('assigned') || s.contains('pending') || s.contains('scheduled')) {
-      return FieldOpsDesignTokens.assignedForeground;
+    if (s.contains('assigned') ||
+        s.contains('pending') ||
+        s.contains('scheduled')) {
+      return dark
+          ? FieldOpsDarkTokens.assignedForeground
+          : FieldOpsDesignTokens.assignedForeground;
     }
-    return FieldOpsDesignTokens.ticketClosedForeground;
+    return dark
+        ? FieldOpsDarkTokens.ticketClosedForeground
+        : FieldOpsDesignTokens.ticketClosedForeground;
   }
 
   /// Background tint that pairs with [ticketColorForStatus].
-  static Color ticketBackgroundForStatus(String status) {
+  static Color ticketBackgroundForStatus(String status,
+      {Brightness brightness = Brightness.light}) {
+    final dark = _isDark(brightness);
     final s = status.toLowerCase();
     if (s.contains('closed')) {
-      return FieldOpsDesignTokens.ticketClosedBackground;
+      return dark
+          ? FieldOpsDarkTokens.ticketClosedBackground
+          : FieldOpsDesignTokens.ticketClosedBackground;
     }
-    if (s.contains('completed') || s.contains('approved') || s.contains('verified')) {
-      return FieldOpsDesignTokens.ticketOpenedBackground;
+    if (s.contains('completed') ||
+        s.contains('approved') ||
+        s.contains('verified')) {
+      return dark
+          ? FieldOpsDarkTokens.ticketOpenedBackground
+          : FieldOpsDesignTokens.ticketOpenedBackground;
     }
-    if (s.contains('in_progress') || s.contains('progress') || s.contains('waiting')) {
-      return FieldOpsDesignTokens.ticketInProgressBackground;
+    if (s.contains('in_progress') ||
+        s.contains('progress') ||
+        s.contains('waiting')) {
+      return dark
+          ? FieldOpsDarkTokens.ticketInProgressBackground
+          : FieldOpsDesignTokens.ticketInProgressBackground;
     }
-    if (s.contains('urgent') || s.contains('cancel') || s.contains('reject') || s.contains('failed')) {
-      return FieldOpsDesignTokens.urgentBackground;
+    if (s.contains('urgent') ||
+        s.contains('cancel') ||
+        s.contains('reject') ||
+        s.contains('failed')) {
+      return dark
+          ? FieldOpsDarkTokens.urgentBackground
+          : FieldOpsDesignTokens.urgentBackground;
     }
-    if (s.contains('assigned') || s.contains('pending') || s.contains('scheduled')) {
-      return FieldOpsDesignTokens.assignedBackground;
+    if (s.contains('opened') ||
+        s.contains('open') ||
+        s.contains('resolved')) {
+      return dark
+          ? FieldOpsDarkTokens.ticketOpenedBackground
+          : FieldOpsDesignTokens.ticketOpenedBackground;
     }
-    return FieldOpsDesignTokens.ticketClosedBackground;
+    if (s.contains('assigned') ||
+        s.contains('pending') ||
+        s.contains('scheduled')) {
+      return dark
+          ? FieldOpsDarkTokens.assignedBackground
+          : FieldOpsDesignTokens.assignedBackground;
+    }
+    return dark
+        ? FieldOpsDarkTokens.ticketClosedBackground
+        : FieldOpsDesignTokens.ticketClosedBackground;
   }
 
   @override
   Widget build(BuildContext context) {
-    final color = ticket ? ticketColorForStatus(status) : colorForStatus(status);
+    final brightness = Theme.of(context).brightness;
+    final color = ticket
+        ? ticketColorForStatus(status, brightness: brightness)
+        : colorForStatus(status, brightness: brightness);
     return Container(
       height: FieldOpsDesignTokens.badgeHeight,
-      padding: const EdgeInsets.symmetric(horizontal: FieldOpsDesignTokens.badgePaddingH),
+      padding: const EdgeInsets.symmetric(
+          horizontal: FieldOpsDesignTokens.badgePaddingH),
       decoration: BoxDecoration(
         color: ticket
-            ? ticketBackgroundForStatus(status)
-            : backgroundForStatus(status),
-        borderRadius: BorderRadius.circular(FieldOpsDesignTokens.radiusFull),
+            ? ticketBackgroundForStatus(status, brightness: brightness)
+            : backgroundForStatus(status, brightness: brightness),
+        borderRadius:
+            BorderRadius.circular(FieldOpsDesignTokens.radiusFull),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

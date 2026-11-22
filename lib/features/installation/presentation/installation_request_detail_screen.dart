@@ -6,7 +6,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_exceptions.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/field_ops_design_tokens.dart';
 import '../../../models/connection_request.dart';
 import '../../../models/locations.dart';
@@ -21,7 +20,7 @@ import 'installation_map_providers.dart';
 import 'installation_providers.dart';
 
 /// The merged installation screen for one connection request — the
-/// "Mission Console" layout (Midnight Ops design system).
+/// "Mission Console" layout (palette #4, kit DESIGN.md Rules 1-14).
 ///
 /// A sticky mission header (mono request number, live status pill, 5-stage
 /// stepper) sits above a sticky tab bar (Overview / Route / Work). The tabs
@@ -204,26 +203,47 @@ class _DetailScaffoldState extends ConsumerState<_DetailScaffold> {
                 // One non-lazy scroll view: every section (pricing, map, form)
                 // is always in the tree regardless of scroll position.
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _OverviewSection(
-                      key: _overviewKey,
-                      detail: detail,
+                // Fade + slide (250 ms) on every tab swap so the content no
+                // longer changes instantly. Deliberately NOT an
+                // AnimatedSwitcher: its cross-fade mounts the old and new
+                // child at once, which would duplicate the GlobalKeys
+                // (_overviewKey/_routeKey/_workKey/_formKey) and remount the
+                // completion form, wiping its state. Keying this builder on
+                // _tab restarts the same single-subtree animation instead,
+                // so the form state survives the swap.
+                child: TweenAnimationBuilder<double>(
+                  key: ValueKey(_tab),
+                  tween: Tween<double>(begin: 0, end: 1),
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOut,
+                  builder: (context, value, child) => Opacity(
+                    opacity: value,
+                    child: Transform.translate(
+                      offset: Offset(0, 12 * (1 - value)),
+                      child: child,
                     ),
-                    _RouteSection(
-                      key: _routeKey,
-                      requestId: request.id,
-                      actionable: actionable,
-                    ),
-                    _WorkSection(
-                      key: _workKey,
-                      detail: detail,
-                      formKey: _formKey,
-                      progress: _progress,
-                      scrollController: widget.scrollController,
-                    ),
-                  ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _OverviewSection(
+                        key: _overviewKey,
+                        detail: detail,
+                      ),
+                      _RouteSection(
+                        key: _routeKey,
+                        requestId: request.id,
+                        actionable: actionable,
+                      ),
+                      _WorkSection(
+                        key: _workKey,
+                        detail: detail,
+                        formKey: _formKey,
+                        progress: _progress,
+                        scrollController: widget.scrollController,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -277,8 +297,6 @@ class _SectionTabBar extends StatelessWidget {
                       color: selected == i
                           ? theme.colorScheme.primary
                           : Colors.transparent,
-                      boxShadow:
-                          selected == i ? opsGlow(context) : null,
                     ),
                     alignment: Alignment.center,
                     child: Text(
@@ -536,7 +554,7 @@ class _ActionDockRow extends StatelessWidget {
   }
 }
 
-/// Pricing with glowing mono figures: subscription charge from the requested
+/// Pricing with mono figures: subscription charge from the requested
 /// plan's `price_minor`, plus the connection charge placeholder (the backend
 /// doesn't expose the field on the detail response yet — contract note).
 class _PricingCard extends StatelessWidget {
@@ -567,12 +585,6 @@ class _PricingCard extends StatelessWidget {
                 priceMinor != null ? formatMinorPrice(priceMinor) : '—',
                 style: FieldOpsDesignTokens.dataLg.copyWith(
                   color: primary,
-                  shadows: [
-                    Shadow(
-                      color: primary.withValues(alpha: 0.45),
-                      blurRadius: 14,
-                    ),
-                  ],
                 ),
               ),
             ],
@@ -975,21 +987,26 @@ class _StickyCta extends StatelessWidget {
                 );
               },
             ),
-            SizedBox(
-              height: 52,
-              child: FilledButton.icon(
-                onPressed: submitting ? null : onSubmit,
-                icon: submitting
-                    ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: theme.colorScheme.onPrimary,
-                        ),
-                      )
-                    : const Icon(Icons.check_circle_outline),
-                label: const Text('Complete Installation'),
+            PressScale(
+              child: SizedBox(
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: submitting ? null : onSubmit,
+                  icon: submitting
+                      // Disabled fill is grey in both modes; onSurfaceVariant
+                      // stays legible on it (onPrimary/white does not in
+                      // light mode).
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        )
+                      : const Icon(Icons.check_circle_outline),
+                  label: const Text('Complete Installation'),
+                ),
               ),
             ),
           ],

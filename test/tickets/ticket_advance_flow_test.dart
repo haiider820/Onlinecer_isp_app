@@ -150,7 +150,16 @@ void main() {
       // A focused TextField has a continuously blinking cursor, so a bounded
       // pump is appropriate here instead of waiting for the test tree to idle.
       await tester.pump(const Duration(milliseconds: 200));
-      await tester.enterText(find.byType(TextField), 'Technician confirmed repair.');
+      // Scope to the Advance dialog: the detail screen also mounts the
+      // sticky Discussion composer TextField, so a bare find.byType
+      // (TextField) is ambiguous ("Too many elements").
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextField),
+        ),
+        'Technician confirmed repair.',
+      );
       await tester.tap(find.text('Confirm'));
       await _settle(tester);
 

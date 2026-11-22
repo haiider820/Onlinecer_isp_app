@@ -262,20 +262,20 @@ class _DashboardBody extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
             child: Row(
               children: [
-                StatTile(
+                _CountStatTile(
                   label: pendingLabel,
-                  value: '${counts?.pending ?? 0}',
+                  value: counts?.pending ?? 0,
                   accent: true,
                 ),
                 const SizedBox(width: 10),
-                StatTile(
+                _CountStatTile(
                   label: 'Completed',
-                  value: '${counts?.completed ?? 0}',
+                  value: counts?.completed ?? 0,
                 ),
                 const SizedBox(width: 10),
-                StatTile(
+                _CountStatTile(
                   label: 'Total',
-                  value: '${counts?.total ?? 0}',
+                  value: counts?.total ?? 0,
                 ),
               ],
             ),
@@ -438,8 +438,54 @@ class _DashboardBody extends StatelessWidget {
   }
 }
 
-/// Midnight Ops hero: night gradient, glow orbs, gradient avatar, greeting,
-/// team line and a live GPS ribbon.
+/// Stat tile with a count-up number (same layout as [StatTile], but the
+/// value animates via [CountUp] instead of rendering statically).
+class _CountStatTile extends StatelessWidget {
+  const _CountStatTile({
+    required this.value,
+    required this.label,
+    this.accent = false,
+  });
+
+  final int value;
+  final String label;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Expanded(
+      child: OpsCard(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Column(
+          children: [
+            DefaultTextStyle(
+              style: FieldOpsDesignTokens.dataLg.copyWith(
+                color: accent
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurface,
+              ),
+              child: CountUp(value: value),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label.toUpperCase(),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 9.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Ops hero: navy (dark) / cobalt (light) gradient, greeting, team line
+/// and a live GPS ribbon. White text on the hero stays — contrast is fine
+/// on both gradients. No glow.
 class _GreetingBanner extends StatelessWidget {
   const _GreetingBanner({
     required this.employeeName,
@@ -470,24 +516,12 @@ class _GreetingBanner extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: dark
-              ? const [Color(0xFF0A1230), Color(0xFF05080F)]
-              : const [Color(0xFF0E3A52), Color(0xFF0B1220)],
+              ? const [Color(0xFF0B132B), Color(0xFF1C2541)]
+              : const [Color(0xFF1D4ED8), Color(0xFF123280)],
         ),
       ),
       child: Stack(
         children: [
-          Positioned(
-            top: -60,
-            right: -40,
-            child: Container(
-              width: 150,
-              height: 150,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: theme.colorScheme.primary.withValues(alpha: 0.25),
-              ),
-            ),
-          ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

@@ -175,7 +175,7 @@ class HeaderAvatar extends StatelessWidget {
           : Text(
               initials!,
               style: TextStyle(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onPrimary,
                 fontSize: size * 0.36,
                 fontWeight: FontWeight.w800,
               ),

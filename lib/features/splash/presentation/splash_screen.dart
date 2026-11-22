@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/field_ops_design_tokens.dart';
+import '../../../shared/widgets/ops_widgets.dart';
 import 'boot_providers.dart';
 
 /// Boot / readiness gate screen (stitch `splash_screen` mockup).
@@ -52,7 +53,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
     return Scaffold(
       body: ColoredBox(
-        color: FieldOpsDesignTokens.surface,
+        color: theme.colorScheme.surface,
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(
@@ -95,18 +96,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   decoration: _cardDecoration(),
                   child: Column(
                     children: [
-                      Container(
-                        width: 56,
+                      // Living mark: the SignalPulse travels along a
+                      // fiber line as the Malik Fiber mark lands.
+                      // Total splash stays under 2s; navigation timing
+                      // and session checks are unchanged.
+                      const SizedBox(
+                        width: double.infinity,
                         height: 56,
-                        decoration: BoxDecoration(
-                          color: FieldOpsDesignTokens.primaryContainer,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(
-                          Icons.wifi_tethering,
-                          size: 30,
-                          color: FieldOpsDesignTokens.onPrimaryContainer,
-                        ),
+                        child: SignalPulse(),
                       ),
                       const SizedBox(height: 10),
                       Text(
@@ -163,13 +160,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                                     Icon(
                                       Icons.sync,
                                       size: 18,
-                                      color: FieldOpsDesignTokens.secondary,
+                                      color: theme.colorScheme.primary,
                                     ),
                                     const SizedBox(width: 5),
                                     Text(
                                       'BOOT SEQUENCE',
                                       style: FieldOpsDesignTokens.labelMd.copyWith(
-                                        color: FieldOpsDesignTokens.secondary,
+                                        color: theme.colorScheme.primary,
                                         fontWeight: FontWeight.w700,
                                         letterSpacing: 0.8,
                                       ),
@@ -180,7 +177,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                                 Text(
                                   _statusLine(boot),
                                   style: FieldOpsDesignTokens.bodySm.copyWith(
-                                    color: FieldOpsDesignTokens.onSurfaceVariant,
+                                    color: theme.colorScheme.onSurfaceVariant,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -191,14 +188,14 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                           Text(
                             '${boot.progress}',
                             style: FieldOpsDesignTokens.displayLg.copyWith(
-                              color: FieldOpsDesignTokens.primary,
+                              color: theme.colorScheme.primary,
                               height: 1.0,
                             ),
                           ),
                           Text(
                             ' %',
                             style: FieldOpsDesignTokens.labelMd.copyWith(
-                              color: FieldOpsDesignTokens.onSurfaceVariant,
+                              color: theme.colorScheme.onSurfaceVariant,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -215,9 +212,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                             value: value,
                             minHeight: 10,
                             backgroundColor:
-                                FieldOpsDesignTokens.surfaceContainerHigh,
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                                FieldOpsDesignTokens.secondary),
+                                theme.colorScheme.surfaceContainerHighest,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                theme.colorScheme.primary),
                           ),
                         ),
                       ),
@@ -333,7 +330,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   'OUTDOOR RUGGEDISED INTERFACE PROFILE',
                   textAlign: TextAlign.center,
                   style: FieldOpsDesignTokens.labelSm.copyWith(
-                    color: FieldOpsDesignTokens.onSurfaceVariant,
+                    color: theme.colorScheme.onSurfaceVariant,
                     letterSpacing: 0.8,
                   ),
                 ),
@@ -342,7 +339,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   'Malik Telecom Infrastructure Group © 2025',
                   textAlign: TextAlign.center,
                   style: FieldOpsDesignTokens.bodySm.copyWith(
-                    color: FieldOpsDesignTokens.outline,
+                    color: theme.colorScheme.outline,
                   ),
                 ),
               ],
@@ -354,10 +351,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   BoxDecoration _cardDecoration() => BoxDecoration(
-        color: FieldOpsDesignTokens.surfaceContainerLowest,
+        color: Theme.of(context).colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(FieldOpsDesignTokens.radiusLg),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        boxShadow: FieldOpsDesignTokens.shadowLevel1,
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       );
 
   String _statusLine(BootState boot) {

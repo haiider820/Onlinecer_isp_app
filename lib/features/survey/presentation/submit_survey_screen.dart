@@ -21,7 +21,7 @@ import 'submit_survey_providers.dart';
 /// Collects `survey_notes` + an optional recorded voice note and submits them
 /// via `POST .../complete-survey`.
 ///
-/// "Midnight Ops" edition: voice-first. The notes card leads with a big
+/// Voice-first edition (palette #4, kit DESIGN.md Rules 1-14). The notes card leads with a big
 /// glowing mic (the existing recorder state machine is untouched), then site
 /// photos, a tappable site checklist, and the typed-notes fallback — with a
 /// sticky submit shelf. Renders ONLY the fields the API actually accepts
@@ -543,30 +543,26 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
               top: false,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: SizedBox(
-                  height: 52,
-                  child: FilledButton.icon(
-                    onPressed: controller.isSubmitting ? null : _submit,
-                    icon: controller.isSubmitting
-                        ? SizedBox(
-                            height: 22,
-                            width: 22,
-                            child: Lottie.asset('assets/lottie/login_loading.json', repeat: true),
-                          )
-                        : const Icon(Icons.check_circle_outline, size: 20),
-                    label: const Text('Submit Survey'),
-                    style: FilledButton.styleFrom(
-                      // Hold the enabled blue fill during submit so the white
-                      // spinner stays legible instead of sitting on Material's
-                      // pale-grey disabled fill.
-                      backgroundColor: controller.isSubmitting
-                          ? FieldOpsDesignTokens.secondary
-                          : null,
-                      disabledBackgroundColor:
-                          FieldOpsDesignTokens.secondary,
-                      textStyle: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                child: PressScale(
+                  child: SizedBox(
+                    height: 52,
+                    child: FilledButton.icon(
+                      onPressed: controller.isSubmitting ? null : _submit,
+                      icon: controller.isSubmitting
+                          // Disabled fill is a grey tint in both modes, so
+                          // the spinner uses onSurfaceVariant (legible on
+                          // grey); the white Lottie spinner was unreadable
+                          // on the light-mode disabled fill.
+                          ? SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            )
+                          : const Icon(Icons.check_circle_outline, size: 20),
+                      label: const Text('Submit Survey'),
                     ),
                   ),
                 ),
@@ -690,10 +686,11 @@ class _SuccessOverlayState extends State<_SuccessOverlay>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return PopScope(
       canPop: false,
       child: ColoredBox(
-        color: const Color(0xCCFFFFFF),
+        color: theme.colorScheme.surface.withValues(alpha: 0.8),
         child: Center(
           child: SizedBox(
             width: 180,

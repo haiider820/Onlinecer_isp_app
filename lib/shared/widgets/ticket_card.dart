@@ -35,7 +35,6 @@ class TicketCard extends StatelessWidget {
         color: theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
         border: Border.all(color: theme.colorScheme.outlineVariant),
-        boxShadow: FieldOpsDesignTokens.shadowLevel1,
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -168,19 +167,28 @@ class _PriorityPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
     final lower = priority.toLowerCase();
     final urgent = lower.contains('high') || lower.contains('urgent') || lower.contains('critical');
     final medium = lower.contains('medium') || lower.contains('normal') || lower.contains('low');
     final bg = urgent
-        ? FieldOpsDesignTokens.urgentBackground
+        ? (dark
+            ? FieldOpsDarkTokens.urgentBackground
+            : FieldOpsDesignTokens.urgentBackground)
         : medium
-            ? FieldOpsDesignTokens.pendingBackground
+            ? (dark
+                ? FieldOpsDarkTokens.pendingBackground
+                : FieldOpsDesignTokens.pendingBackground)
             : theme.colorScheme.surfaceContainerHighest;
     final fg = urgent
-        ? FieldOpsDesignTokens.urgentForeground
+        ? (dark
+            ? FieldOpsDarkTokens.urgentForeground
+            : FieldOpsDesignTokens.urgentForeground)
         : medium
-            ? FieldOpsDesignTokens.pendingForeground
-            : const Color(0xFF475569);
+            ? (dark
+                ? FieldOpsDarkTokens.pendingForeground
+                : FieldOpsDesignTokens.pendingForeground)
+            : theme.colorScheme.onSurfaceVariant;
 
     return Container(
       height: FieldOpsDesignTokens.badgeHeight,

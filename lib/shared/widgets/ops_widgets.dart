@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_theme.dart';
 import '../../core/theme/field_ops_design_tokens.dart';
 
-/// "Midnight Ops" component kit — the building blocks of the redesigned
+/// Ops component kit (palette #4, kit DESIGN.md Rules 1-14) — the building
+/// blocks of the redesigned
 /// screens. Every widget is theme-aware (reads [Theme.of]) so light and dark
 /// mode both render correctly. No hardcoded hex anywhere.
 ///
@@ -12,7 +12,8 @@ import '../../core/theme/field_ops_design_tokens.dart';
 /// [FatPickerCard], [WireStepper], [InventoryStepperRow], [CheckTile],
 /// [VoiceRecorderCard], [OpsBadge], [PriorityFlag], [FilterChips],
 /// [ChatBubble], [SystemPill], [InternalNoteCard], [VoiceNoteBubble],
-/// [OpsComposer], [OpsTimeline].
+/// [OpsComposer], [OpsTimeline], [PressScale], [CountUp], [SignalPulse],
+/// [StaggeredList].
 
 // ─── OpsCard ──────────────────────────────────────────────────────────────
 
@@ -46,13 +47,6 @@ class OpsCard extends StatelessWidget {
         borderRadius:
             BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
         border: Border.all(color: theme.colorScheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: theme.colorScheme.primary.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: ClipRRect(
         borderRadius:
@@ -69,12 +63,6 @@ class OpsCard extends StatelessWidget {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: edgeColor,
-                    boxShadow: [
-                      BoxShadow(
-                        color: edgeColor!.withValues(alpha: 0.8),
-                        blurRadius: 12,
-                      ),
-                    ],
                   ),
                 ),
               ),
@@ -149,7 +137,7 @@ class OpsAvatar extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        boxShadow: opsGlow(context),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       alignment: Alignment.center,
       child: Text(
@@ -313,7 +301,6 @@ class _Step extends StatelessWidget {
                         : primary,
                     width: 2,
                   ),
-                  boxShadow: state == _StepState.now ? opsGlow(context) : null,
                 ),
                 alignment: Alignment.center,
                 child: state == _StepState.done
@@ -561,7 +548,6 @@ class _DockButton extends StatelessWidget {
                   ? primary
                   : theme.colorScheme.outlineVariant,
             ),
-            boxShadow: action.primary ? opsGlow(context) : null,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -631,7 +617,6 @@ class OptionTile extends StatelessWidget {
                   : theme.colorScheme.outlineVariant,
               width: selected ? 1.5 : 1,
             ),
-            boxShadow: selected ? opsGlow(context) : null,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1035,16 +1020,16 @@ class VoiceRecorderCard extends StatelessWidget {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                boxShadow: opsGlow(context),
                 border: isRecording
                     ? Border.all(
                         color: theme.colorScheme.error, width: 3)
-                    : null,
+                    : Border.all(
+                        color: theme.colorScheme.outlineVariant),
               ),
               child: Icon(
                 isRecording ? Icons.stop : Icons.mic,
                 size: 30,
-                color: Colors.white,
+                color: theme.colorScheme.onPrimary,
               ),
             ),
           ),
@@ -1469,7 +1454,8 @@ class VoiceNoteBubble extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: primary,
-                boxShadow: opsGlow(context),
+                border: Border.all(
+                    color: theme.colorScheme.outlineVariant),
               ),
               child: Icon(
                 isPlaying ? Icons.pause : Icons.play_arrow,
@@ -1586,7 +1572,8 @@ class OpsComposer extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: primary,
-                boxShadow: opsGlow(context),
+                border: Border.all(
+                    color: theme.colorScheme.outlineVariant),
               ),
               child: Icon(Icons.send,
                   size: 18, color: theme.colorScheme.onPrimary),
@@ -1719,7 +1706,6 @@ class _TlDot extends StatelessWidget {
                   : theme.colorScheme.outlineVariant,
           width: 2,
         ),
-        boxShadow: current ? opsGlow(context) : null,
       ),
       alignment: Alignment.center,
       child: event.done
@@ -1758,4 +1744,291 @@ class TimelineEvent {
   final int index;
   final bool done;
   final bool current;
+}
+
+// ─── Kit motion widgets (DESIGN.md Rule 5 / APP_BRIEF §6) ────────────────
+
+/// Button-press feedback (Rule 5: ~100 ms squash).
+///
+/// Wraps [child] in an [AnimatedScale] that shrinks to [scale] (default
+/// 0.97) while a pointer is down and springs back to 1.0 on pointer-up or
+/// cancel. Press state is tracked with a [Listener], not a gesture
+/// recogniser, so taps, long-presses and scrolls on the child keep working
+/// exactly as before — this widget owns no gesture and swallows none. Put
+/// your own `InkWell` / `GestureDetector` around or inside it for the tap.
+class PressScale extends StatefulWidget {
+  const PressScale({super.key, required this.child, this.scale = 0.97});
+
+  final Widget child;
+
+  /// Pressed scale. 0.97 matches the kit press style (100 ms, scale 0.97).
+  final double scale;
+
+  @override
+  State<PressScale> createState() => _PressScaleState();
+}
+
+class _PressScaleState extends State<PressScale> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (!mounted || _pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    return Listener(
+      onPointerDown: (_) => _setPressed(true),
+      onPointerUp: (_) => _setPressed(false),
+      onPointerCancel: (_) => _setPressed(false),
+      child: AnimatedScale(
+        scale: _pressed && !reduceMotion ? widget.scale : 1.0,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+/// Animated hero number (Rule 4/5: count-up, 800 ms, tabular figures).
+///
+/// Animates from 0 — or from the previous value when [value] changes — to
+/// [value] over [duration] via a [TweenAnimationBuilder]. Digits use
+/// tabular figures so the number does not wobble as it counts. When
+/// `MediaQuery.of(context).disableAnimations` is true the final value is shown
+/// immediately with no animation.
+class CountUp extends StatelessWidget {
+  const CountUp({
+    super.key,
+    required this.value,
+    this.duration = const Duration(milliseconds: 800),
+    this.style,
+    this.textAlign,
+    this.format,
+  });
+
+  /// Target number. Whole numbers render without decimals; a fractional
+  /// target renders with one decimal.
+  final num value;
+  final Duration duration;
+  final TextStyle? style;
+  final TextAlign? textAlign;
+
+  /// Optional custom formatter for the animated value.
+  final String Function(double value)? format;
+
+  String _defaultFormat(double v) {
+    if (value is int || value == value.truncateToDouble()) {
+      return v.round().toString();
+    }
+    return v.toStringAsFixed(1);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textStyle = (style ?? DefaultTextStyle.of(context).style).copyWith(
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
+    if (MediaQuery.of(context).disableAnimations) {
+      return Text(
+        (format ?? _defaultFormat)(value.toDouble()),
+        style: textStyle,
+        textAlign: textAlign,
+      );
+    }
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: value.toDouble()),
+      duration: duration,
+      curve: Curves.easeOut,
+      builder: (context, animatedValue, _) => Text(
+        (format ?? _defaultFormat)(animatedValue),
+        style: textStyle,
+        textAlign: textAlign,
+      ),
+    );
+  }
+}
+
+/// The app's ONE living thing (APP_BRIEF §7: "Signal").
+///
+/// A thin 2 px fiber line in the primary colour at 30% alpha, with a small
+/// sky-blue dot travelling along it. One ~1800 ms ease-in-out traverse,
+/// repeating. The dot is a plain [Container] in the primary colour: no
+/// glow, no shadow, and the widget itself never fades (no opacity
+/// animation). With reduced motion enabled the dot rests at the start of
+/// the line and the controller's value is ignored. Use on splash, success
+/// and empty states only — work screens stay still (Rule 1).
+class SignalPulse extends StatefulWidget {
+  const SignalPulse({super.key, this.height = 8, this.dotSize = 8});
+
+  /// Total widget height; the 2 px line sits centred in it.
+  final double height;
+
+  /// Diameter of the travelling dot.
+  final double dotSize;
+
+  @override
+  State<SignalPulse> createState() => _SignalPulseState();
+}
+
+class _SignalPulseState extends State<SignalPulse>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _travel;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat();
+    _travel = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    final line = Container(
+      height: 2,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: primary.withValues(alpha: 0.30),
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+    final colouredDot = Container(
+      width: widget.dotSize,
+      height: widget.dotSize,
+      decoration: BoxDecoration(shape: BoxShape.circle, color: primary),
+    );
+    if (MediaQuery.of(context).disableAnimations) {
+      return SizedBox(
+        height: widget.height,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            line,
+            Align(alignment: Alignment.centerLeft, child: colouredDot),
+          ],
+        ),
+      );
+    }
+    return SizedBox(
+      height: widget.height,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return AnimatedBuilder(
+            animation: _travel,
+            builder: (context, _) {
+              final maxX = (constraints.maxWidth - widget.dotSize)
+                  .clamp(0.0, double.infinity);
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  line,
+                  Positioned(left: maxX * _travel.value, child: colouredDot),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// List entrance (Rule 5: items stagger in 40–60 ms apart, once).
+///
+/// Builds [children] in a [Column], each wrapped in a [FadeTransition] +
+/// [SlideTransition] driven by one shared [AnimationController] with a
+/// per-index [Interval]. The controller only ever moves forward, so items
+/// animate in once on first build and never re-run on scroll. With reduced
+/// motion the children render statically. [children] are expected to be
+/// stable across rebuilds; changing the list length after the first build
+/// does not re-time the controller.
+class StaggeredList extends StatefulWidget {
+  const StaggeredList({
+    super.key,
+    required this.children,
+    this.stagger = const Duration(milliseconds: 50),
+    this.itemDuration = const Duration(milliseconds: 300),
+  });
+
+  final List<Widget> children;
+
+  /// Gap between the start of one item's entrance and the next (40–60 ms).
+  final Duration stagger;
+
+  /// How long each item's own fade/slide takes.
+  final Duration itemDuration;
+
+  @override
+  State<StaggeredList> createState() => _StaggeredListState();
+}
+
+class _StaggeredListState extends State<StaggeredList>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final total = widget.itemDuration +
+        widget.stagger * (widget.children.length - 1).clamp(0, 1 << 30);
+    _controller = AnimationController(vsync: this, duration: total)
+      ..forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.of(context).disableAnimations) {
+      return Column(children: widget.children);
+    }
+    final totalMs = _controller.duration!.inMilliseconds;
+    return Column(
+      children: [
+        for (var i = 0; i < widget.children.length; i++)
+          Builder(
+            builder: (context) {
+              final start =
+                  (widget.stagger.inMilliseconds * i) / totalMs;
+              final end = (start +
+                      widget.itemDuration.inMilliseconds / totalMs)
+                  .clamp(0.0, 1.0);
+              final animation = CurvedAnimation(
+                parent: _controller,
+                curve: Interval(start.clamp(0.0, 1.0), end,
+                    curve: Curves.easeOut),
+              );
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.15),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: widget.children[i],
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
 }

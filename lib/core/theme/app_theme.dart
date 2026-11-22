@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 
 import 'field_ops_design_tokens.dart';
 
-/// Central app theme for the "Midnight Ops" design system.
+/// Central app theme for the Onlinecer ISP app (Malik Fiber) — palette #4
+/// Navy / sky / orange, per APP_BRIEF §4 and haider-design-kit DESIGN.md
+/// Rules 1–14. Dark is the default (kit Rule 4); light follows the same
+/// rules. Depth comes from surface steps + a 1px hairline, never shadows
+/// or glow (kit Rule 4).
 ///
 /// Both [light] and [dark] are first-class: [FieldOpsDesignTokens] feeds the
 /// light scheme, [FieldOpsDarkTokens] the dark scheme. Screens read
@@ -183,7 +187,7 @@ abstract final class AppTheme {
                 : FieldOpsDesignTokens.headlineMd)
             .copyWith(color: onSurface),
       ),
-      // Ops cards: 18px radius, hairline border, soft ambient shadow.
+      // Ops cards: 16px radius, 1px hairline border, no shadow.
       cardTheme: CardThemeData(
         elevation: 0,
         color: surfaceLowest,
@@ -193,10 +197,10 @@ abstract final class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(
               FieldOpsDesignTokens.cardRadius),
-          side: BorderSide(color: outlineVariant),
+          side: BorderSide(color: outlineVariant, width: 1),
         ),
       ),
-      // 52dp inputs, 14px radius, 1.5px border, cyan focus ring.
+      // 52dp inputs, 12px radius, 1px border, 2px primary focus ring.
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surfaceLowest,
@@ -217,12 +221,12 @@ abstract final class AppTheme {
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(
               FieldOpsDesignTokens.controlRadius),
-          borderSide: BorderSide(color: outlineVariant, width: 1.5),
+          borderSide: BorderSide(color: outlineVariant, width: 1),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(
               FieldOpsDesignTokens.controlRadius),
-          borderSide: BorderSide(color: outlineVariant, width: 1.5),
+          borderSide: BorderSide(color: outlineVariant, width: 1),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(
@@ -232,7 +236,7 @@ abstract final class AppTheme {
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(
               FieldOpsDesignTokens.controlRadius),
-          borderSide: BorderSide(color: error, width: 1.5),
+          borderSide: BorderSide(color: error, width: 1),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(
@@ -240,7 +244,7 @@ abstract final class AppTheme {
           borderSide: BorderSide(color: error, width: 2),
         ),
       ),
-      // Primary CTA: cyan fill, glowing shadow, 16px radius, 48dp height.
+      // Primary CTA: primary fill, no shadow, no glow, 16px radius, 48dp height.
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize:
@@ -249,8 +253,8 @@ abstract final class AppTheme {
           foregroundColor: onPrimary,
           disabledBackgroundColor: onSurface.withValues(alpha: 0.12),
           disabledForegroundColor: onSurface.withValues(alpha: 0.38),
-          shadowColor: primary.withValues(alpha: 0.45),
-          elevation: 6,
+          shadowColor: Colors.transparent,
+          elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
@@ -299,11 +303,11 @@ abstract final class AppTheme {
         selectedLabelStyle: (brightness == Brightness.dark
                 ? FieldOpsDarkTokens.labelSm
                 : FieldOpsDesignTokens.labelSm)
-            .copyWith(fontSize: 10.5),
+            .copyWith(fontSize: 12),
         unselectedLabelStyle: (brightness == Brightness.dark
                 ? FieldOpsDarkTokens.labelSm
                 : FieldOpsDesignTokens.labelSm)
-            .copyWith(fontSize: 10.5),
+            .copyWith(fontSize: 12),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: surfaceHigh,
@@ -349,7 +353,7 @@ abstract final class AppTheme {
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(22)),
+              const BorderRadius.vertical(top: Radius.circular(24)),
           side: BorderSide(color: outlineVariant),
         ),
       ),
@@ -402,7 +406,9 @@ abstract final class AppTheme {
   }
 }
 
-/// Signature cyan glow used by ops widgets for live indicators and hero CTAs.
+/// Former signature glow used by ops widgets for live indicators and hero
+/// CTAs. Kept for compatibility; it now returns the (empty) glow list —
+/// kit Rule 4: depth from surfaces + hairline, no glow.
 List<BoxShadow> opsGlow(BuildContext context) {
   final dark = Theme.of(context).brightness == Brightness.dark;
   return dark ? FieldOpsDarkTokens.glowCyan : FieldOpsDesignTokens.glowCyan;
