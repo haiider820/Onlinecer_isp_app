@@ -397,13 +397,13 @@ class _MapPreviewCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: FieldOpsDesignTokens.secondaryFixed,
+                      color: FieldOpsDesignTokens.primaryContainer,
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
                       'OPTIMAL LINE',
                       style: TextStyle(
-                        color: FieldOpsDesignTokens.onSecondaryFixed,
+                        color: FieldOpsDesignTokens.onPrimaryContainer,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.05,

@@ -43,6 +43,55 @@ abstract final class FieldOpsDesignTokens {
   static const Color outlineVariant = Color(0xFFDCE3EE);
   static const Color cardBorder = Color(0xFFDCE3EE);
 
+  // Text-field fill / border (login + forms).
+  static const Color fieldFill = Color(0xFFF6F8FC);
+  static const Color fieldBorder = Color(0xFFD9DFEC);
+
+  // ─── Liquid glass (LIGHT login only) ──────────────────────────────────
+  //
+  // Apple iOS 26-style glass for the light-theme login card: a translucent
+  // white gradient (brighter at the top, with a soft diagonal sheen band),
+  // a bright top/left rim, and one soft drop shadow. Scoped exception to
+  // kit Rule 4 (no shadows) — glass needs the shadow for depth, and it
+  // applies to this card only. Dark login keeps the v2 frosted card.
+  // The fill stays white enough that dark text on it keeps 4.5+ contrast
+  // (fill 0.55/0.40 over the navy scene is still ~5:1 for #10182B text).
+  // NOTE: no borderRadius here — a borderRadius can only be given on
+  // borders with uniform colors, and this border is deliberately
+  // non-uniform (bright top/left rim). The rounding comes from the
+  // ClipRRect in LoginScreen; the shadow lives on the outer container
+  // there for the same reason (a shadow inside the clip is cut off).
+  static const Color glassFillTop = Color(0x8CFFFFFF); // white, 0.55
+  static const Color glassFillBottom = Color(0x66FFFFFF); // white, 0.40
+  static const Color glassRimBright = Color(0xD9FFFFFF); // white, 0.85
+  static const Color glassRimSoft = Color(0x73FFFFFF); // white, 0.45
+  static const Color glassSheen = Color(0x8CFFFFFF); // white, 0.55 (band)
+  static const Color glassShadow = Color(0x330B132B); // navy, 0.20
+
+  static const BoxDecoration glassCardDecoration = BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [glassFillTop, glassFillBottom, glassSheen, glassFillBottom],
+      stops: [0.0, 0.38, 0.62, 1.0],
+    ),
+    border: Border(
+      top: BorderSide(color: glassRimBright, width: 1.2),
+      left: BorderSide(color: glassRimBright, width: 1),
+      right: BorderSide(color: glassRimSoft, width: 1),
+      bottom: BorderSide(color: glassRimSoft, width: 1),
+    ),
+  );
+
+  /// Soft drop shadow for the glass card — applied to the OUTER container
+  /// in LoginScreen, never inside the ClipRRect.
+  static const BoxDecoration glassShadowDecoration = BoxDecoration(
+    borderRadius: BorderRadius.all(Radius.circular(32)),
+    boxShadow: [
+      BoxShadow(color: glassShadow, blurRadius: 28, offset: Offset(0, 14)),
+    ],
+  );
+
   // Primary — cobalt. Every primary CTA, active indicator and focus ring.
   // Ink on top is white in light mode.
   static const Color primary = Color(0xFF1D4ED8);
@@ -352,6 +401,10 @@ abstract final class FieldOpsDarkTokens {
   static const Color outline = Color(0xFF3A506B);
   static const Color outlineVariant = Color(0xFF27314A);
   static const Color cardBorder = Color(0xFF3A506B);
+
+  // Text-field fill / border (login + forms).
+  static const Color fieldFill = Color(0xFF111A33);
+  static const Color fieldBorder = Color(0xFF263253);
 
   // Primary — sky; ink on top is dark navy, NEVER white (white on sky
   // is only 2.09:1).

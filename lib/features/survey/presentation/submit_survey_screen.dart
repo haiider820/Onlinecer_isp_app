@@ -44,6 +44,7 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
   final ImagePicker _photoPicker = ImagePicker();
 
   bool _micPermission = false;
+  bool _micChecked = false;
   bool _micBusy = false;
   bool _isRecording = false;
   Duration _recordingTime = Duration.zero;
@@ -86,7 +87,22 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
     } catch (_) {
       granted = false;
     }
-    if (mounted) setState(() => _micPermission = granted);
+    if (mounted) {
+      setState(() {
+        _micPermission = granted;
+        _micChecked = true;
+      });
+    }
+  }
+
+  /// Re-checks the mic permission (e.g. after the user enabled it in the
+  /// system Settings) and, if still denied, points at Settings. No
+  /// app_settings dependency — the button re-runs the permission check.
+  Future<void> _retryMicPermission() async {
+    await _initMic();
+    if (mounted && !_micPermission) {
+      _snack('Enable microphone access in Settings');
+    }
   }
 
   Future<void> _toggleRecording() async {
@@ -273,7 +289,7 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
           Expanded(
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               children: [
                 // ── Work order context header ──
                 _WorkOrderHeader(requestNumber: request?.requestNumber, customerName: request?.customerName),
@@ -285,16 +301,35 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
                   subtitle: 'Tap the mic and describe what you found on site',
                   elapsedLabel: _recordingLabel,
                   isRecording: _isRecording,
+                  // Idle bars read as a fake waveform, so hide them until
+                  // a recording is actually running.
+                  waveformBars: _isRecording
+                      ? const [8, 16, 24, 12, 20, 9, 18, 26, 14, 10, 22, 15]
+                      : const [],
                   onMicTap: _toggleRecording,
                   onTypeTap: () => _notesFocus.requestFocus(),
                 ),
-                if (!_micPermission) ...[
+                // Shown only once the permission check has resolved — never
+                // on first paint before hasPermission returns.
+                if (_micChecked && !_micPermission) ...[
                   const SizedBox(height: 8),
-                  Text(
-                    'Microphone permission needed to record a voice note.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Microphone permission needed to record a voice note.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.error,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: _retryMicPermission,
+                        child: const Text('Open settings'),
+                      ),
+                    ],
                   ),
                 ],
                 // ── Recorded playback row ──
@@ -411,13 +446,13 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
                             width: 32,
                             height: 32,
                             decoration: BoxDecoration(
-                              color: theme.colorScheme.secondary.withValues(alpha: 0.12),
+                              color: theme.colorScheme.primaryContainer,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Icon(
                               Icons.photo_camera_outlined,
                               size: 18,
-                              color: theme.colorScheme.secondary,
+                              color: theme.colorScheme.onPrimaryContainer,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -535,10 +570,14 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
               ],
             ),
           ),
-          // ── Sticky submit shelf ──
-          Material(
-            color: theme.colorScheme.surfaceContainerLowest,
-            elevation: 8,
+          // ── Sticky submit shelf (flat: surface + 1px top border, no shadow) ──
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              border: Border(
+                top: BorderSide(color: theme.colorScheme.outlineVariant),
+              ),
+            ),
             child: SafeArea(
               top: false,
               child: Padding(
@@ -602,7 +641,9 @@ class _WorkOrderHeader extends StatelessWidget {
                 if (requestNumber != null)
                   Text(
                     requestNumber!,
-                    style: theme.textTheme.titleMedium?.copyWith(
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.w800,
                     ),
@@ -623,16 +664,17 @@ class _WorkOrderHeader extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: FieldOpsDesignTokens.secondaryFixed,
+              color: theme.colorScheme.primaryContainer,
               borderRadius: BorderRadius.circular(FieldOpsDesignTokens.radiusFull),
             ),
             child: Text(
-              'FEASIBILITY SURVEY',
+              'Feasibility survey',
               style: TextStyle(
-                color: FieldOpsDesignTokens.onSecondaryFixed,
+                color: theme.colorScheme.onPrimaryContainer,
                 fontSize: 10,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.05,
+                fontFamily: FieldOpsDesignTokens.bodyFamily,
               ),
             ),
           ),

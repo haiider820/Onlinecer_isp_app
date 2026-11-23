@@ -36,7 +36,7 @@ void main() {
             'request_number': 'CR-001-2026',
             'status': 'assigned',
             'customer_name': 'Karim Ahmed',
-            'customer_area': 'Dhanmondi',
+            'customer_area': 'Gulberg',
           },
         ],
         'meta': {'current_page': 2, 'per_page': 15, 'total': 31, 'last_page': 3},
@@ -96,7 +96,7 @@ void main() {
           'request_number': 'CR-001-2026',
           'status': 'assigned',
           'customer_name': 'Karim Ahmed',
-          'customer_area': 'Dhanmondi',
+          'customer_area': 'Gulberg',
         },
         'allowed_action': 'complete_survey',
       });

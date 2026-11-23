@@ -105,9 +105,9 @@ const _requestListMap = {
   'status': 'survey_assigned',
   'customer_name': 'Rahim Uddin',
   'customer_type': 'Residential',
-  'customer_phone': '+8801712345678',
-  'customer_area': 'Dhanmondi',
-  'customer_address': 'House 12, Road 5, Dhanmondi',
+  'customer_phone': '+92 300 1234567',
+  'customer_area': 'Gulberg',
+  'customer_address': 'House 12, Street 5, Gulberg',
 };
 
 const _dashboardMap = {
@@ -138,7 +138,7 @@ const _detailMap = {
 
 const _fatNodesMap = {
   'data': [
-    {'id': 'node_1', 'name': 'FAT-A Dhanmondi', 'node_type': 'dp', 'latitude': 23.7444, 'longitude': 90.3788},
+    {'id': 'node_1', 'name': 'FAT-A Gulberg', 'node_type': 'dp', 'latitude': 23.7444, 'longitude': 90.3788},
   ],
 };
 
@@ -324,7 +324,7 @@ void main() {
     await tester.tap(find.text('Plan Route'));
     await _settle(tester);
     expect(find.text('Select FAT node'), findsOneWidget);
-    expect(find.text('FAT-A Dhanmondi'), findsOneWidget);
+    expect(find.text('FAT-A Gulberg'), findsOneWidget);
     // FilledButton.icon lives in a private subtype, so match by subtype.
     final calcButton = tester.widget<FilledButton>(
       find.ancestor(of: find.text('Calculate Route'), matching: find.bySubtype<FilledButton>()),
@@ -332,7 +332,7 @@ void main() {
     expect(calcButton.onPressed, isNull);
 
     // 4. Pick a FAT node, use my location, calculate.
-    await tester.tap(find.text('FAT-A Dhanmondi'));
+    await tester.tap(find.text('FAT-A Gulberg'));
     await _settle(tester);
     await tester.tap(find.text('Use my location'));
     await _settle(tester);

@@ -488,8 +488,8 @@ class _StepPill extends StatelessWidget {
     final (label, background, foreground) = switch (status) {
       BootStepStatus.done => ('DONE', FieldOpsDesignTokens.tertiaryFixed,
           FieldOpsDesignTokens.onTertiaryFixed),
-      BootStepStatus.running => ('RUNNING', FieldOpsDesignTokens.secondaryFixed,
-          FieldOpsDesignTokens.onSecondaryFixed),
+      BootStepStatus.running => ('RUNNING', FieldOpsDesignTokens.primaryContainer,
+          FieldOpsDesignTokens.onPrimaryContainer),
       BootStepStatus.skipped => ('SKIPPED', FieldOpsDesignTokens.surfaceContainerHigh,
           FieldOpsDesignTokens.onSurfaceVariant),
       BootStepStatus.failed => ('FAILED', FieldOpsDesignTokens.urgentBackground,

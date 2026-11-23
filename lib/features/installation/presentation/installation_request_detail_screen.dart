@@ -180,7 +180,9 @@ class _DetailScaffoldState extends ConsumerState<_DetailScaffold> {
 
     return Scaffold(
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(124),
+        // Two-row MissionHeader (ID row + status pill row + stepper)
+        // needs ~142dp; 124dp overflowed by 24px at 390px width.
+        preferredSize: const Size.fromHeight(152),
         child: SafeArea(
           child: MissionHeader(
             requestId: request.requestNumber,
@@ -547,6 +549,9 @@ class _ActionDockRow extends StatelessWidget {
           DockAction(
             label: 'WhatsApp',
             icon: Icons.chat_outlined,
+            // WhatsApp green (theme tertiary) so the action is
+            // recognisable at a glance, not another blue button.
+            color: Theme.of(context).colorScheme.tertiary,
             onTap: () => _whatsapp(context, phone),
           ),
       ],
@@ -554,9 +559,10 @@ class _ActionDockRow extends StatelessWidget {
   }
 }
 
-/// Pricing with mono figures: subscription charge from the requested
-/// plan's `price_minor`, plus the connection charge placeholder (the backend
-/// doesn't expose the field on the detail response yet — contract note).
+/// Pricing with tabular (non-mono) figures: subscription charge from the
+/// requested plan's `price_minor`, plus the connection charge placeholder
+/// (the backend doesn't expose the field on the detail response yet —
+/// contract note). Money is never monospace.
 class _PricingCard extends StatelessWidget {
   const _PricingCard({required this.request});
 
@@ -583,8 +589,9 @@ class _PricingCard extends StatelessWidget {
               ),
               Text(
                 priceMinor != null ? formatMinorPrice(priceMinor) : '—',
-                style: FieldOpsDesignTokens.dataLg.copyWith(
+                style: theme.textTheme.headlineSmall?.copyWith(
                   color: primary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
             ],
@@ -609,7 +616,7 @@ class _PricingCard extends StatelessWidget {
               ),
               Text(
                 AppStrings.connectionChargePending,
-                style: FieldOpsDesignTokens.dataMd.copyWith(
+                style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -904,7 +911,8 @@ class _WorkSection extends StatelessWidget {
 }
 
 /// Sticky bottom CTA: completion-checklist progress + the submit action.
-/// The submit itself is disabled while a submission is in flight.
+/// The submit itself is disabled while a submission is in flight, and until
+/// at least one of the three checklist items is done (0/3 renders muted).
 class _StickyCta extends StatelessWidget {
   const _StickyCta({
     required this.progress,
@@ -931,13 +939,6 @@ class _StickyCta extends StatelessWidget {
           border: Border(
             top: BorderSide(color: theme.colorScheme.outlineVariant),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 16,
-              offset: const Offset(0, -4),
-            ),
-          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -987,27 +988,36 @@ class _StickyCta extends StatelessWidget {
                 );
               },
             ),
-            PressScale(
-              child: SizedBox(
-                height: 52,
-                child: FilledButton.icon(
-                  onPressed: submitting ? null : onSubmit,
-                  icon: submitting
-                      // Disabled fill is grey in both modes; onSurfaceVariant
-                      // stays legible on it (onPrimary/white does not in
-                      // light mode).
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        )
-                      : const Icon(Icons.check_circle_outline),
-                  label: const Text('Complete Installation'),
-                ),
-              ),
+            ValueListenableBuilder<double>(
+              valueListenable: progress,
+              builder: (_, value, __) {
+                // Gated on progress: muted/disabled until at least one of
+                // the three checklist items is done.
+                final done = (value * _requiredCount).round();
+                final disabled = submitting || done == 0;
+                return PressScale(
+                  child: SizedBox(
+                    height: 52,
+                    child: FilledButton.icon(
+                      onPressed: disabled ? null : onSubmit,
+                      icon: submitting
+                          // Disabled fill is grey in both modes; onSurfaceVariant
+                          // stays legible on it (onPrimary/white does not in
+                          // light mode).
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            )
+                          : const Icon(Icons.check_circle_outline),
+                      label: const Text('Complete Installation'),
+                    ),
+                  ),
+                );
+              },
             ),
           ],
         ),

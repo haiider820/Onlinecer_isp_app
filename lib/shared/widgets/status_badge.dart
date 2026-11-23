@@ -4,7 +4,8 @@ import '../../core/theme/field_ops_design_tokens.dart';
 
 /// Renders a connection-request / ticket status as a capsule badge using the
 /// kit-standard semantic pairs (DESIGN.md Rule 4 + APP_BRIEF §4):
-///  - Assigned / In-Progress:   sky   (assigned bg/fg tokens)
+///  - Assigned:                 sky   (assigned bg/fg tokens)
+///  - In-Progress:              amber (pending bg/fg tokens)
 ///  - Completed / Verified:     green (completed bg/fg tokens)
 ///  - Pending / Scheduled:      amber (pending bg/fg tokens)
 ///  - Urgent / Outage / Escal.: red   (urgent bg/fg tokens)
@@ -28,11 +29,57 @@ class StatusBadge extends StatelessWidget {
   static bool _isDark(Brightness brightness) =>
       brightness == Brightness.dark;
 
+  /// Short sentence-case human label for a raw status enum, e.g.
+  /// `installation_in_progress` → `In progress`. Strips lifecycle prefixes
+  /// (`installation_` / `survey_` / `connection_`); unknown values fall back
+  /// to underscores-as-spaces with only the first letter capitalised.
+  static String labelFor(String status) {
+    var s = status.trim().toLowerCase();
+    for (final prefix in const [
+      'installation_',
+      'survey_',
+      'connection_',
+    ]) {
+      if (s.startsWith(prefix)) {
+        s = s.substring(prefix.length);
+        break;
+      }
+    }
+    const labels = <String, String>{
+      'assigned': 'Assigned',
+      'in_progress': 'In progress',
+      'in progress': 'In progress',
+      'pending': 'Pending',
+      'scheduled': 'Scheduled',
+      'completed': 'Completed',
+      'done': 'Completed',
+      'verified': 'Verified',
+      'approved': 'Approved',
+      'review': 'Needs review',
+      'urgent': 'Urgent',
+      'cancelled': 'Cancelled',
+      'failed': 'Failed',
+      'rejected': 'Rejected',
+      'open': 'Open',
+      'opened': 'Open',
+      'resolved': 'Resolved',
+      'closed': 'Closed',
+      'waiting_customer': 'Waiting for customer',
+      'waiting for customer': 'Waiting for customer',
+    };
+    final mapped = labels[s];
+    if (mapped != null) return mapped;
+    final spaced = s.replaceAll('_', ' ');
+    if (spaced.isEmpty) return status;
+    return spaced[0].toUpperCase() + spaced.substring(1);
+  }
+
   static Color colorForStatus(String status,
       {Brightness brightness = Brightness.light}) {
     final dark = _isDark(brightness);
     final s = status.toLowerCase();
     if (s.contains('completed') ||
+        s.contains('done') ||
         s.contains('approved') ||
         s.contains('verified')) {
       return dark
@@ -52,15 +99,18 @@ class StatusBadge extends StatelessWidget {
           ? FieldOpsDarkTokens.reviewForeground
           : FieldOpsDesignTokens.reviewForeground;
     }
-    if (s.contains('pending') || s.contains('scheduled')) {
+    // In-progress uses the AMBER pending pair (Haider's fixed system),
+    // not the blue assigned pair.
+    if (s.contains('pending') ||
+        s.contains('scheduled') ||
+        s.contains('in_progress') ||
+        s.contains('in progress') ||
+        s.contains('progress')) {
       return dark
           ? FieldOpsDarkTokens.pendingForeground
           : FieldOpsDesignTokens.pendingForeground;
     }
-    if (s.contains('assigned') ||
-        s.contains('in_progress') ||
-        s.contains('in progress') ||
-        s.contains('progress')) {
+    if (s.contains('assigned')) {
       return dark
           ? FieldOpsDarkTokens.assignedForeground
           : FieldOpsDesignTokens.assignedForeground;
@@ -76,6 +126,7 @@ class StatusBadge extends StatelessWidget {
     final dark = _isDark(brightness);
     final s = status.toLowerCase();
     if (s.contains('completed') ||
+        s.contains('done') ||
         s.contains('approved') ||
         s.contains('verified')) {
       return dark
@@ -95,15 +146,18 @@ class StatusBadge extends StatelessWidget {
           ? FieldOpsDarkTokens.reviewBackground
           : FieldOpsDesignTokens.reviewBackground;
     }
-    if (s.contains('pending') || s.contains('scheduled')) {
+    // In-progress uses the AMBER pending pair (Haider's fixed system),
+    // not the blue assigned pair.
+    if (s.contains('pending') ||
+        s.contains('scheduled') ||
+        s.contains('in_progress') ||
+        s.contains('in progress') ||
+        s.contains('progress')) {
       return dark
           ? FieldOpsDarkTokens.pendingBackground
           : FieldOpsDesignTokens.pendingBackground;
     }
-    if (s.contains('assigned') ||
-        s.contains('in_progress') ||
-        s.contains('in progress') ||
-        s.contains('progress')) {
+    if (s.contains('assigned')) {
       return dark
           ? FieldOpsDarkTokens.assignedBackground
           : FieldOpsDesignTokens.assignedBackground;
@@ -244,14 +298,18 @@ class StatusBadge extends StatelessWidget {
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
-          Text(
-            status.replaceAll('_', ' ').toUpperCase(),
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.04,
-              fontFamily: FieldOpsDesignTokens.bodyFamily,
+          Flexible(
+            child: Text(
+              labelFor(status),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.04,
+                fontFamily: FieldOpsDesignTokens.bodyFamily,
+              ),
             ),
           ),
         ],

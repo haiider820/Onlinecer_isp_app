@@ -118,9 +118,9 @@ const _requestMap = {
   'status': 'installation_assigned',
   'customer_name': 'Rahim Uddin',
   'customer_type': 'Residential',
-  'customer_phone': '+8801712345678',
-  'customer_area': 'Dhanmondi',
-  'customer_address': 'House 12, Road 5, Dhanmondi',
+  'customer_phone': '+92 300 1234567',
+  'customer_area': 'Gulberg',
+  'customer_address': 'House 12, Street 5, Gulberg',
 };
 
 const _dashboardMap = {
@@ -202,7 +202,7 @@ const _fatNodesMap = {
   'data': [
     {
       'id': 'node_1',
-      'name': 'FAT-A Dhanmondi',
+      'name': 'FAT-A Gulberg',
       'node_type': 'dp',
       'latitude': 23.7444,
       'longitude': 90.3788,
@@ -602,7 +602,7 @@ Future<void> _fillRequiredFields(WidgetTester tester) async {
   for (var i = 0; i < 6; i++) {
     await tester.pump(const Duration(milliseconds: 100));
   }
-  await tester.tap(find.text('FAT-A Dhanmondi').last);
+  await tester.tap(find.text('FAT-A Gulberg').last);
   for (var i = 0; i < 6; i++) {
     await tester.pump(const Duration(milliseconds: 100));
   }
@@ -650,7 +650,7 @@ void main() {
     expect(network.lastId, _requestId);
     expect(network.lastOwnership, 'user');
     expect(network.lastFatNodeId, 'node_1');
-    // DP coordinates ride along from the selected FAT node (FAT-A Dhanmondi).
+    // DP coordinates ride along from the selected FAT node (FAT-A Gulberg).
     expect(network.lastDpLatitude, 23.7444);
     expect(network.lastDpLongitude, 90.3788);
     expect(network.lastWire, isNull);

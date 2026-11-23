@@ -13,7 +13,7 @@ class InstallationListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => PaginatedRequestListScreen(
-        title: 'Installation Requests',
+        title: 'Requests',
         pageProvider: installationRequestsProvider,
         detailRouteFor: Routes.installationDetailFor,
       );

@@ -145,6 +145,7 @@ class RequestCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             Expanded(
                               child: Text(
@@ -157,7 +158,14 @@ class RequestCard extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            StatusBadge(status: request.status),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(maxWidth: 140),
+                                child: StatusBadge(status: request.status),
+                              ),
+                            ),
                           ],
                         ),
                         if (request.customerName != null) ...[
@@ -288,10 +296,28 @@ class RequestCard extends StatelessWidget {
                         ),
                       ),
                     if (hasPhone && onAction == null)
-                      Text(
-                        'Tap to view',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                      Flexible(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '${StatusBadge.labelFor(request.status)} · Tap to view',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color:
+                                      theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            Icon(
+                              Icons.chevron_right,
+                              size: 18,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ],
                         ),
                       ),
                   ],

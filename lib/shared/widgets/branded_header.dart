@@ -44,8 +44,8 @@ class BrandedHeader extends StatelessWidget implements PreferredSizeWidget {
   Widget buildBrandMark(BuildContext context) {
     return Image.asset(
       'assets/images/malik_fiber_logo.png',
-      width: 36,
-      height: 36,
+      width: 44,
+      height: 44,
       fit: BoxFit.contain,
     );
   }
@@ -66,13 +66,6 @@ class BrandedHeader extends StatelessWidget implements PreferredSizeWidget {
             border: Border(
               bottom: BorderSide(color: theme.colorScheme.outlineVariant, width: 1),
             ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x0A000000),
-                blurRadius: 8,
-                offset: Offset(0, 1),
-              ),
-            ],
           ),
           child: Row(
             children: [

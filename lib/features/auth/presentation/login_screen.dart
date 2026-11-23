@@ -15,12 +15,15 @@ import 'providers.dart';
 ///
 /// One title + one CTA, Email + Password only, over a full fiber/network
 /// scene (deep-navy canvas in both modes, thin fiber lines + a travelling
-/// SignalPulse). The sign-in card is frosted glass (blur 16, surface at
-/// alpha 0.80, 1px alpha border, radius 32 / fields 24, padding 16) and the
-/// form is vertically centred with no bottom strip. The living logo
-/// (SignalPulse mark + "Malik Fiber" wordmark) sits top-left with a
-/// transform-only bob — no opacity fade anywhere. On success there is no
-/// fade/grow animation: the dashboard opens straight away.
+/// SignalPulse). LIGHT mode: the card is Apple-style liquid glass
+/// (translucent white gradient with a diagonal sheen band, bright top/left
+/// rim, soft shadow, blur 20) over a soft sky glow pooled behind the card
+/// so the glass has something to refract. DARK mode: the v2 frosted card
+/// (blur 16, surface at alpha 0.80) — unchanged. The form is vertically
+/// centred with no bottom strip. The living logo (SignalPulse mark +
+/// "Malik Fiber" wordmark) sits top-left with a transform-only bob — no
+/// opacity fade anywhere. On success there is no fade/grow animation:
+/// the dashboard opens straight away.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -77,17 +80,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
-  OutlineInputBorder _fieldBorder(Color color, [double width = 1]) =>
-      OutlineInputBorder(
-        borderRadius: BorderRadius.circular(24),
-        borderSide: BorderSide(color: color, width: width),
-      );
-
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authControllerProvider);
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    // Liquid glass applies to LIGHT mode only; dark keeps the v2 frost.
+    final light = theme.brightness == Brightness.light;
 
     return Scaffold(
       // Login scene canvas: deep navy in BOTH modes (Rule 14 pattern —
@@ -98,6 +97,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         children: [
           // ── Fiber/network scene (theme colours only, no glow) ──
           const _FiberScene(),
+          // Light only: a soft sky glow pooled behind the card so the
+          // liquid-glass card has something bright to refract. Sits low
+          // and centred — clear of the white title/logo at the top.
+          if (light) const _GlassGlow(),
           SafeArea(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -144,55 +147,53 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ),
                               ),
                               const SizedBox(height: 24),
-                              // Frosted card on top of the scene.
-                              ClipRRect(
+                              // Card on top of the scene: liquid glass in
+                              // light mode, the v2 frosted card in dark.
+                              // The soft glass shadow lives on this outer
+                              // container: a shadow on the clipped card
+                              // itself would be cut off by the ClipRRect.
+                              Container(
+                                decoration: light
+                                    ? FieldOpsDesignTokens
+                                        .glassShadowDecoration
+                                    : null,
+                                child: ClipRRect(
                                 borderRadius: BorderRadius.circular(32),
                                 child: BackdropFilter(
                                   filter: ImageFilter.blur(
-                                      sigmaX: 16, sigmaY: 16),
+                                      sigmaX: light ? 20 : 16,
+                                      sigmaY: light ? 20 : 16),
                                   child: Container(
                                     padding: const EdgeInsets.all(16),
-                                    decoration: BoxDecoration(
-                                      color: scheme.surface
-                                          .withValues(alpha: 0.80),
-                                      borderRadius:
-                                          BorderRadius.circular(32),
-                                      border: Border.all(
-                                        color: scheme.outlineVariant
-                                            .withValues(alpha: 0.6),
-                                      ),
-                                    ),
+                                    decoration: light
+                                        ? FieldOpsDesignTokens
+                                            .glassCardDecoration
+                                        : BoxDecoration(
+                                            color: scheme.surface
+                                                .withValues(alpha: 0.80),
+                                            borderRadius:
+                                                BorderRadius.circular(32),
+                                            border: Border.all(
+                                              color: scheme.outlineVariant
+                                                  .withValues(alpha: 0.6),
+                                            ),
+                                          ),
                                     child: Form(
                                       key: _formKey,
                                       child: Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.stretch,
                                         children: [
-                                          TextFormField(
+                                          OpsTextField(
                                             controller: _emailController,
+                                            label: 'Work email',
+                                            hint: 'name@malikfiber.com',
                                             keyboardType: TextInputType
                                                 .emailAddress,
-                                            autocorrect: false,
-                                            style: theme
-                                                .textTheme.bodyLarge,
-                                            cursorColor:
-                                                scheme.primary,
-                                            decoration: InputDecoration(
-                                              labelText: 'Work email',
-                                              prefixIcon: const Icon(Icons
-                                                  .badge_outlined),
-                                              border: _fieldBorder(
-                                                  scheme.outlineVariant),
-                                              enabledBorder: _fieldBorder(
-                                                  scheme.outlineVariant),
-                                              focusedBorder: _fieldBorder(
-                                                  scheme.primary, 1.5),
-                                              errorBorder: _fieldBorder(
-                                                  scheme.error),
-                                              focusedErrorBorder:
-                                                  _fieldBorder(
-                                                      scheme.error, 1.5),
-                                            ),
+                                            textInputAction:
+                                                TextInputAction.next,
+                                            prefixIcon:
+                                                Icons.mail_outline,
                                             validator: (value) {
                                               final v =
                                                   value?.trim() ?? '';
@@ -209,42 +210,27 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                               height:
                                                   FieldOpsDesignTokens
                                                       .spaceMd),
-                                          TextFormField(
+                                          OpsTextField(
                                             controller: _passwordController,
+                                            label: 'Password',
+                                            hint: '••••••••',
                                             obscureText: !_passwordVisible,
-                                            style: theme
-                                                .textTheme.bodyLarge,
-                                            cursorColor:
-                                                scheme.primary,
-                                            decoration: InputDecoration(
-                                              labelText: 'Password',
-                                              prefixIcon: const Icon(
-                                                  Icons.lock_outline),
-                                              suffixIcon: IconButton(
-                                                tooltip: _passwordVisible
-                                                    ? 'Hide password'
-                                                    : 'Show password',
-                                                icon: Icon(
-                                                  _passwordVisible
-                                                      ? Icons.visibility_off
-                                                      : Icons.visibility,
-                                                ),
-                                                onPressed: () => setState(
-                                                  () => _passwordVisible =
-                                                      !_passwordVisible,
-                                                ),
+                                            textInputAction:
+                                                TextInputAction.done,
+                                            prefixIcon: Icons.lock_outline,
+                                            suffixIcon: IconButton(
+                                              tooltip: _passwordVisible
+                                                  ? 'Hide password'
+                                                  : 'Show password',
+                                              icon: Icon(
+                                                _passwordVisible
+                                                    ? Icons.visibility_off
+                                                    : Icons.visibility,
                                               ),
-                                              border: _fieldBorder(
-                                                  scheme.outlineVariant),
-                                              enabledBorder: _fieldBorder(
-                                                  scheme.outlineVariant),
-                                              focusedBorder: _fieldBorder(
-                                                  scheme.primary, 1.5),
-                                              errorBorder: _fieldBorder(
-                                                  scheme.error),
-                                              focusedErrorBorder:
-                                                  _fieldBorder(
-                                                      scheme.error, 1.5),
+                                              onPressed: () => setState(
+                                                () => _passwordVisible =
+                                                    !_passwordVisible,
+                                              ),
                                             ),
                                             validator: (value) {
                                               if (value == null ||
@@ -325,6 +311,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   ),
                                 ),
                               ),
+                              ),
                             ],
                           ),
                         ),
@@ -384,6 +371,37 @@ class _FiberScene extends StatelessWidget {
               color: primary.withValues(alpha: 0.05)),
         ),
       ],
+    );
+  }
+}
+
+/// Light-mode only: a soft sky glow pooled behind the login card so the
+/// liquid-glass card has something bright to refract. A centred radial
+/// wash (sky → cobalt → transparent), low enough to sit behind the card
+/// and clear of the white title/logo at the top. No glow in dark mode.
+class _GlassGlow extends StatelessWidget {
+  const _GlassGlow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: const Alignment(0, 0.18),
+      child: Container(
+        width: 460,
+        height: 460,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              FieldOpsDesignTokens.inversePrimary
+                  .withValues(alpha: 0.45),
+              FieldOpsDesignTokens.primary.withValues(alpha: 0.22),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.55, 1.0],
+          ),
+        ),
+      ),
     );
   }
 }

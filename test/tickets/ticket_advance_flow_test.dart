@@ -144,9 +144,9 @@ void main() {
 
       expect(find.text('Status changed'), findsOneWidget);
       expect(find.text('Technician has been assigned.'), findsOneWidget);
-      expect(find.text('Advance to RESOLVED'), findsOneWidget);
+      expect(find.text('Mark as resolved'), findsOneWidget);
 
-      await tester.tap(find.text('Advance to RESOLVED'));
+      await tester.tap(find.text('Mark as resolved'));
       // A focused TextField has a continuously blinking cursor, so a bounded
       // pump is appropriate here instead of waiting for the test tree to idle.
       await tester.pump(const Duration(milliseconds: 200));
@@ -164,15 +164,15 @@ void main() {
       await _settle(tester);
 
       expect(network.advanceNotes, ['Technician confirmed repair.']);
-      expect(find.text('Advance to CLOSED'), findsOneWidget);
+      expect(find.text('Mark as closed'), findsOneWidget);
 
-      await tester.tap(find.text('Advance to CLOSED'));
+      await tester.tap(find.text('Mark as closed'));
       await tester.pump(const Duration(milliseconds: 200));
       await tester.tap(find.text('Confirm'));
       await _settle(tester);
 
       expect(network.advanceNotes, orderedEquals(['Technician confirmed repair.', isNull]));
-      expect(find.textContaining('Advance to'), findsNothing);
+      expect(find.textContaining('Mark as'), findsNothing);
     },
   );
 }

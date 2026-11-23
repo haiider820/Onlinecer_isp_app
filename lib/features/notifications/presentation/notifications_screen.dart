@@ -230,17 +230,17 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: FieldOpsDesignTokens.secondaryFixed,
+        color: FieldOpsDesignTokens.primaryContainer,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         '$count New',
         style: TextStyle(
-          color: FieldOpsDesignTokens.onSecondaryFixed,
+          color: FieldOpsDesignTokens.onPrimaryContainer,
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.04,
-          fontFamily: 'Inter',
+          fontFamily: FieldOpsDesignTokens.bodyFamily,
         ),
       ),
     );
@@ -257,15 +257,15 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       selected: selected,
       onSelected: (_) => onSelected(),
       showCheckmark: false,
-      selectedColor: FieldOpsDesignTokens.secondaryFixed,
-      backgroundColor: const Color(0xFFF1F5F9),
+      selectedColor: FieldOpsDesignTokens.primaryContainer,
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
       side: BorderSide.none,
       labelStyle: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        fontFamily: 'Inter',
+        fontFamily: FieldOpsDesignTokens.bodyFamily,
         color: selected
-            ? FieldOpsDesignTokens.onSecondaryFixed
+            ? FieldOpsDesignTokens.onPrimaryContainer
             : FieldOpsDesignTokens.textSubtext,
       ),
       shape: RoundedRectangleBorder(
@@ -307,9 +307,9 @@ class _NotificationTile extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: theme.colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(FieldOpsDesignTokens.cardRadius),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
         boxShadow: FieldOpsDesignTokens.shadowLevel1,
       ),
       child: InkWell(

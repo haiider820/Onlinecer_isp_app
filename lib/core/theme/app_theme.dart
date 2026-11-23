@@ -50,6 +50,8 @@ abstract final class AppTheme {
         errorContainer: FieldOpsDesignTokens.errorContainer,
         onErrorContainer: FieldOpsDesignTokens.onErrorContainer,
         buttonPressed: FieldOpsDesignTokens.buttonPressed,
+        fieldFill: FieldOpsDesignTokens.fieldFill,
+        fieldBorder: FieldOpsDesignTokens.fieldBorder,
         glow: FieldOpsDesignTokens.glowCyan,
         cardShadow: FieldOpsDesignTokens.shadowLevel1,
       );
@@ -89,6 +91,8 @@ abstract final class AppTheme {
         errorContainer: FieldOpsDarkTokens.errorContainer,
         onErrorContainer: FieldOpsDarkTokens.onErrorContainer,
         buttonPressed: FieldOpsDarkTokens.buttonPressed,
+        fieldFill: FieldOpsDarkTokens.fieldFill,
+        fieldBorder: FieldOpsDarkTokens.fieldBorder,
         glow: FieldOpsDarkTokens.glowCyan,
         cardShadow: FieldOpsDarkTokens.shadowLevel1,
       );
@@ -128,6 +132,8 @@ abstract final class AppTheme {
     required Color errorContainer,
     required Color onErrorContainer,
     required Color buttonPressed,
+    required Color fieldFill,
+    required Color fieldBorder,
     required List<BoxShadow> glow,
     required List<BoxShadow> cardShadow,
   }) {
@@ -200,16 +206,16 @@ abstract final class AppTheme {
           side: BorderSide(color: outlineVariant, width: 1),
         ),
       ),
-      // 52dp inputs, 12px radius, 1px border, 2px primary focus ring.
+      // 52dp inputs, 14px radius, 1px field border, 1.6px primary focus.
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surfaceLowest,
+        fillColor: fieldFill,
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
         hintStyle: (brightness == Brightness.dark
                 ? FieldOpsDarkTokens.bodyMd
                 : FieldOpsDesignTokens.bodyMd)
-            .copyWith(color: onSurfaceVariant),
+            .copyWith(color: onSurfaceVariant.withValues(alpha: 0.4)),
         labelStyle: (brightness == Brightness.dark
                 ? FieldOpsDarkTokens.bodyMd
                 : FieldOpsDesignTokens.bodyMd)
@@ -219,29 +225,24 @@ abstract final class AppTheme {
                 : FieldOpsDesignTokens.labelMd)
             .copyWith(color: primary),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(
-              FieldOpsDesignTokens.controlRadius),
-          borderSide: BorderSide(color: outlineVariant, width: 1),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: fieldBorder, width: 1),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(
-              FieldOpsDesignTokens.controlRadius),
-          borderSide: BorderSide(color: outlineVariant, width: 1),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: fieldBorder, width: 1),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(
-              FieldOpsDesignTokens.controlRadius),
-          borderSide: BorderSide(color: primary, width: 2),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: primary, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(
-              FieldOpsDesignTokens.controlRadius),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: error, width: 1),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(
-              FieldOpsDesignTokens.controlRadius),
-          borderSide: BorderSide(color: error, width: 2),
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: error, width: 1.6),
         ),
       ),
       // Primary CTA: primary fill, no shadow, no glow, 16px radius, 48dp height.

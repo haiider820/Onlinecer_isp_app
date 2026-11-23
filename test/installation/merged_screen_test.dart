@@ -107,9 +107,9 @@ const _requestMap = {
   'status': 'installation_assigned',
   'customer_name': 'Rahim Uddin',
   'customer_type': 'Residential',
-  'customer_phone': '+8801712345678',
-  'customer_area': 'Dhanmondi',
-  'customer_address': 'House 12, Road 5, Dhanmondi',
+  'customer_phone': '+92 300 1234567',
+  'customer_area': 'Gulberg',
+  'customer_address': 'House 12, Street 5, Gulberg',
 };
 
 const _dashboardMap = {
@@ -170,7 +170,7 @@ const _fatNodesMap = {
   'data': [
     {
       'id': 'node_1',
-      'name': 'FAT-A Dhanmondi',
+      'name': 'FAT-A Gulberg',
       'node_type': 'dp',
       'latitude': 23.7444,
       'longitude': 90.3788,
@@ -350,12 +350,12 @@ void main() {
     );
 
     await tester.scrollUntilVisible(
-      find.text('Rs 2,000.00'),
+      find.text('Rs 2,000'),
       200,
       scrollable: _detailScrollable(),
     );
 
-    expect(find.text('Rs 2,000.00'), findsOneWidget);
+    expect(find.text('Rs 2,000'), findsOneWidget);
     expect(find.text(AppStrings.connectionChargePending), findsOneWidget);
     expect(find.text(AppStrings.connectionChargeNote), findsOneWidget);
   });
@@ -400,10 +400,10 @@ void main() {
     await _settle(tester);
     await tester.tap(find.text('Select the FAT node used'));
     await _settle(tester);
-    await tester.tap(find.text('FAT-A Dhanmondi').last);
+    await tester.tap(find.text('FAT-A Gulberg').last);
     await _settle(tester);
 
-    // The DP marker follows the selection (FAT-A Dhanmondi) and is not marked
+    // The DP marker follows the selection (FAT-A Gulberg) and is not marked
     // manual — Phase 5 keeps the FAT auto-fill as the source of truth. Assert
     // on the controller, not the map's marker widget: the map card sits above
     // the form and is disposed once the form is scrolled into view (map

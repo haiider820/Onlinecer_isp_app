@@ -180,24 +180,25 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen> {
     );
   }
 
-  /// Pill with the total ticket count (secondary-fixed tint).
-  static Widget _activeCountBadge({required int count}) {
+  /// Pill with the total ticket count (brand-blue primary-container tint).
+  Widget _activeCountBadge({required int count}) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       height: 28,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: FieldOpsDesignTokens.secondaryFixed,
+        color: scheme.primaryContainer,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         '$count Active',
         style: TextStyle(
-          color: FieldOpsDesignTokens.onSecondaryFixed,
+          color: scheme.onPrimaryContainer,
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.04,
-          fontFamily: 'Inter',
+          fontFamily: FieldOpsDesignTokens.bodyFamily,
         ),
       ),
     );
@@ -255,28 +256,29 @@ class _TicketListScreenState extends ConsumerState<TicketListScreen> {
   static String _format(String status) =>
       status.replaceAll('_', ' ').split(' ').map((w) => w[0].toUpperCase() + w.substring(1)).join(' ');
 
-  /// Pill-shaped status filter chip: secondary-fixed when selected, quiet
-  /// neutral surface otherwise (DESIGN.md §Semantic Status Badges).
+  /// Pill-shaped status filter chip: primary fill when selected, quiet
+  /// surfaceContainerHighest otherwise (DESIGN.md §Semantic Status Badges).
   Widget _filterPill({
     required String label,
     required bool selected,
     required VoidCallback onSelected,
   }) {
+    final scheme = Theme.of(context).colorScheme;
     return ChoiceChip(
       label: Text(label),
       selected: selected,
       onSelected: (_) => onSelected(),
       showCheckmark: false,
-      selectedColor: FieldOpsDesignTokens.secondaryFixed,
-      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-      side: BorderSide.none,
+      selectedColor: scheme.primary,
+      backgroundColor: scheme.surfaceContainerHighest,
+      side: selected
+          ? BorderSide.none
+          : BorderSide(color: scheme.outlineVariant),
       labelStyle: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        fontFamily: 'Inter',
-        color: selected
-            ? FieldOpsDesignTokens.onSecondaryFixed
-            : FieldOpsDesignTokens.textSubtext,
+        fontFamily: FieldOpsDesignTokens.bodyFamily,
+        color: selected ? scheme.onPrimary : scheme.onSurfaceVariant,
       ),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(FieldOpsDesignTokens.radiusFull),

@@ -251,10 +251,13 @@ class _DashboardBody extends StatelessWidget {
         padding: const EdgeInsets.only(left: 16, right: 16, bottom: 24),
         children: [
           // ── Gradient greeting banner ──
-          _GreetingBanner(
-            employeeName: employee?.name ?? defaultEmployeeLabel,
-            teamName: employee?.team?.name ?? defaultTeamLabel,
-            onNotificationsTap: onNotificationsTap,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _GreetingBanner(
+              employeeName: employee?.name ?? defaultEmployeeLabel,
+              teamName: employee?.team?.name ?? defaultTeamLabel,
+              onNotificationsTap: onNotificationsTap,
+            ),
           ),
 
           // ── Stat cards: mono instrument readouts ──
@@ -372,16 +375,16 @@ class _DashboardBody extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: FieldOpsDesignTokens.secondaryFixed,
+                    color: theme.colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
                     '${recent.length}',
                     style: TextStyle(
-                      color: FieldOpsDesignTokens.onSecondaryFixed,
+                      color: theme.colorScheme.onPrimaryContainer,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      fontFamily: 'Inter',
+                      fontFamily: FieldOpsDesignTokens.bodyFamily,
                     ),
                   ),
                 ),
@@ -483,7 +486,7 @@ class _CountStatTile extends StatelessWidget {
   }
 }
 
-/// Ops hero: navy (dark) / cobalt (light) gradient, greeting, team line
+/// Ops hero: same cobalt gradient in dark and light, greeting, team line
 /// and a live GPS ribbon. White text on the hero stays — contrast is fine
 /// on both gradients. No glow.
 class _GreetingBanner extends StatelessWidget {
@@ -500,7 +503,6 @@ class _GreetingBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
     final hour = DateTime.now().hour;
     final greeting = hour < 12
         ? 'Good morning'
@@ -512,13 +514,12 @@ class _GreetingBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: dark
-              ? const [Color(0xFF0B132B), Color(0xFF1C2541)]
-              : const [Color(0xFF1D4ED8), Color(0xFF123280)],
+          colors: [Color(0xFF1D4ED8), Color(0xFF123280)],
         ),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Stack(
         children: [
@@ -540,7 +541,7 @@ class _GreetingBanner extends StatelessWidget {
                           greeting,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color:
-                                Colors.white.withValues(alpha: 0.7),
+                                Colors.white.withValues(alpha: 0.85),
                             fontWeight: FontWeight.w600,
                           ),
                         ),

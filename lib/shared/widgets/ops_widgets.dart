@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/field_ops_design_tokens.dart';
+import 'status_badge.dart';
 
 /// Ops component kit (palette #4, kit DESIGN.md Rules 1-14) — the building
 /// blocks of the redesigned
@@ -13,7 +14,7 @@ import '../../core/theme/field_ops_design_tokens.dart';
 /// [VoiceRecorderCard], [OpsBadge], [PriorityFlag], [FilterChips],
 /// [ChatBubble], [SystemPill], [InternalNoteCard], [VoiceNoteBubble],
 /// [OpsComposer], [OpsTimeline], [PressScale], [CountUp], [SignalPulse],
-/// [StaggeredList].
+/// [StaggeredList], [OpsTextField].
 
 // ─── OpsCard ──────────────────────────────────────────────────────────────
 
@@ -106,7 +107,7 @@ class OpsSectionLabel extends StatelessWidget {
 
 // ─── OpsAvatar ────────────────────────────────────────────────────────────
 
-/// Gradient initials avatar (cyan → violet) with a soft glow.
+/// Solid-primary initials avatar (kit Rule 4: no gradients).
 class OpsAvatar extends StatelessWidget {
   const OpsAvatar({super.key, required this.initials, this.size = 48});
 
@@ -129,14 +130,7 @@ class OpsAvatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(size * 0.32),
-        gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primary,
-            theme.colorScheme.secondary,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: theme.colorScheme.primary,
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),
       alignment: Alignment.center,
@@ -294,10 +288,12 @@ class _Step extends StatelessWidget {
                       ? primary
                       : state == _StepState.now
                           ? cardColor
-                          : Colors.transparent,
+                          : Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
                   border: Border.all(
                     color: state == _StepState.todo
-                        ? onSurfaceVariant.withValues(alpha: 0.4)
+                        ? onSurfaceVariant.withValues(alpha: 0.75)
                         : primary,
                     width: 2,
                   ),
@@ -375,6 +371,7 @@ class MissionHeader extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Row 1: back button + request ID (ellipsised, never overflows).
           Row(
             children: [
               if (onBack != null)
@@ -396,35 +393,50 @@ class MissionHeader extends StatelessWidget {
                   ),
                 ),
               if (onBack != null) const SizedBox(width: 10),
-              Text(
-                requestId,
-                style: FieldOpsDesignTokens.dataMd.copyWith(color: primary),
-              ),
-              const Spacer(),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
-                  color: primary.withValues(alpha: 0.12),
-                  border: Border.all(
-                      color: primary.withValues(alpha: 0.35)),
+              Expanded(
+                child: Text(
+                  requestId,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: FieldOpsDesignTokens.dataMd.copyWith(color: primary),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    PulseDot(color: primary),
-                    const SizedBox(width: 6),
-                    Text(
-                      statusLabel.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.6,
-                        color: primary,
+              ),
+            ],
+          ),
+          // Row 2: status pill below, left-aligned, sentence-case label.
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Flexible(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    color: primary.withValues(alpha: 0.12),
+                    border: Border.all(
+                        color: primary.withValues(alpha: 0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      PulseDot(color: primary),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          StatusBadge.labelFor(statusLabel),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                            color: primary,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -513,12 +525,18 @@ class DockAction {
     required this.icon,
     this.onTap,
     this.primary = false,
+    this.color,
   });
 
   final String label;
   final IconData icon;
   final VoidCallback? onTap;
   final bool primary;
+
+  /// Optional brand tint for a recognisable third-party action
+  /// (e.g. WhatsApp green). When set, the button uses this colour for
+  /// its icon, label and border tint instead of the primary.
+  final Color? color;
 }
 
 class _DockButton extends StatelessWidget {
@@ -530,10 +548,15 @@ class _DockButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final primary = theme.colorScheme.primary;
+    // A tinted action (e.g. WhatsApp) keeps its own recognisable colour;
+    // primary and plain actions are unchanged.
+    final tint = action.primary ? null : action.color;
     return Material(
       color: action.primary
           ? primary
-          : theme.colorScheme.surfaceContainerLowest,
+          : tint != null
+              ? tint.withValues(alpha: 0.12)
+              : theme.colorScheme.surfaceContainerLowest,
       borderRadius: BorderRadius.circular(15),
       elevation: 0,
       child: InkWell(
@@ -546,7 +569,7 @@ class _DockButton extends StatelessWidget {
             border: Border.all(
               color: action.primary
                   ? primary
-                  : theme.colorScheme.outlineVariant,
+                  : tint ?? theme.colorScheme.outlineVariant,
             ),
           ),
           child: Column(
@@ -557,7 +580,7 @@ class _DockButton extends StatelessWidget {
                 size: 19,
                 color: action.primary
                     ? theme.colorScheme.onPrimary
-                    : primary,
+                    : tint ?? primary,
               ),
               const SizedBox(height: 6),
               Text(
@@ -989,7 +1012,6 @@ class VoiceRecorderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final violet = theme.colorScheme.secondary;
     final primary = theme.colorScheme.primary;
     return OpsCard(
       child: Column(
@@ -1015,11 +1037,7 @@ class VoiceRecorderCard extends StatelessWidget {
               height: 76,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [violet, primary],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: primary,
                 border: isRecording
                     ? Border.all(
                         color: theme.colorScheme.error, width: 3)
@@ -1051,36 +1069,38 @@ class VoiceRecorderCard extends StatelessWidget {
                   margin: const EdgeInsets.symmetric(horizontal: 2),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(3),
-                    gradient: LinearGradient(
-                      colors: [primary, violet],
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                    ),
+                    color: primary.withValues(alpha: 0.75),
                   ),
                 ),
             ],
           ),
           if (onTypeTap != null) ...[
             const SizedBox(height: 12),
+            // Plain text affordance, not a button: no fill, no border —
+            // primary-coloured text with an edit glyph, centred.
             InkWell(
               onTap: onTypeTap,
-              borderRadius: BorderRadius.circular(13),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(13),
-                  border: Border.all(
-                    color: theme.colorScheme.outlineVariant,
-                    style: BorderStyle.solid,
-                  ),
-                  color: theme.colorScheme.surfaceContainerLow,
-                ),
-                child: Text(
-                  '…or tap here to type instead',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.edit_outlined,
+                      size: 15,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Or tap here to type instead',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1386,15 +1406,21 @@ class InternalNoteCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.lock_outline, size: 12, color: violet),
+              Tooltip(
+                message:
+                    'Internal note — only staff can see this, the customer cannot.',
+                child: Icon(Icons.lock_outline, size: 12, color: violet),
+              ),
               const SizedBox(width: 6),
-              Text(
-                'INTERNAL ONLY · CUSTOMER CAN\u2019T SEE',
-                style: TextStyle(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1,
-                  color: violet,
+              Expanded(
+                child: Text(
+                  'Internal note · Customer can\u2019t see',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                    color: violet,
+                  ),
                 ),
               ),
             ],
@@ -2028,6 +2054,121 @@ class _StaggeredListState extends State<StaggeredList>
               );
             },
           ),
+      ],
+    );
+  }
+}
+
+// ─── OpsTextField ─────────────────────────────────────────────────────────
+
+/// Reusable labelled text field (login + forms): the label sits ABOVE the
+/// field (13px, w600, onSurfaceVariant), then a filled [TextFormField]
+/// with a 14px radius, 1px [FieldOpsDesignTokens.fieldFill]/`fieldBorder`
+/// colours picked by brightness, primary 1.6px focus ring and the scheme
+/// error border. No `labelText` inside the field — the label is the
+/// separate widget above. Hint text is onSurfaceVariant at 40% opacity.
+/// All colours come from the theme / tokens; no hardcoded hex anywhere.
+class OpsTextField extends StatelessWidget {
+  const OpsTextField({
+    super.key,
+    this.controller,
+    required this.label,
+    this.hint,
+    this.keyboardType,
+    this.obscureText = false,
+    this.prefixIcon,
+    this.suffixIcon,
+    this.validator,
+    this.onFieldSubmitted,
+    this.textInputAction,
+  });
+
+  final TextEditingController? controller;
+
+  /// Label rendered above the field.
+  final String label;
+
+  /// Placeholder inside the field.
+  final String? hint;
+
+  final TextInputType? keyboardType;
+  final bool obscureText;
+
+  /// Leading icon, rendered in onSurfaceVariant.
+  final IconData? prefixIcon;
+
+  /// Trailing widget (e.g. a show/hide password button).
+  final Widget? suffixIcon;
+
+  final String? Function(String?)? validator;
+  final ValueChanged<String>? onFieldSubmitted;
+  final TextInputAction? textInputAction;
+
+  OutlineInputBorder _border(Color color, [double width = 1]) =>
+      OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide(color: color, width: width),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
+    final fieldFill =
+        dark ? FieldOpsDarkTokens.fieldFill : FieldOpsDesignTokens.fieldFill;
+    final fieldBorder = dark
+        ? FieldOpsDarkTokens.fieldBorder
+        : FieldOpsDesignTokens.fieldBorder;
+    final variant = scheme.onSurfaceVariant;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: variant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          obscureText: obscureText,
+          textInputAction: textInputAction,
+          validator: validator,
+          onFieldSubmitted: onFieldSubmitted,
+          style: theme.textTheme.bodyLarge,
+          cursorColor: scheme.primary,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: theme.textTheme.bodyMedium?.copyWith(
+              color: variant.withValues(alpha: 0.4),
+            ),
+            filled: true,
+            fillColor: fieldFill,
+            contentPadding:
+                const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+            prefixIcon: prefixIcon == null
+                ? null
+                : Icon(prefixIcon, color: variant),
+            suffixIcon: suffixIcon == null
+                ? null
+                : IconTheme(
+                    data: IconThemeData(color: variant),
+                    child: suffixIcon!,
+                  ),
+            border: _border(fieldBorder),
+            enabledBorder: _border(fieldBorder),
+            focusedBorder: _border(scheme.primary, 1.6),
+            errorBorder: _border(scheme.error),
+            focusedErrorBorder: _border(scheme.error, 1.6),
+          ),
+        ),
       ],
     );
   }

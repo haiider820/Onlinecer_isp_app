@@ -12,12 +12,32 @@ import '../../../shared/widgets/status_badge.dart';
 import '../../survey/presentation/dashboard_providers.dart';
 import 'ticket_providers.dart';
 
+/// 'IN_PROGRESS' → 'In progress': underscores to spaces, first letter
+/// capitalised, the rest lower-case.
+String _sentenceCase(String raw) {
+  final words = raw.replaceAll('_', ' ').toLowerCase();
+  if (words.isEmpty) return words;
+  return words[0].toUpperCase() + words.substring(1);
+}
+
+/// Advance-action label: resolving a ticket is 'Mark as resolved',
+/// closing one is 'Mark as closed'; anything else names the next status
+/// in sentence case.
+String _advanceLabel(String nextStatus) {
+  final lower = nextStatus.toLowerCase();
+  if (lower.contains('resolv')) return 'Mark as resolved';
+  if (lower.contains('clos')) return 'Mark as closed';
+  return 'Mark as ${_sentenceCase(nextStatus)}';
+}
+
 /// One ticket's full detail (`GET /tickets/{id}`), matching the stitch
 /// ticket-detail mockup: branded header, ticket banner (number + title +
 /// priority/status pills), details card, and a left-rail activity timeline.
 ///
-/// The "Advance to {next}" action is preserved verbatim (label, dialog, note
+/// The advance action is preserved (label, dialog, note
 /// limit, invalidations) — the backend drives the allowed next status.
+/// The button reads 'Mark as resolved' for a resolving/closing step, else
+/// 'Mark as {next}' in sentence case.
 class TicketDetailScreen extends ConsumerStatefulWidget {
   const TicketDetailScreen({super.key, required this.ticketId});
   final String ticketId;
@@ -59,7 +79,7 @@ class _TicketDetailScreenState extends ConsumerState<TicketDetailScreen> {
         SnackBar(
           behavior: SnackBarBehavior.floating,
           margin: const EdgeInsets.fromLTRB(16, 0, 16, 92),
-          content: Text('Ticket advanced to ${status.replaceAll('_', ' ')}.'),
+          content: Text('Ticket advanced to ${_sentenceCase(status)}.'),
         ),
       );
       ref.invalidate(ticketDetailProvider(widget.ticketId));
@@ -189,11 +209,15 @@ class _TicketDetailBody extends StatelessWidget {
         // ── Sticky composer ──
         _DiscussionComposer(),
 
-        // ── Advance action shelf ──
+        // ── Advance action shelf (flat: surface + 1px top border, no shadow) ──
         if (detail.nextStatus != null)
-          Material(
-            color: theme.colorScheme.surfaceContainerLowest,
-            elevation: 8,
+          Container(
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              border: Border(
+                top: BorderSide(color: theme.colorScheme.outlineVariant),
+              ),
+            ),
             child: SafeArea(
               top: false,
               child: Padding(
@@ -210,7 +234,7 @@ class _TicketDetailBody extends StatelessWidget {
                           )
                         : const Icon(Icons.arrow_forward),
                     label: Text(
-                      'Advance to ${detail.nextStatus!.replaceAll('_', ' ')}',
+                      _advanceLabel(detail.nextStatus!),
                       style: theme.textTheme.labelLarge?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -473,13 +497,18 @@ class _ThreadItem extends StatelessWidget {
     );
   }
 
-  /// 'HH:MM' from an ISO timestamp; falls back to the raw value.
+  /// 'd MMM · HH:mm' from an ISO timestamp; falls back to the raw value.
   static String _timeLabel(String? raw) {
     if (raw == null || raw.isEmpty) return '';
     final parsed = DateTime.tryParse(raw);
     if (parsed == null) return raw;
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
     final local = parsed.toLocal();
-    return '${local.hour.toString().padLeft(2, '0')}:'
+    return '${local.day} ${months[local.month - 1]} · '
+        '${local.hour.toString().padLeft(2, '0')}:'
         '${local.minute.toString().padLeft(2, '0')}';
   }
 }
@@ -568,13 +597,13 @@ class _PriorityBadge extends StatelessWidget {
         border: Border.all(color: fg.withValues(alpha: 0.25)),
       ),
       child: Text(
-        priority.toUpperCase(),
+        _sentenceCase(priority),
         style: TextStyle(
           color: fg,
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.04,
-          fontFamily: 'Inter',
+          fontFamily: FieldOpsDesignTokens.bodyFamily,
         ),
       ),
     );

@@ -105,9 +105,9 @@ const _requestMap = {
   'status': 'installation_assigned',
   'customer_name': 'Rahim Uddin',
   'customer_type': 'Residential',
-  'customer_phone': '+8801712345678',
-  'customer_area': 'Dhanmondi',
-  'customer_address': 'House 12, Road 5, Dhanmondi',
+  'customer_phone': '+92 300 1234567',
+  'customer_area': 'Gulberg',
+  'customer_address': 'House 12, Street 5, Gulberg',
 };
 
 const _dashboardMap = {
@@ -302,7 +302,7 @@ void main() {
     await tester.tap(find.text('View All Installation Requests'));
     await _settle(tester);
 
-    expect(find.text('Installation Requests'), findsOneWidget);
+    expect(find.text('Requests'), findsOneWidget);
     expect(find.text(_requestNumber), findsOneWidget);
     expect(network.lastStatus, ConnectionStatus.installationAssigned);
   });

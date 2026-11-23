@@ -47,7 +47,7 @@ void main() {
         'data': [
           {
             'id': 'node_1',
-            'name': 'FAT-A Dhanmondi',
+            'name': 'FAT-A Gulberg',
             'node_type': 'dp',
             'latitude': 23.7444,
             'longitude': 90.3788,
@@ -68,7 +68,7 @@ void main() {
       expect(network.lastFatNodesId, '101');
       expect(list.data, hasLength(2));
       expect(list.data.first.id, 'node_1');
-      expect(list.data.first.name, 'FAT-A Dhanmondi');
+      expect(list.data.first.name, 'FAT-A Gulberg');
       expect(list.data.first.nodeType, 'dp');
       expect(list.data.first.latitude, 23.7444);
       expect(list.data.first.longitude, 90.3788);
