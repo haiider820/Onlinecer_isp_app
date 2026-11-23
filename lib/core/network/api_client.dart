@@ -151,11 +151,15 @@ class ApiClient {
     // Central 401 handling: clear this client's session only (employee 401
     // must not wipe the scanner session and vice versa) so the router can
     // redirect to login instead of every screen handling it independently.
+    // The guard stays set until the clear future completes (D4): resetting
+    // it synchronously after a fire-and-forget call let a second concurrent
+    // 401 pass the guard and clear/redirect twice. `whenComplete` resets
+    // the flag on success AND failure, so a failed clear never wedges the
+    // guard on forever; failures here (rare) still must not crash the
+    // request, so the clear stays unawaited.
     if (exception.isUnauthorized && !_loggingOut) {
       _loggingOut = true;
-      // Fire-and-forget; failures here (rare) shouldn't crash the request.
-      unawaited(_onUnauthorized());
-      _loggingOut = false;
+      unawaited(_onUnauthorized().whenComplete(() => _loggingOut = false));
     }
 
     return exception;

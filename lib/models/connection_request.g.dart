@@ -31,6 +31,9 @@ _$ConnectionRequestImpl _$$ConnectionRequestImplFromJson(
       : Locations.fromJson(json['locations'] as Map<String, dynamic>),
   subBranch: json['sub_branch'] as Map<String, dynamic>?,
   installedDevice: json['installed_device'] as Map<String, dynamic>?,
+  itemRequests: (json['item_requests'] as List<dynamic>?)
+      ?.map((e) => ItemRequest.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$$ConnectionRequestImplToJson(
@@ -50,6 +53,7 @@ Map<String, dynamic> _$$ConnectionRequestImplToJson(
   'locations': instance.locations,
   'sub_branch': instance.subBranch,
   'installed_device': instance.installedDevice,
+  'item_requests': instance.itemRequests?.map((e) => e.toJson()).toList(),
 };
 
 _$ConnectionRequestDetailImpl _$$ConnectionRequestDetailImplFromJson(

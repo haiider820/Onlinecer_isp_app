@@ -29,7 +29,33 @@ final subBranchListProvider = FutureProvider<SubBranchList>((ref) {
 /// IN-MEMORY ONLY — deliberately NOT secure storage: scope is a per-session
 /// choice, re-fetched on boot. Only IDs returned by the endpoint may be
 /// stored here (enforced by [SubBranchController.select]).
-final selectedSubBranchProvider = StateProvider<String?>((ref) => null);
+///
+/// The selection drops itself when the employee session is cleared (D5):
+/// the notifier subscribes to [SecureStorage]'s session-cleared
+/// notification, so the central 401 path — which only calls
+/// `storage.clearSession()` and can never touch a Riverpod provider
+/// directly — drops the scope exactly like the manual dashboard logout
+/// does, instead of letting it survive into the next employee's session.
+/// Scanner clears never notify, so a scanner logout cannot drop the
+/// employee scope. The cached list is invalidated alongside the selection
+/// so the next session fetches fresh scope data.
+class SelectedSubBranchNotifier extends Notifier<String?> {
+  @override
+  String? build() {
+    final storage = ref.watch(secureStorageProvider);
+    void onSessionCleared() {
+      state = null;
+      ref.invalidate(subBranchListProvider);
+    }
+
+    storage.addSessionClearedListener(onSessionCleared);
+    ref.onDispose(() => storage.removeSessionClearedListener(onSessionCleared));
+    return null;
+  }
+}
+
+final selectedSubBranchProvider =
+    NotifierProvider<SelectedSubBranchNotifier, String?>(SelectedSubBranchNotifier.new);
 
 /// Resolves the sub-branch id a caller should submit, from endpoint data
 /// only — never invents an id.
@@ -178,14 +204,15 @@ final subBranchStateProvider =
 
 /// Clears the per-session sub-branch scope on logout.
 ///
-/// Call this from the logout path — one line, next to `clearSession()` in
-/// `team_dashboard_screen.dart` `_logout`:
+/// Call this from the manual logout path — one line, next to `clearSession()`
+/// in `team_dashboard_screen.dart` `_logout`:
 /// ```dart
 /// invalidateSubBranchState(ref);
 /// ```
-/// That file is owned by the dashboard worker, so the call itself is
-/// intentionally NOT wired here; without it a stale selection could survive
-/// into the next employee's session.
+/// The central 401 path needs no call site: [SelectedSubBranchNotifier]
+/// subscribes to the session-cleared notification and drops the selection
+/// (plus the cached list) whenever `clearSession()` runs, so an automatic
+/// logout drops the scope exactly like a manual one.
 void invalidateSubBranchState(WidgetRef ref) {
   ref.invalidate(subBranchListProvider);
   ref.invalidate(selectedSubBranchProvider);

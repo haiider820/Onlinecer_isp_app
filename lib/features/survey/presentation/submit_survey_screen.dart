@@ -27,10 +27,18 @@ import 'submit_survey_providers.dart';
 /// sticky submit shelf. Renders ONLY the fields the API actually accepts
 /// (notes + voice note); photos and checklist items are on-device helpers and
 /// are never submitted.
+///
+/// [isReview] is the survey-review case (request came back from Inventory,
+/// status `survey_review`, `allowed_action` `review_survey`): the same
+/// endpoint confirms it, with `survey_feasibility_status: "feasible"` added
+/// to the body and no `requested_items` re-sent.
 class SubmitSurveyScreen extends ConsumerStatefulWidget {
-  const SubmitSurveyScreen({super.key, required this.requestId});
+  const SubmitSurveyScreen({super.key, required this.requestId, this.isReview = false});
 
   final String requestId;
+
+  /// True when this is the Inventory-review confirmation, not a first survey.
+  final bool isReview;
 
   @override
   ConsumerState<SubmitSurveyScreen> createState() => _SubmitSurveyScreenState();
@@ -226,6 +234,7 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
           notes: notes.isEmpty ? null : notes,
           voiceNotePath: _recordedPath,
           voiceNoteMimeType: _recordedMime,
+          isReview: widget.isReview,
         );
     if (!mounted) return;
 
@@ -281,7 +290,7 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
 
     return Scaffold(
       appBar: BrandedHeader(
-        title: 'Complete Survey',
+        title: widget.isReview ? 'Review Survey' : 'Complete Survey',
         onBack: () => context.pop(),
       ),
       body: Column(
@@ -294,6 +303,28 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
                 // ── Work order context header ──
                 _WorkOrderHeader(requestNumber: request?.requestNumber, customerName: request?.customerName),
                 const SizedBox(height: 12),
+
+                // ── Review explainer: confirming approves what Inventory
+                // did; items are NOT re-requested (that would send the
+                // request back to inventory_pending for a second round).
+                if (widget.isReview) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(FieldOpsDesignTokens.radiusLg),
+                      border: Border.all(color: theme.colorScheme.primaryContainer),
+                    ),
+                    child: Text(
+                      'Inventory approved the requested items (see the detail screen). Confirming sends feasibility “feasible” with your notes — items are not requested again.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
 
                 // ── Voice-first notes card ──
                 VoiceRecorderCard(
@@ -601,7 +632,7 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
                               ),
                             )
                           : const Icon(Icons.check_circle_outline, size: 20),
-                      label: const Text('Submit Survey'),
+                      label: Text(widget.isReview ? 'Confirm Review' : 'Submit Survey'),
                     ),
                   ),
                 ),

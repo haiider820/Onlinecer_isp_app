@@ -256,8 +256,9 @@ class CreateRequestController extends Notifier<CreateRequestState> {
   /// errors or [CreateRequestState.errorMessage] + a Retry.
   ///
   /// [subBranchId] is the resolved id from Phase B ([subBranchStateProvider]
-  /// `effectiveId`); `null` means no scope was resolved and the caller must
-  /// not have submitted at all.
+  /// `effectiveId`); `null` means no scope was resolved and the submit is
+  /// refused here — the controller is the last line of defence behind the
+  /// screen's `canProceed` gate, so a null scope never reaches the network.
   Future<CreateConnectionRequestResponse?> submit({
     required String? subBranchId,
   }) async {
@@ -280,6 +281,13 @@ class CreateRequestController extends Notifier<CreateRequestState> {
     }
     if (errors.isNotEmpty) {
       state = state.copyWith(fieldErrors: errors);
+      return null;
+    }
+
+    if (subBranchId == null) {
+      state = state.copyWith(
+        errorMessage: 'Select a sub-branch before submitting.',
+      );
       return null;
     }
 

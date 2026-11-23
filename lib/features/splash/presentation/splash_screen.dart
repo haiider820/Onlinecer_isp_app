@@ -97,7 +97,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   child: Column(
                     children: [
                       // Living mark: the SignalPulse travels along a
-                      // fiber line as the Malik Fiber mark lands.
+                      // fiber line as the ISP 360 mark lands.
                       // Total splash stays under 2s; navigation timing
                       // and session checks are unchanged.
                       const SizedBox(
@@ -107,7 +107,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'MALIK FIBER',
+                        'ISP 360',
                         style: FieldOpsDesignTokens.headlineLg.copyWith(
                           color: FieldOpsDesignTokens.primary,
                           letterSpacing: -0.2,
@@ -336,7 +336,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Malik Telecom Infrastructure Group © 2025',
+                  'ISP 360 © 2025',
                   textAlign: TextAlign.center,
                   style: FieldOpsDesignTokens.bodySm.copyWith(
                     color: theme.colorScheme.outline,

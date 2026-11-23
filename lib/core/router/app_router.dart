@@ -43,6 +43,10 @@ abstract final class Routes {
   static const surveyList = '/survey/requests';
   static const surveyDetail = '/survey/requests/:id';
   static const submitSurvey = '/survey/requests/:id/submit-survey';
+  // Survey review after Inventory approval (status `survey_review`,
+  // `allowed_action` `review_survey`): same submit screen, review mode —
+  // confirms with the same POST .../complete-survey.
+  static const reviewSurvey = '/survey/requests/:id/review-survey';
   static const surveyRoute = '/survey/requests/:id/route';
 
   static const installationList = '/installation/requests';
@@ -77,6 +81,9 @@ abstract final class Routes {
 
   /// Concrete submit-survey path for a given request id.
   static String submitSurveyFor(String id) => '/survey/requests/$id/submit-survey';
+
+  /// Concrete review-survey path for a given request id (Inventory review).
+  static String reviewSurveyFor(String id) => '/survey/requests/$id/review-survey';
 
   /// Concrete OLT-list path for a given request id (ISPFINAL Phase E).
   static String oltListFor(String id) => '/installation/requests/$id/olts';
@@ -132,10 +139,25 @@ GoRouter buildAppRouter({required SecureStorage storage}) {
       if (onLogin) {
         return loggedIn ? Routes.dashboard : Routes.scannerHome;
       }
-      // Scanner login while a session already exists: scanner session →
-      // scanner home, employee-only session → dashboard.
+      // Scanner login is ALWAYS reachable: never bounce away from it here.
+      // The two logins are independent entry points for two independent
+      // sessions, and the scanner form is only ever reached by an explicit
+      // tap on the "Device scanner? Sign in here" link. Bouncing an
+      // employee-signed-in user to the dashboard (the pre-2026-11-23
+      // behaviour) made the scanner form unreachable whenever any employee
+      // token existed. And the redirect must not bounce to the scanner
+      // home on token presence alone either: a STALE scanner token (401
+      // on GET /me) would send the user to the scanner home, which then
+      // has no session to show. The screen itself is the verified gate —
+      // ScannerLoginScreen._tryRestore proves the token with GET /me and
+      // forwards to the scanner home only when it verifies, otherwise it
+      // shows the form. So the redirect stays out of the way entirely.
+      // NOTE: the mirrored `onLogin` branch is intentionally NOT relaxed
+      // the same way — the boot gate lands scanner-only users on the
+      // employee login and relies on that branch to forward them to the
+      // scanner home on cold start.
       if (onScannerLogin) {
-        return scannerLoggedIn ? Routes.scannerHome : Routes.dashboard;
+        return null;
       }
       // Scanner home needs a scanner session only — an employee-only
       // session goes to the dashboard instead of the scanner home.
@@ -236,6 +258,16 @@ GoRouter buildAppRouter({required SecureStorage storage}) {
           expectedTeam: FunctionalTeamType.survey,
           child: SubmitSurveyScreen(
             requestId: state.pathParameters['id'] ?? '',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: Routes.reviewSurvey,
+        builder: (context, state) => SessionTeamGuard(
+          expectedTeam: FunctionalTeamType.survey,
+          child: SubmitSurveyScreen(
+            requestId: state.pathParameters['id'] ?? '',
+            isReview: true,
           ),
         ),
       ),

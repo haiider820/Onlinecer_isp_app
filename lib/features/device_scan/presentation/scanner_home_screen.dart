@@ -99,7 +99,16 @@ class ScannerHomeScreen extends ConsumerWidget {
                             .logout();
                         if (!context.mounted) return;
                         if (ok) {
-                          context.go(Routes.scannerLogin);
+                          // D1: land on the staff login, not the scanner
+                          // login. The staff login is the hub for both
+                          // sessions ("Device scanner? Sign in here" reaches
+                          // the scanner form from there), and landing on
+                          // the scanner login directly would re-run its
+                          // restore against the just-invalidated provider
+                          // instead of letting the user choose the entry
+                          // point. This is also the landing the sign-out
+                          // bounce already produced before the fix.
+                          context.go(Routes.login);
                         } else {
                           ScaffoldMessenger.of(context)
                             ..hideCurrentSnackBar()

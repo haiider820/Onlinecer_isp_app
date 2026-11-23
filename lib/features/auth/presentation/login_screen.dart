@@ -40,8 +40,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// Defaults to `false`, so the field starts obscured (`obscureText: true`).
   bool _passwordVisible = false;
 
-  /// Local-only "remember this handheld" preference (never sent to the API).
+  /// "Remember this handheld" preference (never sent to the API).
+  /// Persisted in secure storage (`ui.remember_device`) and restored in
+  /// [initState]; defaults to ON when never chosen (D12).
   bool _rememberDevice = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreRememberDevice();
+  }
+
+  Future<void> _restoreRememberDevice() async {
+    final stored = await ref.read(secureStorageProvider).getRememberDevice();
+    if (!mounted || stored == null) return;
+    setState(() => _rememberDevice = stored);
+  }
 
   @override
   void dispose() {
@@ -246,11 +260,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                               height:
                                                   FieldOpsDesignTokens
                                                       .spaceSm),
-                                          // Remember-this-handheld toggle (UI-only).
+                                          // Remember-this-handheld toggle:
+                                          // persisted, restored on init (D12).
                                           InkWell(
-                                            onTap: () => setState(() =>
-                                                _rememberDevice =
-                                                    !_rememberDevice),
+                                            onTap: () async {
+                                              final next = !_rememberDevice;
+                                              setState(() =>
+                                                  _rememberDevice = next);
+                                              await ref
+                                                  .read(secureStorageProvider)
+                                                  .setRememberDevice(next);
+                                            },
                                             borderRadius:
                                                 BorderRadius.circular(12),
                                             child: Padding(

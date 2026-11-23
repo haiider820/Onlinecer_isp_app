@@ -50,10 +50,33 @@ class ScannerAuthController extends Notifier<ScannerAuthState> {
   @override
   ScannerAuthState build() => const ScannerAuthState.initial();
 
+  /// Login currently in flight, if any — same double-tap guard as
+  /// [AuthController]: a second call while one is running returns this same
+  /// future instead of firing a second POST /login. Cleared when the
+  /// attempt finishes, so a failed attempt can always be retried.
+  Future<LoginResponse?>? _loginInFlight;
+
   /// Attempts scanner login and, on success, keeps the state error-free so
   /// the UI can navigate. Exceptions are mapped into
-  /// [ScannerAuthState.errorMessage].
+  /// [ScannerAuthState.errorMessage]. While a login is in flight, a second
+  /// call returns the in-flight future.
   Future<LoginResponse?> login({
+    required String email,
+    required String password,
+    String? deviceName,
+  }) {
+    final inFlight = _loginInFlight;
+    if (inFlight != null) return inFlight;
+    final future = _performLogin(
+      email: email,
+      password: password,
+      deviceName: deviceName,
+    );
+    _loginInFlight = future;
+    return future;
+  }
+
+  Future<LoginResponse?> _performLogin({
     required String email,
     required String password,
     String? deviceName,
@@ -69,14 +92,39 @@ class ScannerAuthController extends Notifier<ScannerAuthState> {
       final message = e is ApiException ? e.message : 'Something went wrong. Please try again.';
       state = state.copyWith(isSubmitting: false, errorMessage: message);
       return null;
+    } finally {
+      _loginInFlight = null;
     }
   }
 
   /// Signs the scanner session out (scanner keys only) and resets the form
   /// state. Returns false only if the local clear itself throws.
+  ///
+  /// D1: the session provider is a plain (non-autoDispose) FutureProvider,
+  /// so it must be forced to re-run restore on logout — otherwise it keeps
+  /// serving the pre-logout session until the app restarts and the scanner
+  /// form bounces away from itself.
+  ///
+  /// Two steps, in this order, and the order matters:
+  /// 1. `ref.refresh` BEFORE the storage clear forces a synchronous
+  /// rebuild while the token is still stored, so the re-run restore
+  /// actually reaches the network (`GET /me`). A post-clear invalidate
+  /// alone can never do that: `restoreSession` returns early when no
+  /// token is stored, so the re-run would complete without a network
+  /// call and the provider would never be proven fresh.
+  /// 2. `ref.invalidate` AFTER the clear marks the provider stale, so
+  /// the next read re-runs restore with no token stored and yields
+  /// null (the form) instead of the cached session.
+  /// (`ref.invalidate` alone only schedules a refresh at the end of the
+  /// event loop, and any read flushes it synchronously — neither timing
+  /// can produce a network re-run after the token is gone.)
   Future<bool> logout() async {
     try {
+      // The refresh is wanted for its side effect only (a synchronous
+      // rebuild while the token is still stored); its result is discarded.
+      final _ = ref.refresh(scannerSessionProvider);
       await ref.read(scannerRepositoryProvider).logout();
+      ref.invalidate(scannerSessionProvider);
       state = const ScannerAuthState.initial();
       return true;
     } catch (e) {

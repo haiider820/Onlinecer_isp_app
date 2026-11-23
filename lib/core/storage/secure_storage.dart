@@ -24,6 +24,7 @@ class SecureStorage {
   static const _kBranchName = 'employee.branch_name';
   static const _kSubBranchName = 'employee.sub_branch_name';
   static const _kThemeMode = 'ui.theme_mode';
+  static const _kRememberDevice = 'ui.remember_device';
 
   // Scanner session keys (ISPFINAL §1): a separate session that must NEVER
   // share keys with the employee session. Employee logout must never wipe
@@ -124,7 +125,26 @@ class SecureStorage {
   Future<String?> getScannerAccountId() => _storage.read(key: _kScannerAccountId);
   Future<String?> getScannerAccountName() => _storage.read(key: _kScannerAccountName);
 
-  Future<bool> isScannerLoggedIn() async => (await getScannerToken()) != null;
+  /// True when a scanner bearer token exists AND its persisted expiry has
+  /// not passed. An expired scanner token is not a live session (D3) —
+  /// the router guard and scanner restore must see `false`, never admit
+  /// a dead token. Unparseable / missing `expires_at` is lenient (not
+  /// expired), mirroring [hasExpiredToken].
+  Future<bool> isScannerLoggedIn() async {
+    final token = await getScannerToken();
+    if (token == null) return false;
+    return !(await hasExpiredScannerToken());
+  }
+
+  /// Scanner counterpart of [hasExpiredToken]: true when the stored
+  /// scanner token's persisted expiry has passed.
+  Future<bool> hasExpiredScannerToken() async {
+    final raw = await getScannerExpiresAt();
+    if (raw == null) return false;
+    final expiry = DateTime.tryParse(raw);
+    if (expiry == null) return false;
+    return expiry.isBefore(DateTime.now().toUtc());
+  }
 
   /// Refreshes the stored scanner account identity without touching the
   /// token (mirror of [updateEmployeeContext]).
@@ -168,6 +188,18 @@ class SecureStorage {
     if (value == null) return _storage.delete(key: _kThemeMode);
     return _storage.write(key: _kThemeMode, value: value);
   }
+
+  /// Persisted "remember this handheld unit" choice on the employee login
+  /// (D12). `null` = never chosen; the login screen defaults to ON then.
+  /// A `ui.*` key, so employee logout / 401 never wipes it.
+  Future<bool?> getRememberDevice() async {
+    final raw = await _storage.read(key: _kRememberDevice);
+    if (raw == null) return null;
+    return raw == 'true';
+  }
+
+  Future<void> setRememberDevice(bool value) =>
+      _storage.write(key: _kRememberDevice, value: value ? 'true' : 'false');
 
   Future<void> updateEmployeeContext({
     required String employeeId,
@@ -233,7 +265,35 @@ class SecureStorage {
     }
   }
 
-  Future<bool> isLoggedIn() async => (await getToken()) != null;
+  /// True when a bearer token exists AND its persisted expiry has not
+  /// passed. An expired token is not a live session (D3) — the router
+  /// guard must see `false`, never admit a dead token. Unparseable /
+  /// missing `expires_at` is lenient (not expired), mirroring
+  /// [hasExpiredToken]; the boot gate still consults [hasExpiredToken]
+  /// directly and clears the expired token itself.
+  Future<bool> isLoggedIn() async {
+    final token = await getToken();
+    if (token == null) return false;
+    return !(await hasExpiredToken());
+  }
+
+  /// Listeners notified when the employee session is cleared via
+  /// [clearSession] (manual logout, central 401 handling, boot-gate
+  /// expiry drop). The storage layer cannot invalidate Riverpod
+  /// providers directly, so per-session in-memory state (D5: the
+  /// sub-branch scope) subscribes here instead of being moved into
+  /// secure storage — the scope stays in-memory-only, it just learns
+  /// when its session ends. Scanner clears deliberately do NOT notify:
+  /// the sub-branch scope belongs to the employee session only.
+  final Set<void Function()> _sessionClearedListeners = <void Function()>{};
+
+  void addSessionClearedListener(void Function() listener) {
+    _sessionClearedListeners.add(listener);
+  }
+
+  void removeSessionClearedListener(void Function() listener) {
+    _sessionClearedListeners.remove(listener);
+  }
 
   /// Deletes ONLY the employee session keys (`auth.*` / `employee.*`).
   /// Scanner keys (`scanner.*`) and the theme choice (`ui.theme_mode`) are
@@ -242,6 +302,9 @@ class SecureStorage {
   Future<void> clearSession() async {
     for (final key in _employeeKeys) {
       await _storage.delete(key: key);
+    }
+    for (final listener in _sessionClearedListeners.toList()) {
+      listener();
     }
   }
 }

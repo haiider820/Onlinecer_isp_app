@@ -86,6 +86,16 @@ class ScannerRepository {
     final token = await _storage.getScannerToken();
     if (token == null || token.isEmpty) return null;
 
+    // An expired token is dead regardless of connectivity (D3): drop it
+    // locally instead of sending it to GET /me — and, offline, instead of
+    // returning the stored identity for a session that can never verify.
+    // This mirrors the boot gate, which drops expired employee tokens
+    // before verifying. Unparseable / missing expires_at stays lenient.
+    if (await _storage.hasExpiredScannerToken()) {
+      await _storage.clearScannerSession();
+      return null;
+    }
+
     final accountId = await _storage.getScannerAccountId();
     final accountName = await _storage.getScannerAccountName();
     try {

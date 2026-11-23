@@ -10,12 +10,19 @@ class ComingSoonScreen extends StatelessWidget {
     super.key,
     required this.featureName,
     this.message,
+    this.onSignOut,
   });
 
   final String featureName;
 
   /// Optional override for the default body text.
   final String? message;
+
+  /// When provided, a "Log out" escape is shown: a signed-in user whose
+  /// account has no usable team must always be able to sign out instead
+  /// of being stranded (D10). Screens that have no session to escape from
+  /// leave this null and render exactly as before.
+  final VoidCallback? onSignOut;
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +35,14 @@ class ComingSoonScreen extends StatelessWidget {
             const Icon(Icons.construction, size: 48),
             const SizedBox(height: 12),
             Text(message ?? 'This feature is coming soon.'),
+            if (onSignOut != null) ...[
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: onSignOut,
+                icon: const Icon(Icons.logout),
+                label: const Text('Log out'),
+              ),
+            ],
           ],
         ),
       ),

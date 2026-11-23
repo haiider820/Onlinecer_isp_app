@@ -10,6 +10,7 @@ import '../../../core/router/functional_team.dart';
 import '../../../core/router/team_module.dart';
 import '../../../core/theme/field_ops_design_tokens.dart';
 import '../../../models/connection_request.dart';
+import '../../../models/item_request.dart';
 import '../../../models/locations.dart';
 import '../../../shared/widgets/branded_header.dart';
 import '../../../shared/widgets/location_map.dart';
@@ -64,8 +65,13 @@ class _DetailBody extends StatelessWidget {
     final request = detail.request;
     // Phase D: every stage button renders only when its wire value is in
     // `actions` (plural `allowed_actions`, singular fallback via the model).
+    // The review case is driven by `allowed_action` too — never by status:
+    // `review_survey` means Inventory approved the items and the surveyor
+    // confirms them, on the same complete-survey endpoint.
     final canCompleteSurvey =
         detail.actions.contains(ConnectionRequestAction.completeSurvey);
+    final canReviewSurvey =
+        detail.actions.contains(ConnectionRequestAction.reviewSurvey);
     final canPlanRoute = detail.actions.isEmpty || canCompleteSurvey;
 
     return Column(
@@ -98,6 +104,13 @@ class _DetailBody extends StatelessWidget {
                 const SizedBox(height: 8),
               ],
 
+              // ── What Inventory approved (review case only) ──
+              if (request.itemRequests != null &&
+                  request.itemRequests!.isNotEmpty) ...[
+                _InventoryApprovalCard(itemRequests: request.itemRequests!),
+                const SizedBox(height: 8),
+              ],
+
               // ── Assignment & logistics ──
               _AssignmentCard(request: request),
               const SizedBox(height: 8),
@@ -111,8 +124,10 @@ class _DetailBody extends StatelessWidget {
         _BottomShelf(
           canPlanRoute: canPlanRoute,
           canCompleteSurvey: canCompleteSurvey,
+          canReviewSurvey: canReviewSurvey,
           onPlanRoute: () => context.push(Routes.surveyRouteFor(request.id)),
           onCompleteSurvey: () => context.push(Routes.submitSurveyFor(request.id)),
+          onReviewSurvey: () => context.push(Routes.reviewSurveyFor(request.id)),
         ),
       ],
     );
@@ -609,19 +624,63 @@ class _PlanSummaryCard extends StatelessWidget {
   }
 }
 
-/// Sticky bottom shelf: Flag issue (UI shell) + Plan Route + Complete Survey.
+/// What Inventory decided on the items this request asked for — shown on
+/// the review screen (`survey_review` / `review_survey`) so the surveyor
+/// confirms against the approved quantities, not from memory.
+class _InventoryApprovalCard extends StatelessWidget {
+  const _InventoryApprovalCard({required this.itemRequests});
+
+  final List<ItemRequest> itemRequests;
+
+  static String _qty(num? value) {
+    if (value == null) return '—';
+    if (value % 1 == 0) return value.toInt().toString();
+    return value.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SectionCard(
+      title: 'Inventory Approval',
+      icon: Icons.inventory_2_outlined,
+      children: [
+        for (final itemRequest in itemRequests) ...[
+          if (itemRequest.status != null)
+            InfoRow(label: 'Status', value: itemRequest.status!),
+          if (itemRequest.approvalNotes != null)
+            InfoRow(label: 'Approval notes', value: itemRequest.approvalNotes!),
+          if (itemRequest.requestedByTeamName != null)
+            InfoRow(label: 'Requested by', value: itemRequest.requestedByTeamName!),
+          for (final item in itemRequest.items)
+            InfoRow(
+              label: item.itemName ?? 'Item',
+              value:
+                  'Requested ${_qty(item.quantityRequested)}${item.unit == null ? '' : ' ${item.unit}'}'
+                  ' · Approved ${_qty(item.quantityApproved)}${item.unit == null ? '' : ' ${item.unit}'}',
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Sticky bottom shelf: Flag issue (UI shell) + Plan Route + Complete Survey / Review.
 class _BottomShelf extends StatelessWidget {
   const _BottomShelf({
     required this.canPlanRoute,
     required this.canCompleteSurvey,
+    required this.canReviewSurvey,
     required this.onPlanRoute,
     required this.onCompleteSurvey,
+    required this.onReviewSurvey,
   });
 
   final bool canPlanRoute;
   final bool canCompleteSurvey;
+  final bool canReviewSurvey;
   final VoidCallback onPlanRoute;
   final VoidCallback onCompleteSurvey;
+  final VoidCallback onReviewSurvey;
 
   void _flag(BuildContext context) {
     ScaffoldMessenger.of(context)
@@ -681,6 +740,23 @@ class _BottomShelf extends StatelessWidget {
                       onPressed: onCompleteSurvey,
                       icon: const Icon(Icons.check_circle_outline, size: 20),
                       label: const Text('Complete Survey'),
+                      style: FilledButton.styleFrom(
+                        textStyle: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (canReviewSurvey)
+                Expanded(
+                  flex: 2,
+                  child: SizedBox(
+                    height: 52,
+                    child: FilledButton.icon(
+                      onPressed: onReviewSurvey,
+                      icon: const Icon(Icons.rate_review_outlined, size: 20),
+                      label: const Text('Review'),
                       style: FilledButton.styleFrom(
                         textStyle: theme.textTheme.labelLarge?.copyWith(
                           fontWeight: FontWeight.w600,

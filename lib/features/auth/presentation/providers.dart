@@ -55,9 +55,33 @@ class AuthController extends Notifier<AuthState> {
   @override
   AuthState build() => const AuthState.initial();
 
+  /// Login currently in flight, if any. A second call while one is running
+  /// returns this same future instead of firing a second POST /login — a
+  /// double-tap must not double-submit. The field is cleared when the
+  /// attempt finishes (success or failure), so a failed attempt can always
+  /// be retried.
+  Future<LoginResponse?>? _loginInFlight;
+
   /// Attempts login and, on success, keeps the state error-free so the UI can
-  /// navigate. Exceptions are mapped into [AuthState.errorMessage].
+  /// navigate. Exceptions are mapped into [AuthState.errorMessage]. While a
+  /// login is in flight, a second call returns the in-flight future.
   Future<LoginResponse?> login({
+    required String email,
+    required String password,
+    String? deviceName,
+  }) {
+    final inFlight = _loginInFlight;
+    if (inFlight != null) return inFlight;
+    final future = _performLogin(
+      email: email,
+      password: password,
+      deviceName: deviceName,
+    );
+    _loginInFlight = future;
+    return future;
+  }
+
+  Future<LoginResponse?> _performLogin({
     required String email,
     required String password,
     String? deviceName,
@@ -72,6 +96,8 @@ class AuthController extends Notifier<AuthState> {
       final message = e is ApiException ? e.message : 'Something went wrong. Please try again.';
       state = state.copyWith(isSubmitting: false, errorMessage: message);
       return null;
+    } finally {
+      _loginInFlight = null;
     }
   }
 }

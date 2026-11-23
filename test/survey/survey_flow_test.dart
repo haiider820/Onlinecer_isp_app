@@ -203,12 +203,17 @@ class _FakeRouteNetwork implements RouteNetwork {
 
 class _FakeSubmitSurveyNetwork implements SubmitSurveyNetwork {
   @override
-  Future<Map<String, dynamic>> completeSurveyJson(String id, {String? notes}) async => _submitResultMap;
+  Future<Map<String, dynamic>> completeSurveyJson(
+    String id, {
+    String? notes,
+    String? feasibilityStatus,
+  }) async => _submitResultMap;
 
   @override
   Future<Map<String, dynamic>> completeSurveyMultipart(
     String id, {
     String? notes,
+    String? feasibilityStatus,
     required String voiceNotePath,
     required String voiceNoteMimeType,
   }) async =>

@@ -41,9 +41,17 @@ class SubmitSurveyRepository {
   /// `multipart/form-data` (and [voiceNoteMimeType] must be one of
   /// [allowedVoiceNoteMimeTypes]); otherwise plain JSON. Both paths are
   /// covered by dedicated tests.
+  ///
+  /// [feasibilityStatus] is the survey-review case only: pass `'feasible'`
+  /// when confirming a request that came back from Inventory
+  /// (`survey_review` / `review_survey`). It is forwarded as
+  /// `survey_feasibility_status`; a normal submit passes nothing and the
+  /// field is omitted. `requested_items` is never sent — a review that
+  /// re-sent them would push the request back to `inventory_pending`.
   Future<CompleteSurveyResponse> submit({
     required String id,
     String? notes,
+    String? feasibilityStatus,
     String? voiceNotePath,
     String? voiceNoteMimeType,
   }) async {
@@ -59,13 +67,18 @@ class SubmitSurveyRepository {
       final map = await network.completeSurveyMultipart(
         id,
         notes: notes,
+        feasibilityStatus: feasibilityStatus,
         voiceNotePath: voiceNotePath,
         voiceNoteMimeType: mime,
       );
       return CompleteSurveyResponse.fromJson(map);
     }
 
-    final map = await network.completeSurveyJson(id, notes: notes);
+    final map = await network.completeSurveyJson(
+      id,
+      notes: notes,
+      feasibilityStatus: feasibilityStatus,
+    );
     return CompleteSurveyResponse.fromJson(map);
   }
 

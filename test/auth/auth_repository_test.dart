@@ -88,7 +88,12 @@ Map<String, Object?> loginJson() => <String, Object?>{
       'message': 'Login successful.',
       'token_type': 'Bearer',
       'token': 'plain_token_here',
-      'expires_at': '2026-10-10T11:00:00.000000Z',
+      // Far-future expiry on purpose: isLoggedIn() honours expires_at
+      // (D3), so this fixture must stay a live session — the previous
+      // 2026-10-10 value went stale once that date passed and the
+      // "persists token ..." test below started failing on the expiry,
+      // not on persistence.
+      'expires_at': '2099-10-10T11:00:00.000000Z',
       'user': <String, Object?>{'id': 25, 'name': 'Ahmed Raza', 'email': 'a@b.pk'},
       'employee': <String, Object?>{
         'id': 'employee_uuid',

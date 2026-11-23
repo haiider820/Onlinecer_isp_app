@@ -38,11 +38,16 @@ class SubmitSurveyController extends Notifier<SubmitSurveyState> {
   @override
   SubmitSurveyState build() => const SubmitSurveyState();
 
+  /// Submits the survey for [id]. [isReview] marks the survey-review case
+  /// (request came back from Inventory, `survey_review` / `review_survey`):
+  /// the confirm POST carries `survey_feasibility_status: "feasible"` and
+  /// never re-sends `requested_items`. A normal submit passes nothing extra.
   Future<CompleteSurveyResponse?> submit({
     required String id,
     String? notes,
     String? voiceNotePath,
     String? voiceNoteMimeType,
+    bool isReview = false,
   }) async {
     state = const SubmitSurveyState(isSubmitting: true);
     try {
@@ -50,6 +55,7 @@ class SubmitSurveyController extends Notifier<SubmitSurveyState> {
       final result = await repo.submit(
         id: id,
         notes: notes,
+        feasibilityStatus: isReview ? 'feasible' : null,
         voiceNotePath: voiceNotePath,
         voiceNoteMimeType: voiceNoteMimeType,
       );

@@ -12,15 +12,22 @@ class _FakeSubmitSurveyNetwork implements SubmitSurveyNetwork {
 
   String? lastJsonId;
   String? lastJsonNotes;
+  String? lastJsonFeasibility;
   String? lastMultipartId;
   String? lastMultipartNotes;
+  String? lastMultipartFeasibility;
   String? lastMultipartPath;
   String? lastMultipartMime;
 
   @override
-  Future<Map<String, dynamic>> completeSurveyJson(String id, {String? notes}) async {
+  Future<Map<String, dynamic>> completeSurveyJson(
+    String id, {
+    String? notes,
+    String? feasibilityStatus,
+  }) async {
     lastJsonId = id;
     lastJsonNotes = notes;
+    lastJsonFeasibility = feasibilityStatus;
     if (error != null) throw error!;
     return result;
   }
@@ -29,11 +36,13 @@ class _FakeSubmitSurveyNetwork implements SubmitSurveyNetwork {
   Future<Map<String, dynamic>> completeSurveyMultipart(
     String id, {
     String? notes,
+    String? feasibilityStatus,
     required String voiceNotePath,
     required String voiceNoteMimeType,
   }) async {
     lastMultipartId = id;
     lastMultipartNotes = notes;
+    lastMultipartFeasibility = feasibilityStatus;
     lastMultipartPath = voiceNotePath;
     lastMultipartMime = voiceNoteMimeType;
     if (error != null) throw error!;
@@ -69,10 +78,54 @@ void main() {
 
     expect(network.lastJsonId, '101');
     expect(network.lastJsonNotes, 'All good');
+    expect(network.lastJsonFeasibility, isNull,
+        reason: 'a normal survey submit omits survey_feasibility_status');
     expect(network.lastMultipartId, isNull);
     expect(response.message, 'Survey marked as completed.');
     expect(response.data?.status, 'installation_assigned');
     expect(response.data?.currentTeam?.functionalTeamType, 'installation');
+  });
+
+  test('review submit (plain JSON): sends feasible + notes, never requested_items', () async {
+    // survey_review / review_survey: the confirm body is feasible + notes.
+    // requested_items must NOT be re-sent — that would push the request back
+    // to inventory_pending for a second round. The repository has no
+    // requested_items channel at all, so the fake receiving only
+    // id/notes/feasibility proves nothing else was sent.
+    final network = _FakeSubmitSurveyNetwork(_successMap);
+    final repository = SubmitSurveyRepository(network: network);
+
+    final response = await repository.submit(
+      id: '101',
+      notes: 'Reviewed after inventory approval. Items confirmed.',
+      feasibilityStatus: 'feasible',
+    );
+
+    expect(network.lastJsonId, '101');
+    expect(network.lastJsonNotes, 'Reviewed after inventory approval. Items confirmed.');
+    expect(network.lastJsonFeasibility, 'feasible');
+    expect(network.lastMultipartId, isNull);
+    expect(response.data?.status, 'installation_assigned');
+  });
+
+  test('review submit (multipart): feasible travels with the voice note', () async {
+    final voice = File('${tempDir.path}/voice.m4a')..writeAsBytesSync(List.filled(1024, 0));
+    final network = _FakeSubmitSurveyNetwork(_successMap);
+    final repository = SubmitSurveyRepository(network: network);
+
+    await repository.submit(
+      id: '101',
+      notes: 'Reviewed.',
+      feasibilityStatus: 'feasible',
+      voiceNotePath: voice.path,
+      voiceNoteMimeType: 'audio/mp4',
+    );
+
+    expect(network.lastJsonId, isNull);
+    expect(network.lastMultipartId, '101');
+    expect(network.lastMultipartFeasibility, 'feasible');
+    expect(network.lastMultipartNotes, 'Reviewed.');
+    expect(network.lastMultipartPath, voice.path);
   });
 
   test('multipart branch when a voice note is attached', () async {

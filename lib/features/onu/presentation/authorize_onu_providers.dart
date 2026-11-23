@@ -126,6 +126,21 @@ class AuthorizeOnuState {
 /// interval is 3 s (guide: every 2–3 s) and the max screen wait is ~5 min,
 /// after which polling stops with "Still running — check again later" and a
 /// manual refresh. Both are settable fields so tests can shorten them.
+///
+/// The provider is a plain [NotifierProvider] (D8): it is only ever
+/// watched by [AuthorizeOnuScreen], so the controller stops polling and
+/// clears its state in `ref.onCancel` when the screen leaves (last
+/// listener gone). A later visit then starts from a fresh idle controller
+/// and a second authorization for another request is never blocked by a
+/// left-over poll. The in-flight server job itself is NOT cancelled; only
+/// screen-side polling stops.
+///
+/// NOTE: this is deliberately NOT `autoDispose` — autoDispose providers
+/// are disposed as soon as they have no listeners, which in riverpod 2.6
+/// also disposes a provider that was only ever `container.read` (the
+/// scheduler disposes it on the next flush), breaking every
+/// container-based polling test. `onCancel` gives the same leave-the-
+/// screen semantics without that.
 class AuthorizeOnuController extends Notifier<AuthorizeOnuState> {
   /// How often the job endpoint is polled.
   Duration pollInterval = const Duration(seconds: 3);
@@ -135,6 +150,12 @@ class AuthorizeOnuController extends Notifier<AuthorizeOnuState> {
 
   Timer? _timer;
 
+  /// Set in [build]'s `ref.onDispose`: the provider (and with it this
+  /// controller) is gone — e.g. the provider was invalidated or the
+  /// container disposed while a POST was in flight. In-flight async work
+  /// must not touch state afterwards.
+  bool _disposed = false;
+
   /// Ticks of the poll timer since polling (re)started. The max-wait cap is
   /// derived from this count, not from the wall clock, so a device clock
   /// jump (or a fake clock in tests) can never stretch or shrink the wait.
@@ -143,7 +164,20 @@ class AuthorizeOnuController extends Notifier<AuthorizeOnuState> {
 
   @override
   AuthorizeOnuState build() {
-    ref.onDispose(_stopTimer);
+    ref.onDispose(() {
+      _disposed = true;
+      _stopTimer();
+    });
+    // D8: the screen is the only listener. When it leaves, the last
+    // listener goes away and this fires: stop polling and clear the active
+    // job so a later visit starts fresh. The server job itself is NOT
+    // cancelled — only screen-side polling stops. Safe to write state
+    // here: Riverpod removes the closing subscription from the dependents
+    // before running onCancel, so no listener is notified.
+    ref.onCancel(() {
+      _stopTimer();
+      state = const AuthorizeOnuState();
+    });
     return const AuthorizeOnuState();
   }
 
@@ -202,8 +236,14 @@ class AuthorizeOnuController extends Notifier<AuthorizeOnuState> {
     required String oltId,
     required Future<AuthorizeOnuResult> Function() call,
   }) async {
-    // Guide §14: never re-POST while a job is pending/running.
-    if (state.isJobActive) return null;
+    // Guide §14: never re-POST while a job is pending/running. A refused
+    // submit must explain itself (D8) instead of silently returning null.
+    if (state.isJobActive) {
+      state = state.copyWith(
+        errorMessage: 'An authorization job is already active.',
+      );
+      return null;
+    }
     state = AuthorizeOnuState(
       phase: AuthorizePhase.submitting,
       requestId: requestId,
@@ -211,6 +251,21 @@ class AuthorizeOnuController extends Notifier<AuthorizeOnuState> {
     );
     try {
       final result = await call();
+      // The provider may have been disposed while the POST was in flight
+      // (provider invalidated / container disposed). Never touch state then.
+      if (_disposed) return null;
+      // D9: cancelWait() during submit must stick — a cancel issued while
+      // the POST was in flight is not undone when it lands. Stay cancelled
+      // (do not transition to polling) but keep the landed job id/message
+      // so polling can still resume from it via resumePolling().
+      if (state.phase == AuthorizePhase.cancelled) {
+        state = state.copyWith(
+          jobId: result.jobId,
+          message: result.message,
+          job: result.job,
+        );
+        return result;
+      }
       if (result.jobId == null) {
         // A 201 with no job id cannot be polled. If the embedded job is
         // already terminal-succeeded, honour it; otherwise surface the
@@ -248,6 +303,9 @@ class AuthorizeOnuController extends Notifier<AuthorizeOnuState> {
       _startPolling();
       return result;
     } on ApiException catch (e) {
+      // D9, failure path: a cancel issued during submit sticks here too —
+      // a failed POST must not reset a cancelled wait back to idle.
+      if (_disposed || state.phase == AuthorizePhase.cancelled) return null;
       state = AuthorizeOnuState(
         phase: AuthorizePhase.idle,
         requestId: requestId,
@@ -256,6 +314,7 @@ class AuthorizeOnuController extends Notifier<AuthorizeOnuState> {
       );
       return null;
     } catch (e) {
+      if (_disposed || state.phase == AuthorizePhase.cancelled) return null;
       state = AuthorizeOnuState(
         phase: AuthorizePhase.idle,
         requestId: requestId,
@@ -306,6 +365,9 @@ class AuthorizeOnuController extends Notifier<AuthorizeOnuState> {
       final job = await ref
           .read(authorizeOnuRepositoryProvider)
           .fetchJob(requestId, jobId);
+      // A poll fetch landing after the provider was disposed (invalidated
+      // mid-fetch) must not touch state or refresh anything.
+      if (_disposed) return;
       if (state.phase != AuthorizePhase.polling) return;
       state = state.copyWith(
         job: job,

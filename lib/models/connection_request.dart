@@ -4,6 +4,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import 'locations.dart';
 import 'plan.dart';
+import 'item_request.dart';
 import 'stage_data.dart';
 import 'team.dart';
 
@@ -20,6 +21,7 @@ enum ConnectionRequestAction {
   completeVerification,
   completeClosing,
   authorizeOnu,
+  reviewSurvey,
   unknown;
 
   static ConnectionRequestAction parse(String? raw) {
@@ -30,6 +32,7 @@ enum ConnectionRequestAction {
       'complete_verification' => ConnectionRequestAction.completeVerification,
       'complete_closing' => ConnectionRequestAction.completeClosing,
       'authorize_onu' => ConnectionRequestAction.authorizeOnu,
+      'review_survey' => ConnectionRequestAction.reviewSurvey,
       _ => ConnectionRequestAction.unknown,
     };
   }
@@ -42,6 +45,7 @@ enum ConnectionRequestAction {
         ConnectionRequestAction.completeVerification => 'complete_verification',
         ConnectionRequestAction.completeClosing => 'complete_closing',
         ConnectionRequestAction.authorizeOnu => 'authorize_onu',
+        ConnectionRequestAction.reviewSurvey => 'review_survey',
         ConnectionRequestAction.unknown => '',
       };
 }
@@ -71,6 +75,10 @@ class ConnectionRequest with _$ConnectionRequest {
     // throw on any unexpected field. Callers read the keys they need.
     @JsonKey(name: 'sub_branch') Map<String, Object?>? subBranch,
     @JsonKey(name: 'installed_device') Map<String, Object?>? installedDevice,
+    // Inventory decision, present when the request comes back for survey
+    // review (status `survey_review`): what Inventory approved. Nullable —
+    // absent on old payloads and on requests that never went to Inventory.
+    @JsonKey(name: 'item_requests') List<ItemRequest>? itemRequests,
   }) = _ConnectionRequest;
 
   factory ConnectionRequest.fromJson(Map<String, Object?> json) => _$ConnectionRequestFromJson(json);
@@ -103,14 +111,17 @@ class ConnectionRequestDetail with _$ConnectionRequestDetail {
 
   /// All actions the backend offers, parsed from the plural
   /// `allowed_actions`. Falls back to the singular `allowed_action` when the
-  /// plural list is absent or empty; unknown wire values are dropped.
+  /// plural list is absent, empty, or parses to no known action (e.g. it
+  /// holds only values this build does not know yet); unknown wire values
+  /// are dropped.
   List<ConnectionRequestAction> get actions {
     final plural = allowedActions;
     if (plural != null && plural.isNotEmpty) {
-      return plural
+      final parsed = plural
           .map(ConnectionRequestAction.parse)
           .where((a) => a != ConnectionRequestAction.unknown)
           .toList();
+      if (parsed.isNotEmpty) return parsed;
     }
     final single = action;
     return single == null ? const [] : [single];

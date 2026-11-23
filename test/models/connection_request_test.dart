@@ -128,7 +128,11 @@ void main() {
       expect(detail.actions, [ConnectionRequestAction.completeSurvey]);
     });
 
-    test('falls back to singular when plural is empty; unknown values dropped', () {
+    test('falls back to singular when plural holds only unknown values (D7)', () {
+      // Was: unknown values dropped and the valid singular lost with them
+      // (actions == []). D7: a plural that parses to zero known actions
+      // falls back to the singular, so the stage button survives a backend
+      // that starts sending values this build does not know yet.
       final json = <String, Object?>{
         'data': {
           'id': 'connection_request_uuid',
@@ -141,7 +145,7 @@ void main() {
 
       final detail = ConnectionRequestDetail.fromJson(json);
 
-      expect(detail.actions, isEmpty);
+      expect(detail.actions, [ConnectionRequestAction.completeInstallation]);
     });
 
     test('no actions when both plural and singular are absent', () {
@@ -217,6 +221,162 @@ void main() {
       expect(page.data, hasLength(1));
       expect(page.meta.total, 1);
       expect(page.meta.lastPage, 1);
+    });
+  });
+
+  group('ConnectionRequestDetail review_survey (survey_review)', () {
+    Map<String, Object?> reviewJson({
+      List<Object?>? plural,
+      String? singular,
+      Map<String, Object?>? dataOverrides,
+    }) {
+      return {
+        'data': {
+          'id': 'connection_request_uuid',
+          'request_number': 'CRQ-20261001-ABCD',
+          'status': 'survey_review',
+          'current_team': {
+            'id': 'team_uuid',
+            'name': 'Survey Team',
+            'functional_team_type': 'survey',
+          },
+          ...?dataOverrides,
+        },
+        if (plural != null) 'allowed_actions': plural,
+        if (singular != null) 'allowed_action': singular,
+      };
+    }
+
+    test('review_survey parses as a known action (plural)', () {
+      final detail = ConnectionRequestDetail.fromJson(
+        reviewJson(plural: ['review_survey']),
+      );
+
+      expect(detail.actions, [ConnectionRequestAction.reviewSurvey]);
+      expect(ConnectionRequestAction.reviewSurvey.wireValue, 'review_survey');
+      expect(ConnectionRequestAction.parse('review_survey'),
+          ConnectionRequestAction.reviewSurvey);
+    });
+
+    test('review_survey parses as a known action (singular fallback)', () {
+      final detail = ConnectionRequestDetail.fromJson(
+        reviewJson(singular: 'review_survey'),
+      );
+
+      expect(detail.actions, [ConnectionRequestAction.reviewSurvey]);
+      expect(detail.action, ConnectionRequestAction.reviewSurvey);
+    });
+
+    test('D7 fallback keeps review_survey when plural holds only unknowns', () {
+      final detail = ConnectionRequestDetail.fromJson(
+        reviewJson(
+          plural: ['some_future_action'],
+          singular: 'review_survey',
+        ),
+      );
+
+      expect(detail.actions, [ConnectionRequestAction.reviewSurvey]);
+    });
+
+    test('unknown values are dropped, known review_survey kept', () {
+      final detail = ConnectionRequestDetail.fromJson(
+        reviewJson(plural: ['review_survey', 'some_future_action']),
+      );
+
+      expect(detail.actions, [ConnectionRequestAction.reviewSurvey]);
+    });
+
+    test('rule is driven by allowed_action, not status', () {
+      // Same status, no action offered: nothing actionable.
+      final detail = ConnectionRequestDetail.fromJson(
+        reviewJson(plural: []),
+      );
+
+      expect(detail.actions, isEmpty);
+    });
+  });
+
+  group('ConnectionRequest item_requests (inventory review)', () {
+    Map<String, Object?> docExample() => {
+      'id': 'connection_request_uuid',
+      'request_number': 'CRQ-20261001-ABCD',
+      'status': 'survey_review',
+      'current_team': {
+        'id': 'team_uuid',
+        'name': 'Survey Team',
+        'functional_team_type': 'survey',
+      },
+      'item_requests': [
+        {
+          'id': 'item_request_uuid',
+          'status': 'approved',
+          'approval_notes': 'Approved 80m from main store',
+          'requested_by_team': {'id': 'team_uuid', 'name': 'Survey Team'},
+          'items': [
+            {
+              'item_id': 'item_uuid',
+              'item_name': 'Fiber Cable',
+              'unit': 'meter',
+              'quantity_requested': 80,
+              'quantity_approved': 80,
+            },
+          ],
+        },
+      ],
+      'stage_data': {
+        'survey_notes': 'Need additional cable before installation',
+        'survey_feasibility_status': 'feasible',
+        'installation_notes': null,
+        'olt_device_ownership': 'company',
+      },
+    };
+
+    test('parses the backend doc example (status + notes + per-item quantities)', () {
+      final request = ConnectionRequest.fromJson(docExample());
+
+      expect(request.itemRequests, hasLength(1));
+      final itemRequest = request.itemRequests!.first;
+      expect(itemRequest.status, 'approved');
+      expect(itemRequest.approvalNotes, 'Approved 80m from main store');
+      expect(itemRequest.requestedByTeamName, 'Survey Team');
+      expect(itemRequest.items, hasLength(1));
+      final item = itemRequest.items.first;
+      expect(item.itemName, 'Fiber Cable');
+      expect(item.unit, 'meter');
+      expect(item.quantityRequested, 80);
+      expect(item.quantityApproved, 80);
+    });
+
+    test('absent item_requests reads as null (old payloads)', () {
+      final request = ConnectionRequest.fromJson({
+        'id': 'connection_request_uuid',
+        'request_number': 'CRQ-1',
+        'status': 'survey_assigned',
+      });
+
+      expect(request.itemRequests, isNull);
+    });
+
+    test('lenient: missing items list reads as empty, bad quantities as null', () {
+      final request = ConnectionRequest.fromJson({
+        'id': 'connection_request_uuid',
+        'request_number': 'CRQ-1',
+        'status': 'survey_review',
+        'item_requests': [
+          {
+            'status': 'approved',
+            'items': [
+              {'item_name': 'Fiber Cable', 'quantity_requested': 'eighty'},
+            ],
+          },
+          {'status': 'approved'},
+        ],
+      });
+
+      expect(request.itemRequests, hasLength(2));
+      expect(request.itemRequests![0].items, hasLength(1));
+      expect(request.itemRequests![0].items.first.quantityRequested, isNull);
+      expect(request.itemRequests![1].items, isEmpty);
     });
   });
 }

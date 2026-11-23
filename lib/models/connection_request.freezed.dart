@@ -51,7 +51,11 @@ mixin _$ConnectionRequest {
   Map<String, Object?>? get subBranch => throw _privateConstructorUsedError;
   @JsonKey(name: 'installed_device')
   Map<String, Object?>? get installedDevice =>
-      throw _privateConstructorUsedError;
+      throw _privateConstructorUsedError; // Inventory decision, present when the request comes back for survey
+  // review (status `survey_review`): what Inventory approved. Nullable —
+  // absent on old payloads and on requests that never went to Inventory.
+  @JsonKey(name: 'item_requests')
+  List<ItemRequest>? get itemRequests => throw _privateConstructorUsedError;
 
   /// Serializes this ConnectionRequest to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -85,6 +89,7 @@ abstract class $ConnectionRequestCopyWith<$Res> {
     Locations? locations,
     @JsonKey(name: 'sub_branch') Map<String, Object?>? subBranch,
     @JsonKey(name: 'installed_device') Map<String, Object?>? installedDevice,
+    @JsonKey(name: 'item_requests') List<ItemRequest>? itemRequests,
   });
 
   $PlanCopyWith<$Res>? get requestedPlan;
@@ -122,6 +127,7 @@ class _$ConnectionRequestCopyWithImpl<$Res, $Val extends ConnectionRequest>
     Object? locations = freezed,
     Object? subBranch = freezed,
     Object? installedDevice = freezed,
+    Object? itemRequests = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -181,6 +187,10 @@ class _$ConnectionRequestCopyWithImpl<$Res, $Val extends ConnectionRequest>
                 ? _value.installedDevice
                 : installedDevice // ignore: cast_nullable_to_non_nullable
                       as Map<String, Object?>?,
+            itemRequests: freezed == itemRequests
+                ? _value.itemRequests
+                : itemRequests // ignore: cast_nullable_to_non_nullable
+                      as List<ItemRequest>?,
           )
           as $Val,
     );
@@ -267,6 +277,7 @@ abstract class _$$ConnectionRequestImplCopyWith<$Res>
     Locations? locations,
     @JsonKey(name: 'sub_branch') Map<String, Object?>? subBranch,
     @JsonKey(name: 'installed_device') Map<String, Object?>? installedDevice,
+    @JsonKey(name: 'item_requests') List<ItemRequest>? itemRequests,
   });
 
   @override
@@ -307,6 +318,7 @@ class __$$ConnectionRequestImplCopyWithImpl<$Res>
     Object? locations = freezed,
     Object? subBranch = freezed,
     Object? installedDevice = freezed,
+    Object? itemRequests = freezed,
   }) {
     return _then(
       _$ConnectionRequestImpl(
@@ -366,6 +378,10 @@ class __$$ConnectionRequestImplCopyWithImpl<$Res>
             ? _value._installedDevice
             : installedDevice // ignore: cast_nullable_to_non_nullable
                   as Map<String, Object?>?,
+        itemRequests: freezed == itemRequests
+            ? _value._itemRequests
+            : itemRequests // ignore: cast_nullable_to_non_nullable
+                  as List<ItemRequest>?,
       ),
     );
   }
@@ -390,8 +406,10 @@ class _$ConnectionRequestImpl implements _ConnectionRequest {
     @JsonKey(name: 'sub_branch') final Map<String, Object?>? subBranch,
     @JsonKey(name: 'installed_device')
     final Map<String, Object?>? installedDevice,
+    @JsonKey(name: 'item_requests') final List<ItemRequest>? itemRequests,
   }) : _subBranch = subBranch,
-       _installedDevice = installedDevice;
+       _installedDevice = installedDevice,
+       _itemRequests = itemRequests;
 
   factory _$ConnectionRequestImpl.fromJson(Map<String, dynamic> json) =>
       _$$ConnectionRequestImplFromJson(json);
@@ -460,9 +478,26 @@ class _$ConnectionRequestImpl implements _ConnectionRequest {
     return EqualUnmodifiableMapView(value);
   }
 
+  // Inventory decision, present when the request comes back for survey
+  // review (status `survey_review`): what Inventory approved. Nullable —
+  // absent on old payloads and on requests that never went to Inventory.
+  final List<ItemRequest>? _itemRequests;
+  // Inventory decision, present when the request comes back for survey
+  // review (status `survey_review`): what Inventory approved. Nullable —
+  // absent on old payloads and on requests that never went to Inventory.
+  @override
+  @JsonKey(name: 'item_requests')
+  List<ItemRequest>? get itemRequests {
+    final value = _itemRequests;
+    if (value == null) return null;
+    if (_itemRequests is EqualUnmodifiableListView) return _itemRequests;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   String toString() {
-    return 'ConnectionRequest(id: $id, requestNumber: $requestNumber, status: $status, customerName: $customerName, customerType: $customerType, customerPhone: $customerPhone, customerAddress: $customerAddress, customerArea: $customerArea, requestedPlan: $requestedPlan, currentTeam: $currentTeam, stageData: $stageData, locations: $locations, subBranch: $subBranch, installedDevice: $installedDevice)';
+    return 'ConnectionRequest(id: $id, requestNumber: $requestNumber, status: $status, customerName: $customerName, customerType: $customerType, customerPhone: $customerPhone, customerAddress: $customerAddress, customerArea: $customerArea, requestedPlan: $requestedPlan, currentTeam: $currentTeam, stageData: $stageData, locations: $locations, subBranch: $subBranch, installedDevice: $installedDevice, itemRequests: $itemRequests)';
   }
 
   @override
@@ -499,6 +534,10 @@ class _$ConnectionRequestImpl implements _ConnectionRequest {
             const DeepCollectionEquality().equals(
               other._installedDevice,
               _installedDevice,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._itemRequests,
+              _itemRequests,
             ));
   }
 
@@ -520,6 +559,7 @@ class _$ConnectionRequestImpl implements _ConnectionRequest {
     locations,
     const DeepCollectionEquality().hash(_subBranch),
     const DeepCollectionEquality().hash(_installedDevice),
+    const DeepCollectionEquality().hash(_itemRequests),
   );
 
   /// Create a copy of ConnectionRequest
@@ -556,6 +596,7 @@ abstract class _ConnectionRequest implements ConnectionRequest {
     @JsonKey(name: 'sub_branch') final Map<String, Object?>? subBranch,
     @JsonKey(name: 'installed_device')
     final Map<String, Object?>? installedDevice,
+    @JsonKey(name: 'item_requests') final List<ItemRequest>? itemRequests,
   }) = _$ConnectionRequestImpl;
 
   factory _ConnectionRequest.fromJson(Map<String, dynamic> json) =
@@ -603,7 +644,12 @@ abstract class _ConnectionRequest implements ConnectionRequest {
   Map<String, Object?>? get subBranch;
   @override
   @JsonKey(name: 'installed_device')
-  Map<String, Object?>? get installedDevice;
+  Map<String, Object?>? get installedDevice; // Inventory decision, present when the request comes back for survey
+  // review (status `survey_review`): what Inventory approved. Nullable —
+  // absent on old payloads and on requests that never went to Inventory.
+  @override
+  @JsonKey(name: 'item_requests')
+  List<ItemRequest>? get itemRequests;
 
   /// Create a copy of ConnectionRequest
   /// with the given fields replaced by the non-null parameter values.
