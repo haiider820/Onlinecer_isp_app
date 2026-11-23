@@ -5,6 +5,7 @@ import '../../../models/survey_submission.dart';
 import '../../auth/presentation/providers.dart';
 import '../data/submit_survey_network.dart';
 import '../data/submit_survey_repository.dart';
+import 'connection_request_providers.dart';
 
 /// Real HTTP-backed submit-survey network.
 final submitSurveyNetworkProvider = Provider<SubmitSurveyNetwork>((ref) {
@@ -53,6 +54,9 @@ class SubmitSurveyController extends Notifier<SubmitSurveyState> {
         voiceNoteMimeType: voiceNoteMimeType,
       );
       state = SubmitSurveyState(done: result);
+      // Phase D: refetch detail so the next screen re-derives its stage
+      // buttons from fresh `allowed_actions`, never the stale pre-submit one.
+      refreshConnectionRequestDetail(ref, id);
       return result;
     } on ApiException catch (e) {
       state = SubmitSurveyState(errorMessage: e.message);

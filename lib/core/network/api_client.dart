@@ -14,9 +14,36 @@ import 'api_exceptions.dart';
 /// - Log requests/responses in debug builds only.
 /// - Convert every failure into a typed [ApiException] for the UI layer.
 class ApiClient {
-  ApiClient._(this._dio, this._storage);
+  ApiClient._(this._dio, this._onUnauthorized);
 
   factory ApiClient({required SecureStorage storage}) {
+    final dio = _buildDio();
+    final client = ApiClient._(dio, storage.clearSession);
+    dio.interceptors.add(AuthInterceptor(storage));
+    return client;
+  }
+
+  /// Second client instance for the scanner session (ISPFINAL §1): same
+  /// base URL, own interceptor reading `scanner.token`. The two sessions
+  /// never mix — a scanner 401 clears ONLY the scanner session, an
+  /// employee 401 clears ONLY the employee session.
+  factory ApiClient.scanner({required SecureStorage storage}) {
+    final dio = _buildDio();
+    final client = ApiClient._(dio, storage.clearScannerSession);
+    dio.interceptors.add(ScannerAuthInterceptor(storage));
+    return client;
+  }
+
+  /// Shared Dio setup: base URL, timeouts, JSON headers, debug logging.
+  ///
+  /// LogInterceptor defaults log request AND response headers
+  /// (`requestHeader: true, responseHeader: true` in dio 5.11.1) — with the
+  /// defaults, `LogInterceptor(requestBody: true, responseBody: true)` would
+  /// still print headers. Headers are restricted here explicitly so the
+  /// `Authorization` bearer token is never printed in debug logs. (The
+  /// logger is also added before the auth interceptor, so request logging
+  /// runs before the header is attached — a second layer, not the guard.)
+  static Dio _buildDio() {
     final dio = Dio(
       BaseOptions(
         baseUrl: AppConstants.baseUrl,
@@ -30,16 +57,21 @@ class ApiClient {
     );
 
     if (AppConstants.isDebug) {
-      dio.interceptors.add(LogInterceptor(requestBody: true, responseBody: true));
+      dio.interceptors.add(LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        requestHeader: false,
+        responseHeader: false,
+      ));
     }
-
-    final client = ApiClient._(dio, storage);
-    dio.interceptors.add(AuthInterceptor(storage));
-    return client;
+    return dio;
   }
 
   final Dio _dio;
-  final SecureStorage _storage;
+
+  /// Clears the session this client owns when a 401 arrives (employee
+  /// client → employee session only; scanner client → scanner session only).
+  final Future<void> Function() _onUnauthorized;
 
   /// Whether an automatic logout is in progress (guards against retries
   /// triggering repeated 401 handling).
@@ -116,12 +148,13 @@ class ApiClient {
       isNetworkError: isNetwork,
     );
 
-    // Central 401 handling: clear the session so the router can redirect
-    // to login instead of every screen handling it independently.
+    // Central 401 handling: clear this client's session only (employee 401
+    // must not wipe the scanner session and vice versa) so the router can
+    // redirect to login instead of every screen handling it independently.
     if (exception.isUnauthorized && !_loggingOut) {
       _loggingOut = true;
       // Fire-and-forget; failures here (rare) shouldn't crash the request.
-      unawaited(_storage.clearSession());
+      unawaited(_onUnauthorized());
       _loggingOut = false;
     }
 
@@ -147,6 +180,23 @@ class AuthInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
     final token = await _storage.getToken();
+    if (token != null && token.isNotEmpty) {
+      options.headers['Authorization'] = 'Bearer $token';
+    }
+    handler.next(options);
+  }
+}
+
+/// Scanner-session counterpart of [AuthInterceptor]: attaches the scanner
+/// bearer token (`scanner.token`) and never touches the employee token.
+class ScannerAuthInterceptor extends Interceptor {
+  ScannerAuthInterceptor(this._storage);
+
+  final SecureStorage _storage;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+    final token = await _storage.getScannerToken();
     if (token != null && token.isNotEmpty) {
       options.headers['Authorization'] = 'Bearer $token';
     }

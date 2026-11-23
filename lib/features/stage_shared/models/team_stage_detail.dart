@@ -21,12 +21,17 @@ class TeamStageDetail {
     this.charges,
     this.timestamps = const {},
     this.stageData = const {},
+    this.allowedActions,
   });
 
   final String id;
   final String requestNumber;
   final String status;
   final String? allowedAction;
+
+  /// Plural `allowed_actions` (current shape); the singular is the fallback
+  /// for old payloads. May appear at the top level or nested under `data`.
+  final List<String>? allowedActions;
   final String? customerName;
   final String? customerPhone;
   final String? customerAddress;
@@ -43,7 +48,18 @@ class TeamStageDetail {
   final Map<String, String> timestamps;
   final Map<String, String> stageData;
 
-  bool allows(String action) => allowedAction == action;
+  /// All actions the backend offers: the plural list when present and
+  /// non-empty, otherwise the singular `allowed_action`.
+  List<String> get actions {
+    final plural = allowedActions;
+    if (plural != null && plural.isNotEmpty) return plural;
+    final single = allowedAction;
+    return single == null ? const [] : [single];
+  }
+
+  /// Phase D: the completion button renders only when the backend's
+  /// `allowed_actions` (plural, singular fallback) contains [action].
+  bool allows(String action) => actions.contains(action);
 
   factory TeamStageDetail.fromJson(Map<String, dynamic> json) {
     final data = _map(json['data']) ?? json;
@@ -56,6 +72,7 @@ class TeamStageDetail {
       requestNumber: '${data['request_number'] ?? data['id'] ?? ''}',
       status: '${data['status'] ?? ''}',
       allowedAction: _string(json['allowed_action']) ?? _string(data['allowed_action']),
+      allowedActions: _stringList(json['allowed_actions'] ?? data['allowed_actions']),
       customerName: _string(data['customer_name']),
       customerPhone: _string(data['customer_phone']),
       customerAddress: _string(data['customer_address']),
@@ -181,6 +198,8 @@ class TeamStageCharges {
 
 Map<String, dynamic>? _map(Object? value) => value is Map ? Map<String, dynamic>.from(value) : null;
 List<Map<String, dynamic>> _list(Object? value) => value is List ? value.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList() : const [];
+List<String>? _stringList(Object? value) =>
+    value is List ? value.whereType<String>().toList(growable: false) : null;
 String? _string(Object? value) => value?.toString();
 double? _number(Object? value) => value is num ? value.toDouble() : double.tryParse('$value');
 int? _integer(Object? value) => value is num ? value.toInt() : int.tryParse('$value');

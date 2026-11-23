@@ -108,6 +108,9 @@ class CompleteInstallationController extends Notifier<CompleteInstallationState>
         voiceNoteMimeType: voiceNoteMimeType,
       );
       state = CompleteInstallationState(done: result);
+      // Phase D: refetch detail so the next screen re-derives its stage
+      // buttons from fresh `allowed_actions`, never the stale pre-submit one.
+      refreshConnectionRequestDetail(ref, id);
       return result;
     } on ApiException catch (e) {
       state = CompleteInstallationState(errorMessage: e.message);

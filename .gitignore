@@ -50,3 +50,9 @@ verification-closing.md
 stitch_malik_fiber_field_ops (1)/
 _cleanup.py
 .tmp_build_runner.ps1
+
+# Secrets — never commit Firebase config (secret-alert follow-up, 2026-11-23).
+# The API keys in these files were exposed in repo history once; they must
+# never be pushed again. Regenerate locally via `flutterfire configure`.
+lib/firebase_options.dart
+android/app/google-services.json

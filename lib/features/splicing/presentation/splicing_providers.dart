@@ -45,6 +45,9 @@ class CompleteSplicingController extends Notifier<CompleteSplicingState> {
       final result = await ref.read(splicingRepositoryProvider).complete(
             id: id, voiceNotePath: voiceNotePath, voiceNoteMimeType: voiceNoteMimeType);
       state = CompleteSplicingState(done: result);
+      // Phase D: refetch detail so the next screen re-derives its stage
+      // buttons from fresh `allowed_actions`, never the stale pre-submit one.
+      refreshConnectionRequestDetail(ref, id);
       return result;
     } on ApiException catch (e) {
       state = CompleteSplicingState(errorMessage: e.message);

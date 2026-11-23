@@ -14,6 +14,7 @@ import '../../../core/network/api_exceptions.dart';
 import '../../../models/connection_request.dart';
 import '../../../shared/widgets/voice_note_section.dart';
 import '../../auth/presentation/providers.dart';
+import '../../survey/presentation/connection_request_providers.dart';
 import '../data/team_stage_completion_network.dart';
 import '../data/team_stage_completion_repository.dart';
 import '../models/team_stage_detail.dart';
@@ -90,6 +91,7 @@ class _TeamStageDetailScreenState extends ConsumerState<TeamStageDetailScreen> {
               ? TeamStageCompletionForm(
                   config: widget.config,
                   requestId: item.id,
+                  detailProvider: widget.detailProvider,
                   listRoute: widget.listRoute,
                   listPageProvider: widget.listPageProvider,
                 )
@@ -112,12 +114,17 @@ class TeamStageCompletionForm extends ConsumerStatefulWidget {
     super.key,
     required this.config,
     required this.requestId,
+    required this.detailProvider,
     required this.listRoute,
     required this.listPageProvider,
   });
 
   final TeamStageConfig config;
   final String requestId;
+
+  /// The stage's own detail provider, refetched after a successful
+  /// completion (Phase D) alongside the shared request detail.
+  final FutureProviderFamily<TeamStageDetail, String> detailProvider;
   final String listRoute;
   final FutureProviderFamily<ConnectionRequestPage, int> listPageProvider;
 
@@ -240,6 +247,11 @@ class _TeamStageCompletionFormState extends ConsumerState<TeamStageCompletionFor
         voiceNoteMimeType: _voiceNotePath == null ? null : 'audio/mp4',
       );
       if (!mounted) return;
+      // Phase D: refetch both the stage detail and the shared request
+      // detail so any later read re-derives buttons from fresh
+      // `allowed_actions`, never the stale pre-submit payload.
+      ref.invalidate(widget.detailProvider(widget.requestId));
+      ref.invalidate(connectionRequestDetailProvider(widget.requestId));
       ref.invalidate(widget.listPageProvider(1));
       final message = widget.config.isTerminal
           ? 'Job closed.'

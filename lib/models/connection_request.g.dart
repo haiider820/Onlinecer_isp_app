@@ -29,6 +29,8 @@ _$ConnectionRequestImpl _$$ConnectionRequestImplFromJson(
   locations: json['locations'] == null
       ? null
       : Locations.fromJson(json['locations'] as Map<String, dynamic>),
+  subBranch: json['sub_branch'] as Map<String, dynamic>?,
+  installedDevice: json['installed_device'] as Map<String, dynamic>?,
 );
 
 Map<String, dynamic> _$$ConnectionRequestImplToJson(
@@ -46,6 +48,8 @@ Map<String, dynamic> _$$ConnectionRequestImplToJson(
   'current_team': instance.currentTeam,
   'stage_data': instance.stageData,
   'locations': instance.locations,
+  'sub_branch': instance.subBranch,
+  'installed_device': instance.installedDevice,
 };
 
 _$ConnectionRequestDetailImpl _$$ConnectionRequestDetailImplFromJson(
@@ -53,6 +57,9 @@ _$ConnectionRequestDetailImpl _$$ConnectionRequestDetailImplFromJson(
 ) => _$ConnectionRequestDetailImpl(
   request: ConnectionRequest.fromJson(json['data'] as Map<String, dynamic>),
   allowedAction: json['allowed_action'] as String?,
+  allowedActions: (json['allowed_actions'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
 );
 
 Map<String, dynamic> _$$ConnectionRequestDetailImplToJson(
@@ -60,6 +67,7 @@ Map<String, dynamic> _$$ConnectionRequestDetailImplToJson(
 ) => <String, dynamic>{
   'data': instance.request,
   'allowed_action': instance.allowedAction,
+  'allowed_actions': instance.allowedActions,
 };
 
 _$ConnectionRequestPageImpl _$$ConnectionRequestPageImplFromJson(

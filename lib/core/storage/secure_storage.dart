@@ -21,7 +21,43 @@ class SecureStorage {
   static const _kEmployeeEmail = 'employee.email';
   static const _kTeamType = 'employee.functional_team_type';
   static const _kTeamName = 'employee.team_name';
+  static const _kBranchName = 'employee.branch_name';
+  static const _kSubBranchName = 'employee.sub_branch_name';
   static const _kThemeMode = 'ui.theme_mode';
+
+  // Scanner session keys (ISPFINAL §1): a separate session that must NEVER
+  // share keys with the employee session. Employee logout must never wipe
+  // these, and scanner logout must never wipe the employee session.
+  static const _kScannerToken = 'scanner.token';
+  static const _kScannerTokenType = 'scanner.token_type';
+  static const _kScannerExpiresAt = 'scanner.expires_at';
+  static const _kScannerAccountId = 'scanner.account_id';
+  static const _kScannerAccountName = 'scanner.account_name';
+
+  /// Every key owned by the employee session. [clearSession] deletes exactly
+  /// these — never `deleteAll()`, which would also wipe `scanner.*` keys and
+  /// `ui.theme_mode`.
+  static const _employeeKeys = <String>[
+    _kToken,
+    _kTokenType,
+    _kExpiresAt,
+    _kEmployeeId,
+    _kEmployeeName,
+    _kEmployeeEmail,
+    _kTeamType,
+    _kTeamName,
+    _kBranchName,
+    _kSubBranchName,
+  ];
+
+  /// Every key owned by the scanner session.
+  static const _scannerKeys = <String>[
+    _kScannerToken,
+    _kScannerTokenType,
+    _kScannerExpiresAt,
+    _kScannerAccountId,
+    _kScannerAccountName,
+  ];
 
   // Session
   Future<void> saveSession({
@@ -33,6 +69,8 @@ class SecureStorage {
     required String? employeeEmail,
     required String functionalTeamType,
     required String? teamName,
+    String? branchName,
+    String? subBranchName,
   }) async {
     await _storage.write(key: _kToken, value: token);
     await _storage.write(key: _kTokenType, value: tokenType);
@@ -42,6 +80,17 @@ class SecureStorage {
     if (employeeEmail != null) await _storage.write(key: _kEmployeeEmail, value: employeeEmail);
     await _storage.write(key: _kTeamType, value: functionalTeamType);
     if (teamName != null) await _storage.write(key: _kTeamName, value: teamName);
+    // A null branch/sub-branch clears any stale value from a previous login.
+    if (branchName == null) {
+      await _storage.delete(key: _kBranchName);
+    } else {
+      await _storage.write(key: _kBranchName, value: branchName);
+    }
+    if (subBranchName == null) {
+      await _storage.delete(key: _kSubBranchName);
+    } else {
+      await _storage.write(key: _kSubBranchName, value: subBranchName);
+    }
   }
 
   Future<String?> getToken() => _storage.read(key: _kToken);
@@ -51,6 +100,66 @@ class SecureStorage {
   Future<String?> getEmployeeName() => _storage.read(key: _kEmployeeName);
   Future<String?> getFunctionalTeamType() => _storage.read(key: _kTeamType);
   Future<String?> getTeamName() => _storage.read(key: _kTeamName);
+  Future<String?> getBranchName() => _storage.read(key: _kBranchName);
+  Future<String?> getSubBranchName() => _storage.read(key: _kSubBranchName);
+
+  // Scanner session (mirrors the employee session above, own keys only).
+  Future<void> saveScannerSession({
+    required String token,
+    required String tokenType,
+    required String? expiresAt,
+    required String? accountId,
+    required String? accountName,
+  }) async {
+    await _storage.write(key: _kScannerToken, value: token);
+    await _storage.write(key: _kScannerTokenType, value: tokenType);
+    if (expiresAt != null) await _storage.write(key: _kScannerExpiresAt, value: expiresAt);
+    if (accountId != null) await _storage.write(key: _kScannerAccountId, value: accountId);
+    if (accountName != null) await _storage.write(key: _kScannerAccountName, value: accountName);
+  }
+
+  Future<String?> getScannerToken() => _storage.read(key: _kScannerToken);
+  Future<String?> getScannerTokenType() => _storage.read(key: _kScannerTokenType);
+  Future<String?> getScannerExpiresAt() => _storage.read(key: _kScannerExpiresAt);
+  Future<String?> getScannerAccountId() => _storage.read(key: _kScannerAccountId);
+  Future<String?> getScannerAccountName() => _storage.read(key: _kScannerAccountName);
+
+  Future<bool> isScannerLoggedIn() async => (await getScannerToken()) != null;
+
+  /// Refreshes the stored scanner account identity without touching the
+  /// token (mirror of [updateEmployeeContext]).
+  Future<void> updateScannerAccount({
+    required String? accountId,
+    required String? accountName,
+  }) async {
+    if (accountId == null) {
+      await _storage.delete(key: _kScannerAccountId);
+    } else {
+      await _storage.write(key: _kScannerAccountId, value: accountId);
+    }
+    if (accountName == null) {
+      await _storage.delete(key: _kScannerAccountName);
+    } else {
+      await _storage.write(key: _kScannerAccountName, value: accountName);
+    }
+  }
+
+  /// Round-trip persistence check for the scanner session (mirror of
+  /// [verifySessionPersistence]).
+  Future<void> verifyScannerSessionPersistence() async {
+    final token = await getScannerToken();
+    if (token == null || token.isEmpty) {
+      throw const SessionPersistenceException();
+    }
+  }
+
+  /// Deletes ONLY the scanner session keys. The employee session and the
+  /// theme choice are untouched.
+  Future<void> clearScannerSession() async {
+    for (final key in _scannerKeys) {
+      await _storage.delete(key: key);
+    }
+  }
 
   /// Persisted UI theme choice: 'light', 'dark', or null/'system'.
   Future<String?> getThemeMode() => _storage.read(key: _kThemeMode);
@@ -66,6 +175,8 @@ class SecureStorage {
     required String? employeeEmail,
     required String functionalTeamType,
     required String? teamName,
+    String? branchName,
+    String? subBranchName,
   }) async {
     await _storage.write(key: _kEmployeeId, value: employeeId);
     await _storage.write(key: _kEmployeeName, value: employeeName);
@@ -79,6 +190,16 @@ class SecureStorage {
       await _storage.delete(key: _kTeamName);
     } else {
       await _storage.write(key: _kTeamName, value: teamName);
+    }
+    if (branchName == null) {
+      await _storage.delete(key: _kBranchName);
+    } else {
+      await _storage.write(key: _kBranchName, value: branchName);
+    }
+    if (subBranchName == null) {
+      await _storage.delete(key: _kSubBranchName);
+    } else {
+      await _storage.write(key: _kSubBranchName, value: subBranchName);
     }
   }
 
@@ -114,5 +235,13 @@ class SecureStorage {
 
   Future<bool> isLoggedIn() async => (await getToken()) != null;
 
-  Future<void> clearSession() => _storage.deleteAll();
+  /// Deletes ONLY the employee session keys (`auth.*` / `employee.*`).
+  /// Scanner keys (`scanner.*`) and the theme choice (`ui.theme_mode`) are
+  /// deliberately left alone, so an employee logout/401 never signs the
+  /// scanner out and never resets the theme.
+  Future<void> clearSession() async {
+    for (final key in _employeeKeys) {
+      await _storage.delete(key: key);
+    }
+  }
 }

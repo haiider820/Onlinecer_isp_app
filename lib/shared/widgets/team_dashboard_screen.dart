@@ -8,6 +8,7 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/field_ops_design_tokens.dart';
 import '../../core/theme/theme_mode_provider.dart';
 import '../../features/auth/presentation/providers.dart';
+import '../../features/lookups/presentation/sub_branch_providers.dart';
 import '../../features/notifications/presentation/notification_providers.dart';
 import '../../features/survey/presentation/dashboard_providers.dart';
 import '../../models/dashboard.dart';
@@ -33,6 +34,7 @@ class TeamDashboardScreen extends ConsumerWidget {
     required this.viewAllLabel,
     required this.listRoute,
     this.detailRouteFor,
+    this.showNewRequest = false,
   });
 
   /// Short feature name used for the AppBar title, e.g. `'Splicing'`.
@@ -59,6 +61,10 @@ class TeamDashboardScreen extends ConsumerWidget {
 
   /// Concrete detail path for a given request id.
   final String Function(String id)? detailRouteFor;
+
+  /// Show the "New request" entry (ISPFINAL Phase C). Survey team only:
+  /// a new request always starts at survey, so other teams never see it.
+  final bool showNewRequest;
 
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(dashboardSummaryProvider);
@@ -96,6 +102,9 @@ class TeamDashboardScreen extends ConsumerWidget {
             summary: data,
             onRefresh: () => _refresh(ref),
             onViewAll: () => context.push(listRoute),
+            onNewRequest: showNewRequest
+                ? () => context.push(Routes.newRequest)
+                : null,
             pendingLabel: pendingLabel,
             defaultEmployeeLabel: defaultEmployeeLabel,
             defaultTeamLabel: defaultTeamLabel,
@@ -134,6 +143,9 @@ class TeamDashboardScreen extends ConsumerWidget {
 
   Future<void> _logout(BuildContext context, WidgetRef ref) async {
     await ref.read(secureStorageProvider).clearSession();
+    // Phase B: a stale sub-branch scope must not survive into the next
+    // employee's session.
+    invalidateSubBranchState(ref);
     ref.invalidate(dashboardSummaryProvider);
     if (context.mounted) context.go(Routes.login);
   }
@@ -211,6 +223,7 @@ class _DashboardBody extends StatelessWidget {
     required this.summary,
     required this.onRefresh,
     required this.onViewAll,
+    this.onNewRequest,
     required this.pendingLabel,
     required this.defaultEmployeeLabel,
     required this.defaultTeamLabel,
@@ -223,6 +236,10 @@ class _DashboardBody extends StatelessWidget {
   final DashboardSummary summary;
   final Future<void> Function() onRefresh;
   final VoidCallback onViewAll;
+
+  /// Opens the create-request form (ISPFINAL Phase C). `null` on teams
+  /// that never create requests — the button is then not rendered at all.
+  final VoidCallback? onNewRequest;
   final String pendingLabel;
   final String defaultEmployeeLabel;
   final String defaultTeamLabel;
@@ -435,6 +452,20 @@ class _DashboardBody extends StatelessWidget {
               label: Text(viewAllLabel),
             ),
           ),
+
+          // ── New request entry (ISPFINAL Phase C) ──
+          // A clear secondary entry below View All, not a second competing
+          // primary CTA on the same card: the dashboard's one job stays the
+          // queue; creating a request is a separate entry point.
+          if (onNewRequest != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: OutlinedButton.icon(
+                onPressed: onNewRequest,
+                icon: const Icon(Icons.add),
+                label: const Text('New request'),
+              ),
+            ),
         ],
       ),
     );

@@ -21,7 +21,7 @@ import 'providers.dart';
 /// so the glass has something to refract. DARK mode: the v2 frosted card
 /// (blur 16, surface at alpha 0.80) — unchanged. The form is vertically
 /// centred with no bottom strip. The living logo (SignalPulse mark +
-/// "Malik Fiber" wordmark) sits top-left with a transform-only bob — no
+/// "ISP 360" wordmark) sits top-left with a transform-only bob — no
 /// opacity fade anywhere. On success there is no fade/grow animation:
 /// the dashboard opens straight away.
 class LoginScreen extends ConsumerStatefulWidget {
@@ -138,7 +138,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               // theme onSurface would be unreadable here
                               // in light mode.
                               Text(
-                                'Log in to Malik Fiber',
+                                'Log in to ISP 360',
                                 textAlign: TextAlign.center,
                                 style: theme.textTheme.headlineSmall
                                     ?.copyWith(
@@ -187,7 +187,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                           OpsTextField(
                                             controller: _emailController,
                                             label: 'Work email',
-                                            hint: 'name@malikfiber.com',
+                                            hint: 'name@isp360.com',
                                             keyboardType: TextInputType
                                                 .emailAddress,
                                             textInputAction:
@@ -312,6 +312,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ),
                               ),
                               ),
+                              // Scanner entry (ISPFINAL §1): a plain text link
+                              // BELOW the card — not a second primary CTA
+                              // (Rule 14: one title + one Log in button
+                              // stays). It only navigates; it never submits
+                              // the employee login or touches its token.
+                              const SizedBox(height: 12),
+                              TextButton(
+                                onPressed: () => context.go(Routes.scannerLogin),
+                                child: const Text('Device scanner? Sign in here'),
+                              ),
                             ],
                           ),
                         ),
@@ -406,7 +416,7 @@ class _GlassGlow extends StatelessWidget {
   }
 }
 
-/// Living logo, top-left: small SignalPulse mark + "Malik Fiber" wordmark.
+/// Living logo, top-left: small SignalPulse mark + "ISP 360" wordmark.
 /// Transform-only float/bob — no opacity fade anywhere (Rule 14 §3).
 class _BobbingLogo extends StatefulWidget {
   const _BobbingLogo();
@@ -454,7 +464,7 @@ class _BobbingLogoState extends State<_BobbingLogo>
           const SizedBox(width: 12),
           // Wordmark sits on the dark scene in both modes.
           Text(
-            'Malik Fiber',
+            'ISP 360',
             style: theme.textTheme.titleLarge?.copyWith(
               fontWeight: FontWeight.w800,
               color: Colors.white,

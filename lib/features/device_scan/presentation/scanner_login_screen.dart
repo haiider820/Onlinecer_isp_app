@@ -1,31 +1,42 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/device_info.dart';
 import '../../../core/router/app_router.dart';
-import '../../../core/theme/field_ops_colors.dart';
 import '../../../core/theme/field_ops_design_tokens.dart';
+import '../../../shared/widgets/ops_widgets.dart';
 import 'scanner_providers.dart';
 
-/// Standalone sign-in for device-scanning accounts (warehouse handhelds).
-/// These accounts are not employees, so this screen never touches the staff
-/// login flow: a stored scanner token restores silently via `GET /me`, and a
-/// fresh sign-in posts to the scanner-only endpoint.
+/// Scanner sign-in — same login visual family as the staff login (Rule 14):
+/// deep-navy scene, one title, frosted/liquid-glass card, Email + Password
+/// only, one "Sign in" CTA. No theme toggle here — keep it simple.
 ///
-/// Chassis-dark terminal styling matches the staff login (same visual
-/// family): deep brand canvas, white input wells, cobalt accents.
+/// Authenticates through the SAME `POST /login` as employees (ISPFINAL §1 —
+/// there is no scanner-only endpoint); the response's `account_type` decides
+/// which session this is, and the token is stored under the `scanner.*`
+/// keys only, so it can never overwrite — or be wiped by — the employee
+/// session. On open, a stored scanner token restores silently via `GET /me`:
+/// success goes straight to the scanner home; 401/network falls through to
+/// the form, never stranding the user.
 class ScannerLoginScreen extends ConsumerStatefulWidget {
   const ScannerLoginScreen({super.key});
 
   @override
-  ConsumerState<ScannerLoginScreen> createState() =>
-      _ScannerLoginScreenState();
+  ConsumerState<ScannerLoginScreen> createState() => _ScannerLoginScreenState();
 }
 
 class _ScannerLoginScreenState extends ConsumerState<ScannerLoginScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+
+  /// Whether the password is currently revealed by the show/hide toggle.
   bool _passwordVisible = false;
+
+  /// True while the silent restore attempt is running.
   bool _restoring = true;
 
   @override
@@ -43,16 +54,14 @@ class _ScannerLoginScreenState extends ConsumerState<ScannerLoginScreen> {
     super.dispose();
   }
 
-  /// A stored token restores the portal without typing credentials.
-  /// Anything short of a parsed session (no token, 401, network) falls
+  /// A stored scanner token restores the session without typing credentials.
+  /// Anything short of a verified session (no token, 401, network) falls
   /// through to the form — restore must never strand the user.
   Future<void> _tryRestore() async {
     try {
-      final login =
-          await ref.read(scannerRepositoryProvider).restoreSession();
+      final session = await ref.read(scannerSessionProvider.future);
       if (!mounted) return;
-      if (login != null) {
-        ref.invalidate(scannerSessionProvider);
+      if (session != null) {
         context.go(Routes.scannerHome);
         return;
       }
@@ -64,223 +73,344 @@ class _ScannerLoginScreenState extends ConsumerState<ScannerLoginScreen> {
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
-    final ok =
-        await ref.read(scannerLoginControllerProvider.notifier).submit(
-              email: _emailController.text,
-              password: _passwordController.text,
-            );
-    if (!mounted) return;
-    if (ok) {
-      context.go(Routes.scannerHome);
-    } else {
-      final error = ref.read(scannerLoginControllerProvider).errorMessage;
-      if (error != null) _snack(error);
-    }
-  }
+    if (!_formKey.currentState!.validate()) return;
 
-  void _snack(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    final response = await ref.read(scannerAuthControllerProvider.notifier).login(
+          email: _emailController.text,
+          password: _passwordController.text,
+          deviceName: DeviceInfo.defaultDeviceName(),
+        );
+
+    if (!mounted) return;
+
+    if (response != null) {
+      // Scanner token persisted AND write-verified (ScannerRepository gates
+      // on a storage read-back). No success animation — straight to the
+      // scanner home (Rule 14 §6).
+      context.go(Routes.scannerHome);
+    }
+    // On failure the error banner below the button shows the backend message;
+    // no snackbar — the message stays visible on the form.
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.fieldOpsColors;
+    final authState = ref.watch(scannerAuthControllerProvider);
     final theme = Theme.of(context);
-    final state = ref.watch(scannerLoginControllerProvider);
+    final scheme = theme.colorScheme;
+    final light = theme.brightness == Brightness.light;
 
     return Scaffold(
-      backgroundColor: colors.chassis,
-      appBar: AppBar(
-        backgroundColor: colors.chassis,
-        foregroundColor: colors.onChassis,
-        elevation: 0,
-        // Standalone entry: after a portal logout (`go`) there is no history
-        // to pop, so Back falls through to the staff login instead of
-        // stranding the scanner on this screen.
-        leading: IconButton(
-          tooltip: 'Back',
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(Routes.login);
-            }
-          },
-        ),
-        title: const Text('Device Scanning'),
-      ),
-      body: SafeArea(
-        child: _restoring
-            ? const Center(child: CircularProgressIndicator())
-            : Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+      // Same dark scene canvas as the staff login in both modes.
+      backgroundColor: const Color(0xFF0B132B),
+      body: Stack(
+        children: [
+          const _FiberScene(),
+          if (light) const _GlassGlow(),
+          SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 16, 8),
+                  child: Row(
                     children: [
-                      Icon(
-                        Icons.qr_code_scanner,
-                        size: 56,
-                        color: colors.onChassis,
+                      const _BobbingLogo(),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: 'Back to staff login',
+                        onPressed: () => context.go(Routes.login),
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Scanner sign-in',
-                        textAlign: TextAlign.center,
-                        style: FieldOpsDesignTokens.displayLg.copyWith(
-                          color: colors.onChassis,
-                          fontSize: 26,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Use the scanning account from your administrator.\nStaff accounts sign in on the previous screen.',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colors.onChassis.withValues(alpha: 0.7),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      // Mode-aware wells + ink (same recipe as the staff
-                      // login): dark blue fill in dark mode, light fill in
-                      // light mode, so typed text stays readable either way.
-                      Theme(
-                        data: theme.copyWith(
-                          inputDecorationTheme: InputDecorationTheme(
-                            filled: true,
-                            fillColor: theme.colorScheme.surfaceContainerLow,
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 16),
-                            labelStyle: FieldOpsDesignTokens.bodyMd.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            hintStyle: FieldOpsDesignTokens.bodyMd.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            prefixIconColor:
-                                theme.colorScheme.onSurfaceVariant,
-                            suffixIconColor:
-                                theme.colorScheme.onSurfaceVariant,
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.zero,
-                              borderSide: BorderSide(
-                                  color: theme.colorScheme.outline),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.zero,
-                              borderSide: BorderSide(
-                                color: theme.colorScheme.primary,
-                                width: 2,
-                              ),
-                            ),
-                            errorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.zero,
-                              borderSide: BorderSide(
-                                  color: theme.colorScheme.error),
-                            ),
-                            focusedErrorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.zero,
-                              borderSide: BorderSide(
-                                color: theme.colorScheme.error,
-                                width: 2,
-                              ),
-                            ),
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            TextFormField(
-                              controller: _emailController,
-                              keyboardType: TextInputType.emailAddress,
-                              autocorrect: false,
-                              style: FieldOpsDesignTokens.bodyLg.copyWith(
-                                color: theme.colorScheme.onSurface,
-                              ),
-                              cursorColor: theme.colorScheme.primary,
-                              decoration: const InputDecoration(
-                                labelText: 'Scanner Email',
-                                prefixIcon: Icon(Icons.badge_outlined),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            TextFormField(
-                              controller: _passwordController,
-                              obscureText: !_passwordVisible,
-                              style: FieldOpsDesignTokens.bodyLg.copyWith(
-                                color: theme.colorScheme.onSurface,
-                              ),
-                              cursorColor: theme.colorScheme.primary,
-                              decoration: InputDecoration(
-                                labelText: 'Password',
-                                prefixIcon: const Icon(Icons.lock_outline),
-                                suffixIcon: IconButton(
-                                  tooltip: _passwordVisible
-                                      ? 'Hide password'
-                                      : 'Show password',
-                                  icon: Icon(
-                                    _passwordVisible
-                                        ? Icons.visibility_off
-                                        : Icons.visibility,
-                                  ),
-                                  onPressed: () => setState(
-                                    () => _passwordVisible = !_passwordVisible,
-                                  ),
-                                ),
-                              ),
-                              onFieldSubmitted: (_) {
-                                if (!state.isSubmitting) _submit();
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        height: 52,
-                        child: FilledButton.icon(
-                          // The scaffold is chassis cobalt in light mode, so
-                          // the default secondary fill would vanish into it —
-                          // invert instead: an on-chassis plate with chassis
-                          // ink reads on either canvas.
-                          style: FilledButton.styleFrom(
-                            backgroundColor: colors.onChassis,
-                            foregroundColor: colors.chassis,
-                            disabledBackgroundColor: colors.onChassis,
-                            disabledForegroundColor: colors.chassis,
-                          ),
-                          onPressed: state.isSubmitting ? null : _submit,
-                          icon: state.isSubmitting
-                              ? SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: colors.chassis,
-                                  ),
-                                )
-                              : const Icon(Icons.login, size: 20),
-                          label: Text(
-                              state.isSubmitting ? 'Signing in…' : 'Sign In'),
-                        ),
-                      ),
-                      if (state.hasError) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          state.errorMessage!,
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: const Color(0xFFFF9E96),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
-              ),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: FieldOpsDesignTokens.pageMargin),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                        child: Center(
+                          child: _restoring
+                              ? const CircularProgressIndicator(color: Colors.white)
+                              : Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Text(
+                                      'Scanner sign-in',
+                                      textAlign: TextAlign.center,
+                                      style: theme.textTheme.headlineSmall?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Use the scanning account from your administrator.\nStaff accounts sign in on the previous screen.',
+                                      textAlign: TextAlign.center,
+                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                        color: Colors.white.withValues(alpha: 0.7),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 24),
+                                    Container(
+                                      decoration: light
+                                          ? FieldOpsDesignTokens.glassShadowDecoration
+                                          : null,
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(32),
+                                        child: BackdropFilter(
+                                          filter: ImageFilter.blur(
+                                              sigmaX: light ? 20 : 16,
+                                              sigmaY: light ? 20 : 16),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(16),
+                                            decoration: light
+                                                ? FieldOpsDesignTokens.glassCardDecoration
+                                                : BoxDecoration(
+                                                    color: scheme.surface.withValues(alpha: 0.80),
+                                                    borderRadius: BorderRadius.circular(32),
+                                                    border: Border.all(
+                                                      color: scheme.outlineVariant
+                                                          .withValues(alpha: 0.6),
+                                                    ),
+                                                  ),
+                                            child: Form(
+                                              key: _formKey,
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.stretch,
+                                                children: [
+                                                  OpsTextField(
+                                                    controller: _emailController,
+                                                    label: 'Scanner email',
+                                                    hint: 'scanner@isp360.com',
+                                                    keyboardType: TextInputType.emailAddress,
+                                                    textInputAction: TextInputAction.next,
+                                                    prefixIcon: Icons.badge_outlined,
+                                                    validator: (value) {
+                                                      final v = value?.trim() ?? '';
+                                                      if (v.isEmpty) return 'Email is required';
+                                                      if (!v.contains('@')) {
+                                                        return 'Enter a valid email';
+                                                      }
+                                                      return null;
+                                                    },
+                                                  ),
+                                                  const SizedBox(
+                                                      height: FieldOpsDesignTokens.spaceMd),
+                                                  OpsTextField(
+                                                    controller: _passwordController,
+                                                    label: 'Password',
+                                                    hint: '••••••••',
+                                                    obscureText: !_passwordVisible,
+                                                    textInputAction: TextInputAction.done,
+                                                    prefixIcon: Icons.lock_outline,
+                                                    suffixIcon: IconButton(
+                                                      tooltip: _passwordVisible
+                                                          ? 'Hide password'
+                                                          : 'Show password',
+                                                      icon: Icon(
+                                                        _passwordVisible
+                                                            ? Icons.visibility_off
+                                                            : Icons.visibility,
+                                                      ),
+                                                      onPressed: () => setState(() =>
+                                                          _passwordVisible = !_passwordVisible),
+                                                    ),
+                                                    validator: (value) {
+                                                      if (value == null || value.isEmpty) {
+                                                        return 'Password is required';
+                                                      }
+                                                      return null;
+                                                    },
+                                                    onFieldSubmitted: (_) => _submit(),
+                                                  ),
+                                                  const SizedBox(
+                                                      height: FieldOpsDesignTokens.spaceMd),
+                                                  PressScale(
+                                                    child: SizedBox(
+                                                      height: FieldOpsDesignTokens.inputHeight,
+                                                      child: FilledButton(
+                                                        onPressed: authState.isSubmitting
+                                                            ? null
+                                                            : _submit,
+                                                        child: authState.isSubmitting
+                                                            ? SizedBox(
+                                                                height: 22,
+                                                                width: 22,
+                                                                child: CircularProgressIndicator(
+                                                                  strokeWidth: 2.4,
+                                                                  color: scheme.onPrimary,
+                                                                ),
+                                                              )
+                                                            : const Text('Sign in'),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  if (authState.hasError) ...[
+                                                    const SizedBox(
+                                                        height: FieldOpsDesignTokens.spaceMd),
+                                                    Text(
+                                                      authState.errorMessage!,
+                                                      textAlign: TextAlign.center,
+                                                      style: theme.textTheme.bodyMedium?.copyWith(
+                                                        color: scheme.error,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    TextButton(
+                                      onPressed: () => context.go(Routes.login),
+                                      child: const Text('Staff login? Sign in here'),
+                                    ),
+                                  ],
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Fiber/network scene behind the card — same recipe as the staff login.
+class _FiberScene extends StatelessWidget {
+  const _FiberScene();
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return Stack(
+      children: [
+        Positioned(
+          top: 120,
+          left: 24,
+          right: 24,
+          height: 40,
+          child: SignalPulse(),
+        ),
+        Positioned(
+          top: 208,
+          left: 0,
+          right: 0,
+          height: 1,
+          child: ColoredBox(color: primary.withValues(alpha: 0.14)),
+        ),
+        Positioned(
+          top: 264,
+          left: 0,
+          right: 0,
+          height: 1,
+          child: ColoredBox(color: primary.withValues(alpha: 0.08)),
+        ),
+        Positioned(
+          top: 336,
+          left: 0,
+          right: 0,
+          height: 1,
+          child: ColoredBox(color: primary.withValues(alpha: 0.05)),
+        ),
+      ],
+    );
+  }
+}
+
+/// Light-mode only sky glow behind the card — same recipe as the staff login.
+class _GlassGlow extends StatelessWidget {
+  const _GlassGlow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: const Alignment(0, 0.18),
+      child: Container(
+        width: 460,
+        height: 460,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              FieldOpsDesignTokens.inversePrimary.withValues(alpha: 0.45),
+              FieldOpsDesignTokens.primary.withValues(alpha: 0.22),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.55, 1.0],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Living logo, top-left — same recipe as the staff login.
+class _BobbingLogo extends StatefulWidget {
+  const _BobbingLogo();
+
+  @override
+  State<_BobbingLogo> createState() => _BobbingLogoState();
+}
+
+class _BobbingLogoState extends State<_BobbingLogo> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, -3 + 6 * _controller.value),
+        child: child,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 64,
+            height: 42,
+            child: SignalPulse(),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            'ISP 360',
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -64,6 +64,26 @@ abstract final class Endpoints {
       '/lookups/fat-nodes?connection_request_id=$connectionRequestId';
   static String get inventoryItems => '/lookups/inventory-items';
   static String get plans => '/lookups/plans';
+  static String subBranches({String? subBranchId}) => subBranchId == null
+      ? '/lookups/sub-branches'
+      : '/lookups/sub-branches?sub_branch_id=$subBranchId';
+  static String directOlts({String? subBranchId}) => subBranchId == null
+      ? '/lookups/direct-olts'
+      : '/lookups/direct-olts?sub_branch_id=$subBranchId';
+  static String discoverWaitingOnus(String oltId) =>
+      '/lookups/direct-olts/$oltId/discover-waiting-onus';
+  static String waitingOnus(String oltId) =>
+      '/lookups/direct-olts/$oltId/waiting-onus';
+
+  // Connection request creation (ISPFINAL §3–§4)
+  static String createData({String? subBranchId}) => subBranchId == null
+      ? '/connection-requests/create-data'
+      : '/connection-requests/create-data?sub_branch_id=$subBranchId';
+  static String createConnectionRequest() => '/connection-requests';
+  static String authorizeOnu(String requestId) =>
+      '/connection-requests/$requestId/authorize-onu';
+  static String authorizationJob(String requestId, String jobId) =>
+      '/connection-requests/$requestId/authorization-jobs/$jobId';
 
   // Notifications
   static String get notifications => '/notifications';
@@ -119,6 +139,18 @@ const Set<String> allowedInstallationPhotoMimeTypes = <String>{
 
 /// Maximum size a single installation photo may have (2 MB).
 const int maxInstallationPhotoBytes = 2 * 1024 * 1024;
+
+/// MIME types the backend accepts for ID card images on connection-request
+/// creation (ISPFINAL §4). Images only — no PDF (Haider's call, 2026-11-23).
+/// Any file whose reported type is not in this set is rejected before upload.
+const Set<String> allowedIdCardMimeTypes = <String>{
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+};
+
+/// Maximum ID card image size the backend accepts (10 MB each).
+const int maxIdCardBytes = 10 * 1024 * 1024;
 
 /// Application-wide text used in multiple screens.
 abstract final class AppStrings {

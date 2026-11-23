@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_exceptions.dart';
+import '../../../core/router/app_router.dart';
 import '../../../core/theme/field_ops_design_tokens.dart';
 import '../../../models/connection_request.dart';
 import '../../../models/locations.dart';
@@ -173,8 +174,15 @@ class _DetailScaffoldState extends ConsumerState<_DetailScaffold> {
   Widget build(BuildContext context) {
     final detail = widget.detail;
     final request = detail.request;
+    // Phase D: stage buttons render only when their wire value is in
+    // `actions` (plural `allowed_actions`, singular fallback via the model).
     final actionable =
-        detail.action == ConnectionRequestAction.completeInstallation;
+        detail.actions.contains(ConnectionRequestAction.completeInstallation);
+    // Phase D/F: Authorize ONU shows only at installation_assigned AND
+    // when the backend offers `authorize_onu` in `allowed_actions`.
+    final canAuthorizeOnu =
+        request.status == ConnectionStatus.installationAssigned &&
+            detail.actions.contains(ConnectionRequestAction.authorizeOnu);
     final submitting =
         ref.watch(completeInstallationControllerProvider).isSubmitting;
 
@@ -231,6 +239,7 @@ class _DetailScaffoldState extends ConsumerState<_DetailScaffold> {
                       _OverviewSection(
                         key: _overviewKey,
                         detail: detail,
+                        canAuthorizeOnu: canAuthorizeOnu,
                       ),
                       _RouteSection(
                         key: _routeKey,
@@ -240,6 +249,7 @@ class _DetailScaffoldState extends ConsumerState<_DetailScaffold> {
                       _WorkSection(
                         key: _workKey,
                         detail: detail,
+                        canAuthorizeOnu: canAuthorizeOnu,
                         formKey: _formKey,
                         progress: _progress,
                         scrollController: widget.scrollController,
@@ -324,9 +334,10 @@ class _SectionTabBar extends StatelessWidget {
 // ─── Overview ─────────────────────────────────────────────────────────────
 
 class _OverviewSection extends StatelessWidget {
-  const _OverviewSection({super.key, required this.detail});
+  const _OverviewSection({super.key, required this.detail, required this.canAuthorizeOnu});
 
   final ConnectionRequestDetail detail;
+  final bool canAuthorizeOnu;
 
   @override
   Widget build(BuildContext context) {
@@ -338,6 +349,20 @@ class _OverviewSection extends StatelessWidget {
         _CustomerHeroCard(request: request),
         const SizedBox(height: 12),
         _ActionDockRow(request: request),
+        // Phase D/F entry point: only when the backend offers
+        // `authorize_onu` at installation_assigned (see _DetailScaffoldState).
+        if (canAuthorizeOnu) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 52,
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => context.push(Routes.oltListFor(request.id)),
+              icon: const Icon(Icons.router_outlined, size: 20),
+              label: const Text('Authorize ONU'),
+            ),
+          ),
+        ],
         const OpsSectionLabel('Pricing'),
         _PricingCard(request: request),
         if (surveyNotes != null && surveyNotes.isNotEmpty) ...[
@@ -868,12 +893,14 @@ class _WorkSection extends StatelessWidget {
   const _WorkSection({
     super.key,
     required this.detail,
+    required this.canAuthorizeOnu,
     required this.formKey,
     required this.progress,
     required this.scrollController,
   });
 
   final ConnectionRequestDetail detail;
+  final bool canAuthorizeOnu;
   final GlobalKey<CompleteInstallationFormState> formKey;
   final ValueNotifier<double> progress;
   final ScrollController scrollController;
@@ -881,8 +908,9 @@ class _WorkSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // Phase D: same `actions` rule as the scaffold — never the singular.
     final actionable =
-        detail.action == ConnectionRequestAction.completeInstallation;
+        detail.actions.contains(ConnectionRequestAction.completeInstallation);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -893,6 +921,17 @@ class _WorkSection extends StatelessWidget {
             requestId: detail.request.id,
             scrollController: scrollController,
             progress: progress,
+          )
+        else if (canAuthorizeOnu)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              'ONU authorization is available from the Overview section above.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
           )
         else
           Padding(

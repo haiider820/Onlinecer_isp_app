@@ -26,7 +26,11 @@ mixin _$LoginResponse {
   String get tokenType => throw _privateConstructorUsedError;
   String get token => throw _privateConstructorUsedError;
   @JsonKey(name: 'expires_at')
-  String? get expiresAt => throw _privateConstructorUsedError;
+  String? get expiresAt => throw _privateConstructorUsedError; // ISPFINAL §1: distinguishes the employee mobile app from the
+  // device-scanner account flow. Nullable: old payloads omit it, and a
+  // missing value must NEVER fail login (employee fallback).
+  @JsonKey(name: 'account_type')
+  String? get accountType => throw _privateConstructorUsedError;
   @JsonKey(name: 'user')
   AuthUser? get user => throw _privateConstructorUsedError;
   Employee? get employee => throw _privateConstructorUsedError;
@@ -56,6 +60,7 @@ abstract class $LoginResponseCopyWith<$Res> {
     @JsonKey(name: 'token_type') String tokenType,
     String token,
     @JsonKey(name: 'expires_at') String? expiresAt,
+    @JsonKey(name: 'account_type') String? accountType,
     @JsonKey(name: 'user') AuthUser? user,
     Employee? employee,
     List<String>? permissions,
@@ -85,6 +90,7 @@ class _$LoginResponseCopyWithImpl<$Res, $Val extends LoginResponse>
     Object? tokenType = null,
     Object? token = null,
     Object? expiresAt = freezed,
+    Object? accountType = freezed,
     Object? user = freezed,
     Object? employee = freezed,
     Object? permissions = freezed,
@@ -107,6 +113,10 @@ class _$LoginResponseCopyWithImpl<$Res, $Val extends LoginResponse>
             expiresAt: freezed == expiresAt
                 ? _value.expiresAt
                 : expiresAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            accountType: freezed == accountType
+                ? _value.accountType
+                : accountType // ignore: cast_nullable_to_non_nullable
                       as String?,
             user: freezed == user
                 ? _value.user
@@ -172,6 +182,7 @@ abstract class _$$LoginResponseImplCopyWith<$Res>
     @JsonKey(name: 'token_type') String tokenType,
     String token,
     @JsonKey(name: 'expires_at') String? expiresAt,
+    @JsonKey(name: 'account_type') String? accountType,
     @JsonKey(name: 'user') AuthUser? user,
     Employee? employee,
     List<String>? permissions,
@@ -202,6 +213,7 @@ class __$$LoginResponseImplCopyWithImpl<$Res>
     Object? tokenType = null,
     Object? token = null,
     Object? expiresAt = freezed,
+    Object? accountType = freezed,
     Object? user = freezed,
     Object? employee = freezed,
     Object? permissions = freezed,
@@ -224,6 +236,10 @@ class __$$LoginResponseImplCopyWithImpl<$Res>
         expiresAt: freezed == expiresAt
             ? _value.expiresAt
             : expiresAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        accountType: freezed == accountType
+            ? _value.accountType
+            : accountType // ignore: cast_nullable_to_non_nullable
                   as String?,
         user: freezed == user
             ? _value.user
@@ -254,6 +270,7 @@ class _$LoginResponseImpl implements _LoginResponse {
     @JsonKey(name: 'token_type') required this.tokenType,
     required this.token,
     @JsonKey(name: 'expires_at') this.expiresAt,
+    @JsonKey(name: 'account_type') this.accountType,
     @JsonKey(name: 'user') this.user,
     this.employee,
     final List<String>? permissions,
@@ -274,6 +291,12 @@ class _$LoginResponseImpl implements _LoginResponse {
   @override
   @JsonKey(name: 'expires_at')
   final String? expiresAt;
+  // ISPFINAL §1: distinguishes the employee mobile app from the
+  // device-scanner account flow. Nullable: old payloads omit it, and a
+  // missing value must NEVER fail login (employee fallback).
+  @override
+  @JsonKey(name: 'account_type')
+  final String? accountType;
   @override
   @JsonKey(name: 'user')
   final AuthUser? user;
@@ -303,7 +326,7 @@ class _$LoginResponseImpl implements _LoginResponse {
 
   @override
   String toString() {
-    return 'LoginResponse(message: $message, tokenType: $tokenType, token: $token, expiresAt: $expiresAt, user: $user, employee: $employee, permissions: $permissions, permissionLabels: $permissionLabels)';
+    return 'LoginResponse(message: $message, tokenType: $tokenType, token: $token, expiresAt: $expiresAt, accountType: $accountType, user: $user, employee: $employee, permissions: $permissions, permissionLabels: $permissionLabels)';
   }
 
   @override
@@ -317,6 +340,8 @@ class _$LoginResponseImpl implements _LoginResponse {
             (identical(other.token, token) || other.token == token) &&
             (identical(other.expiresAt, expiresAt) ||
                 other.expiresAt == expiresAt) &&
+            (identical(other.accountType, accountType) ||
+                other.accountType == accountType) &&
             (identical(other.user, user) || other.user == user) &&
             (identical(other.employee, employee) ||
                 other.employee == employee) &&
@@ -338,6 +363,7 @@ class _$LoginResponseImpl implements _LoginResponse {
     tokenType,
     token,
     expiresAt,
+    accountType,
     user,
     employee,
     const DeepCollectionEquality().hash(_permissions),
@@ -364,6 +390,7 @@ abstract class _LoginResponse implements LoginResponse {
     @JsonKey(name: 'token_type') required final String tokenType,
     required final String token,
     @JsonKey(name: 'expires_at') final String? expiresAt,
+    @JsonKey(name: 'account_type') final String? accountType,
     @JsonKey(name: 'user') final AuthUser? user,
     final Employee? employee,
     final List<String>? permissions,
@@ -382,7 +409,12 @@ abstract class _LoginResponse implements LoginResponse {
   String get token;
   @override
   @JsonKey(name: 'expires_at')
-  String? get expiresAt;
+  String? get expiresAt; // ISPFINAL §1: distinguishes the employee mobile app from the
+  // device-scanner account flow. Nullable: old payloads omit it, and a
+  // missing value must NEVER fail login (employee fallback).
+  @override
+  @JsonKey(name: 'account_type')
+  String? get accountType;
   @override
   @JsonKey(name: 'user')
   AuthUser? get user;
@@ -420,7 +452,15 @@ mixin _$Employee {
   @JsonKey(name: 'is_active')
   bool? get isActive => throw _privateConstructorUsedError;
   Organization? get organization => throw _privateConstructorUsedError;
-  Team? get team => throw _privateConstructorUsedError;
+  Team? get team =>
+      throw _privateConstructorUsedError; // ISPFINAL §1: the guide shows employee.branch / employee.sub_branch.
+  // Parsed leniently as maps (same shape as ConnectionRequest.subBranch):
+  // only the `name` is stored (employee.branch_name /
+  // employee.sub_branch_name); an unexpected shape must never break login.
+  @JsonKey(fromJson: _lenientMap)
+  Map<String, Object?>? get branch => throw _privateConstructorUsedError;
+  @JsonKey(name: 'sub_branch', fromJson: _lenientMap)
+  Map<String, Object?>? get subBranch => throw _privateConstructorUsedError;
 
   /// Serializes this Employee to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -447,6 +487,9 @@ abstract class $EmployeeCopyWith<$Res> {
     @JsonKey(name: 'is_active') bool? isActive,
     Organization? organization,
     Team? team,
+    @JsonKey(fromJson: _lenientMap) Map<String, Object?>? branch,
+    @JsonKey(name: 'sub_branch', fromJson: _lenientMap)
+    Map<String, Object?>? subBranch,
   });
 
   $OrganizationCopyWith<$Res>? get organization;
@@ -477,6 +520,8 @@ class _$EmployeeCopyWithImpl<$Res, $Val extends Employee>
     Object? isActive = freezed,
     Object? organization = freezed,
     Object? team = freezed,
+    Object? branch = freezed,
+    Object? subBranch = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -516,6 +561,14 @@ class _$EmployeeCopyWithImpl<$Res, $Val extends Employee>
                 ? _value.team
                 : team // ignore: cast_nullable_to_non_nullable
                       as Team?,
+            branch: freezed == branch
+                ? _value.branch
+                : branch // ignore: cast_nullable_to_non_nullable
+                      as Map<String, Object?>?,
+            subBranch: freezed == subBranch
+                ? _value.subBranch
+                : subBranch // ignore: cast_nullable_to_non_nullable
+                      as Map<String, Object?>?,
           )
           as $Val,
     );
@@ -569,6 +622,9 @@ abstract class _$$EmployeeImplCopyWith<$Res>
     @JsonKey(name: 'is_active') bool? isActive,
     Organization? organization,
     Team? team,
+    @JsonKey(fromJson: _lenientMap) Map<String, Object?>? branch,
+    @JsonKey(name: 'sub_branch', fromJson: _lenientMap)
+    Map<String, Object?>? subBranch,
   });
 
   @override
@@ -600,6 +656,8 @@ class __$$EmployeeImplCopyWithImpl<$Res>
     Object? isActive = freezed,
     Object? organization = freezed,
     Object? team = freezed,
+    Object? branch = freezed,
+    Object? subBranch = freezed,
   }) {
     return _then(
       _$EmployeeImpl(
@@ -639,6 +697,14 @@ class __$$EmployeeImplCopyWithImpl<$Res>
             ? _value.team
             : team // ignore: cast_nullable_to_non_nullable
                   as Team?,
+        branch: freezed == branch
+            ? _value._branch
+            : branch // ignore: cast_nullable_to_non_nullable
+                  as Map<String, Object?>?,
+        subBranch: freezed == subBranch
+            ? _value._subBranch
+            : subBranch // ignore: cast_nullable_to_non_nullable
+                  as Map<String, Object?>?,
       ),
     );
   }
@@ -657,7 +723,11 @@ class _$EmployeeImpl implements _Employee {
     @JsonKey(name: 'is_active') this.isActive,
     this.organization,
     this.team,
-  });
+    @JsonKey(fromJson: _lenientMap) final Map<String, Object?>? branch,
+    @JsonKey(name: 'sub_branch', fromJson: _lenientMap)
+    final Map<String, Object?>? subBranch,
+  }) : _branch = branch,
+       _subBranch = subBranch;
 
   factory _$EmployeeImpl.fromJson(Map<String, dynamic> json) =>
       _$$EmployeeImplFromJson(json);
@@ -684,10 +754,39 @@ class _$EmployeeImpl implements _Employee {
   final Organization? organization;
   @override
   final Team? team;
+  // ISPFINAL §1: the guide shows employee.branch / employee.sub_branch.
+  // Parsed leniently as maps (same shape as ConnectionRequest.subBranch):
+  // only the `name` is stored (employee.branch_name /
+  // employee.sub_branch_name); an unexpected shape must never break login.
+  final Map<String, Object?>? _branch;
+  // ISPFINAL §1: the guide shows employee.branch / employee.sub_branch.
+  // Parsed leniently as maps (same shape as ConnectionRequest.subBranch):
+  // only the `name` is stored (employee.branch_name /
+  // employee.sub_branch_name); an unexpected shape must never break login.
+  @override
+  @JsonKey(fromJson: _lenientMap)
+  Map<String, Object?>? get branch {
+    final value = _branch;
+    if (value == null) return null;
+    if (_branch is EqualUnmodifiableMapView) return _branch;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
+
+  final Map<String, Object?>? _subBranch;
+  @override
+  @JsonKey(name: 'sub_branch', fromJson: _lenientMap)
+  Map<String, Object?>? get subBranch {
+    final value = _subBranch;
+    if (value == null) return null;
+    if (_subBranch is EqualUnmodifiableMapView) return _subBranch;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
 
   @override
   String toString() {
-    return 'Employee(id: $id, userId: $userId, employeeCode: $employeeCode, name: $name, email: $email, phone: $phone, isActive: $isActive, organization: $organization, team: $team)';
+    return 'Employee(id: $id, userId: $userId, employeeCode: $employeeCode, name: $name, email: $email, phone: $phone, isActive: $isActive, organization: $organization, team: $team, branch: $branch, subBranch: $subBranch)';
   }
 
   @override
@@ -706,7 +805,12 @@ class _$EmployeeImpl implements _Employee {
                 other.isActive == isActive) &&
             (identical(other.organization, organization) ||
                 other.organization == organization) &&
-            (identical(other.team, team) || other.team == team));
+            (identical(other.team, team) || other.team == team) &&
+            const DeepCollectionEquality().equals(other._branch, _branch) &&
+            const DeepCollectionEquality().equals(
+              other._subBranch,
+              _subBranch,
+            ));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -722,6 +826,8 @@ class _$EmployeeImpl implements _Employee {
     isActive,
     organization,
     team,
+    const DeepCollectionEquality().hash(_branch),
+    const DeepCollectionEquality().hash(_subBranch),
   );
 
   /// Create a copy of Employee
@@ -749,6 +855,9 @@ abstract class _Employee implements Employee {
     @JsonKey(name: 'is_active') final bool? isActive,
     final Organization? organization,
     final Team? team,
+    @JsonKey(fromJson: _lenientMap) final Map<String, Object?>? branch,
+    @JsonKey(name: 'sub_branch', fromJson: _lenientMap)
+    final Map<String, Object?>? subBranch,
   }) = _$EmployeeImpl;
 
   factory _Employee.fromJson(Map<String, dynamic> json) =
@@ -774,7 +883,16 @@ abstract class _Employee implements Employee {
   @override
   Organization? get organization;
   @override
-  Team? get team;
+  Team? get team; // ISPFINAL §1: the guide shows employee.branch / employee.sub_branch.
+  // Parsed leniently as maps (same shape as ConnectionRequest.subBranch):
+  // only the `name` is stored (employee.branch_name /
+  // employee.sub_branch_name); an unexpected shape must never break login.
+  @override
+  @JsonKey(fromJson: _lenientMap)
+  Map<String, Object?>? get branch;
+  @override
+  @JsonKey(name: 'sub_branch', fromJson: _lenientMap)
+  Map<String, Object?>? get subBranch;
 
   /// Create a copy of Employee
   /// with the given fields replaced by the non-null parameter values.

@@ -62,9 +62,11 @@ class _DetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final request = detail.request;
-    final action = detail.action;
-    final canCompleteSurvey = action == ConnectionRequestAction.completeSurvey;
-    final canPlanRoute = action == null || canCompleteSurvey;
+    // Phase D: every stage button renders only when its wire value is in
+    // `actions` (plural `allowed_actions`, singular fallback via the model).
+    final canCompleteSurvey =
+        detail.actions.contains(ConnectionRequestAction.completeSurvey);
+    final canPlanRoute = detail.actions.isEmpty || canCompleteSurvey;
 
     return Column(
       children: [

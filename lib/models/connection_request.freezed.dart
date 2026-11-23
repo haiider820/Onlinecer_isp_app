@@ -43,7 +43,15 @@ mixin _$ConnectionRequest {
   // stage has run).
   @JsonKey(name: 'stage_data')
   StageData? get stageData => throw _privateConstructorUsedError;
-  Locations? get locations => throw _privateConstructorUsedError;
+  Locations? get locations =>
+      throw _privateConstructorUsedError; // Detail-only blocks from guide §11. Parsed as generic maps on purpose:
+  // their shapes are not pinned down by the guide, so a typed model would
+  // throw on any unexpected field. Callers read the keys they need.
+  @JsonKey(name: 'sub_branch')
+  Map<String, Object?>? get subBranch => throw _privateConstructorUsedError;
+  @JsonKey(name: 'installed_device')
+  Map<String, Object?>? get installedDevice =>
+      throw _privateConstructorUsedError;
 
   /// Serializes this ConnectionRequest to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -75,6 +83,8 @@ abstract class $ConnectionRequestCopyWith<$Res> {
     @JsonKey(name: 'current_team') Team? currentTeam,
     @JsonKey(name: 'stage_data') StageData? stageData,
     Locations? locations,
+    @JsonKey(name: 'sub_branch') Map<String, Object?>? subBranch,
+    @JsonKey(name: 'installed_device') Map<String, Object?>? installedDevice,
   });
 
   $PlanCopyWith<$Res>? get requestedPlan;
@@ -110,6 +120,8 @@ class _$ConnectionRequestCopyWithImpl<$Res, $Val extends ConnectionRequest>
     Object? currentTeam = freezed,
     Object? stageData = freezed,
     Object? locations = freezed,
+    Object? subBranch = freezed,
+    Object? installedDevice = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -161,6 +173,14 @@ class _$ConnectionRequestCopyWithImpl<$Res, $Val extends ConnectionRequest>
                 ? _value.locations
                 : locations // ignore: cast_nullable_to_non_nullable
                       as Locations?,
+            subBranch: freezed == subBranch
+                ? _value.subBranch
+                : subBranch // ignore: cast_nullable_to_non_nullable
+                      as Map<String, Object?>?,
+            installedDevice: freezed == installedDevice
+                ? _value.installedDevice
+                : installedDevice // ignore: cast_nullable_to_non_nullable
+                      as Map<String, Object?>?,
           )
           as $Val,
     );
@@ -245,6 +265,8 @@ abstract class _$$ConnectionRequestImplCopyWith<$Res>
     @JsonKey(name: 'current_team') Team? currentTeam,
     @JsonKey(name: 'stage_data') StageData? stageData,
     Locations? locations,
+    @JsonKey(name: 'sub_branch') Map<String, Object?>? subBranch,
+    @JsonKey(name: 'installed_device') Map<String, Object?>? installedDevice,
   });
 
   @override
@@ -283,6 +305,8 @@ class __$$ConnectionRequestImplCopyWithImpl<$Res>
     Object? currentTeam = freezed,
     Object? stageData = freezed,
     Object? locations = freezed,
+    Object? subBranch = freezed,
+    Object? installedDevice = freezed,
   }) {
     return _then(
       _$ConnectionRequestImpl(
@@ -334,6 +358,14 @@ class __$$ConnectionRequestImplCopyWithImpl<$Res>
             ? _value.locations
             : locations // ignore: cast_nullable_to_non_nullable
                   as Locations?,
+        subBranch: freezed == subBranch
+            ? _value._subBranch
+            : subBranch // ignore: cast_nullable_to_non_nullable
+                  as Map<String, Object?>?,
+        installedDevice: freezed == installedDevice
+            ? _value._installedDevice
+            : installedDevice // ignore: cast_nullable_to_non_nullable
+                  as Map<String, Object?>?,
       ),
     );
   }
@@ -355,7 +387,11 @@ class _$ConnectionRequestImpl implements _ConnectionRequest {
     @JsonKey(name: 'current_team') this.currentTeam,
     @JsonKey(name: 'stage_data') this.stageData,
     this.locations,
-  });
+    @JsonKey(name: 'sub_branch') final Map<String, Object?>? subBranch,
+    @JsonKey(name: 'installed_device')
+    final Map<String, Object?>? installedDevice,
+  }) : _subBranch = subBranch,
+       _installedDevice = installedDevice;
 
   factory _$ConnectionRequestImpl.fromJson(Map<String, dynamic> json) =>
       _$$ConnectionRequestImplFromJson(json);
@@ -396,10 +432,37 @@ class _$ConnectionRequestImpl implements _ConnectionRequest {
   final StageData? stageData;
   @override
   final Locations? locations;
+  // Detail-only blocks from guide §11. Parsed as generic maps on purpose:
+  // their shapes are not pinned down by the guide, so a typed model would
+  // throw on any unexpected field. Callers read the keys they need.
+  final Map<String, Object?>? _subBranch;
+  // Detail-only blocks from guide §11. Parsed as generic maps on purpose:
+  // their shapes are not pinned down by the guide, so a typed model would
+  // throw on any unexpected field. Callers read the keys they need.
+  @override
+  @JsonKey(name: 'sub_branch')
+  Map<String, Object?>? get subBranch {
+    final value = _subBranch;
+    if (value == null) return null;
+    if (_subBranch is EqualUnmodifiableMapView) return _subBranch;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
+
+  final Map<String, Object?>? _installedDevice;
+  @override
+  @JsonKey(name: 'installed_device')
+  Map<String, Object?>? get installedDevice {
+    final value = _installedDevice;
+    if (value == null) return null;
+    if (_installedDevice is EqualUnmodifiableMapView) return _installedDevice;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(value);
+  }
 
   @override
   String toString() {
-    return 'ConnectionRequest(id: $id, requestNumber: $requestNumber, status: $status, customerName: $customerName, customerType: $customerType, customerPhone: $customerPhone, customerAddress: $customerAddress, customerArea: $customerArea, requestedPlan: $requestedPlan, currentTeam: $currentTeam, stageData: $stageData, locations: $locations)';
+    return 'ConnectionRequest(id: $id, requestNumber: $requestNumber, status: $status, customerName: $customerName, customerType: $customerType, customerPhone: $customerPhone, customerAddress: $customerAddress, customerArea: $customerArea, requestedPlan: $requestedPlan, currentTeam: $currentTeam, stageData: $stageData, locations: $locations, subBranch: $subBranch, installedDevice: $installedDevice)';
   }
 
   @override
@@ -428,7 +491,15 @@ class _$ConnectionRequestImpl implements _ConnectionRequest {
             (identical(other.stageData, stageData) ||
                 other.stageData == stageData) &&
             (identical(other.locations, locations) ||
-                other.locations == locations));
+                other.locations == locations) &&
+            const DeepCollectionEquality().equals(
+              other._subBranch,
+              _subBranch,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._installedDevice,
+              _installedDevice,
+            ));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -447,6 +518,8 @@ class _$ConnectionRequestImpl implements _ConnectionRequest {
     currentTeam,
     stageData,
     locations,
+    const DeepCollectionEquality().hash(_subBranch),
+    const DeepCollectionEquality().hash(_installedDevice),
   );
 
   /// Create a copy of ConnectionRequest
@@ -480,6 +553,9 @@ abstract class _ConnectionRequest implements ConnectionRequest {
     @JsonKey(name: 'current_team') final Team? currentTeam,
     @JsonKey(name: 'stage_data') final StageData? stageData,
     final Locations? locations,
+    @JsonKey(name: 'sub_branch') final Map<String, Object?>? subBranch,
+    @JsonKey(name: 'installed_device')
+    final Map<String, Object?>? installedDevice,
   }) = _$ConnectionRequestImpl;
 
   factory _ConnectionRequest.fromJson(Map<String, dynamic> json) =
@@ -519,7 +595,15 @@ abstract class _ConnectionRequest implements ConnectionRequest {
   @JsonKey(name: 'stage_data')
   StageData? get stageData;
   @override
-  Locations? get locations;
+  Locations? get locations; // Detail-only blocks from guide §11. Parsed as generic maps on purpose:
+  // their shapes are not pinned down by the guide, so a typed model would
+  // throw on any unexpected field. Callers read the keys they need.
+  @override
+  @JsonKey(name: 'sub_branch')
+  Map<String, Object?>? get subBranch;
+  @override
+  @JsonKey(name: 'installed_device')
+  Map<String, Object?>? get installedDevice;
 
   /// Create a copy of ConnectionRequest
   /// with the given fields replaced by the non-null parameter values.
@@ -541,6 +625,8 @@ mixin _$ConnectionRequestDetail {
   ConnectionRequest get request => throw _privateConstructorUsedError;
   @JsonKey(name: 'allowed_action')
   String? get allowedAction => throw _privateConstructorUsedError;
+  @JsonKey(name: 'allowed_actions')
+  List<String>? get allowedActions => throw _privateConstructorUsedError;
 
   /// Serializes this ConnectionRequestDetail to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -562,6 +648,7 @@ abstract class $ConnectionRequestDetailCopyWith<$Res> {
   $Res call({
     @JsonKey(name: 'data') ConnectionRequest request,
     @JsonKey(name: 'allowed_action') String? allowedAction,
+    @JsonKey(name: 'allowed_actions') List<String>? allowedActions,
   });
 
   $ConnectionRequestCopyWith<$Res> get request;
@@ -584,7 +671,11 @@ class _$ConnectionRequestDetailCopyWithImpl<
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? request = null, Object? allowedAction = freezed}) {
+  $Res call({
+    Object? request = null,
+    Object? allowedAction = freezed,
+    Object? allowedActions = freezed,
+  }) {
     return _then(
       _value.copyWith(
             request: null == request
@@ -595,6 +686,10 @@ class _$ConnectionRequestDetailCopyWithImpl<
                 ? _value.allowedAction
                 : allowedAction // ignore: cast_nullable_to_non_nullable
                       as String?,
+            allowedActions: freezed == allowedActions
+                ? _value.allowedActions
+                : allowedActions // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
           )
           as $Val,
     );
@@ -623,6 +718,7 @@ abstract class _$$ConnectionRequestDetailImplCopyWith<$Res>
   $Res call({
     @JsonKey(name: 'data') ConnectionRequest request,
     @JsonKey(name: 'allowed_action') String? allowedAction,
+    @JsonKey(name: 'allowed_actions') List<String>? allowedActions,
   });
 
   @override
@@ -646,7 +742,11 @@ class __$$ConnectionRequestDetailImplCopyWithImpl<$Res>
   /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
-  $Res call({Object? request = null, Object? allowedAction = freezed}) {
+  $Res call({
+    Object? request = null,
+    Object? allowedAction = freezed,
+    Object? allowedActions = freezed,
+  }) {
     return _then(
       _$ConnectionRequestDetailImpl(
         request: null == request
@@ -657,6 +757,10 @@ class __$$ConnectionRequestDetailImplCopyWithImpl<$Res>
             ? _value.allowedAction
             : allowedAction // ignore: cast_nullable_to_non_nullable
                   as String?,
+        allowedActions: freezed == allowedActions
+            ? _value._allowedActions
+            : allowedActions // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
       ),
     );
   }
@@ -668,7 +772,9 @@ class _$ConnectionRequestDetailImpl extends _ConnectionRequestDetail {
   const _$ConnectionRequestDetailImpl({
     @JsonKey(name: 'data') required this.request,
     @JsonKey(name: 'allowed_action') this.allowedAction,
-  }) : super._();
+    @JsonKey(name: 'allowed_actions') final List<String>? allowedActions,
+  }) : _allowedActions = allowedActions,
+       super._();
 
   factory _$ConnectionRequestDetailImpl.fromJson(Map<String, dynamic> json) =>
       _$$ConnectionRequestDetailImplFromJson(json);
@@ -679,10 +785,20 @@ class _$ConnectionRequestDetailImpl extends _ConnectionRequestDetail {
   @override
   @JsonKey(name: 'allowed_action')
   final String? allowedAction;
+  final List<String>? _allowedActions;
+  @override
+  @JsonKey(name: 'allowed_actions')
+  List<String>? get allowedActions {
+    final value = _allowedActions;
+    if (value == null) return null;
+    if (_allowedActions is EqualUnmodifiableListView) return _allowedActions;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
 
   @override
   String toString() {
-    return 'ConnectionRequestDetail(request: $request, allowedAction: $allowedAction)';
+    return 'ConnectionRequestDetail(request: $request, allowedAction: $allowedAction, allowedActions: $allowedActions)';
   }
 
   @override
@@ -692,12 +808,21 @@ class _$ConnectionRequestDetailImpl extends _ConnectionRequestDetail {
             other is _$ConnectionRequestDetailImpl &&
             (identical(other.request, request) || other.request == request) &&
             (identical(other.allowedAction, allowedAction) ||
-                other.allowedAction == allowedAction));
+                other.allowedAction == allowedAction) &&
+            const DeepCollectionEquality().equals(
+              other._allowedActions,
+              _allowedActions,
+            ));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, request, allowedAction);
+  int get hashCode => Object.hash(
+    runtimeType,
+    request,
+    allowedAction,
+    const DeepCollectionEquality().hash(_allowedActions),
+  );
 
   /// Create a copy of ConnectionRequestDetail
   /// with the given fields replaced by the non-null parameter values.
@@ -720,6 +845,7 @@ abstract class _ConnectionRequestDetail extends ConnectionRequestDetail {
   const factory _ConnectionRequestDetail({
     @JsonKey(name: 'data') required final ConnectionRequest request,
     @JsonKey(name: 'allowed_action') final String? allowedAction,
+    @JsonKey(name: 'allowed_actions') final List<String>? allowedActions,
   }) = _$ConnectionRequestDetailImpl;
   const _ConnectionRequestDetail._() : super._();
 
@@ -732,6 +858,9 @@ abstract class _ConnectionRequestDetail extends ConnectionRequestDetail {
   @override
   @JsonKey(name: 'allowed_action')
   String? get allowedAction;
+  @override
+  @JsonKey(name: 'allowed_actions')
+  List<String>? get allowedActions;
 
   /// Create a copy of ConnectionRequestDetail
   /// with the given fields replaced by the non-null parameter values.

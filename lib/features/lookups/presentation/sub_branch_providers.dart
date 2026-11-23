@@ -1,0 +1,193 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/network/api_exceptions.dart';
+import '../../../models/sub_branch.dart';
+import '../../auth/presentation/providers.dart';
+import '../data/sub_branch_network.dart';
+import '../data/sub_branch_repository.dart';
+
+/// Real HTTP-backed sub-branch network.
+final subBranchNetworkProvider = Provider<SubBranchNetwork>((ref) {
+  return DioSubBranchNetwork(ref.watch(apiClientProvider));
+});
+
+/// Sub-branch repository wiring the network layer.
+final subBranchRepositoryProvider = Provider<SubBranchRepository>((ref) {
+  return SubBranchRepository(network: ref.watch(subBranchNetworkProvider));
+});
+
+/// Fetches the sub-branch list from `GET /lookups/sub-branches`
+/// (ISPFINAL §2 + §12). Invalidated on logout via
+/// [invalidateSubBranchState] and on manual retry via
+/// [SubBranchController.refresh].
+final subBranchListProvider = FutureProvider<SubBranchList>((ref) {
+  return ref.watch(subBranchRepositoryProvider).fetchSubBranches();
+});
+
+/// The selected sub-branch id for this session.
+///
+/// IN-MEMORY ONLY — deliberately NOT secure storage: scope is a per-session
+/// choice, re-fetched on boot. Only IDs returned by the endpoint may be
+/// stored here (enforced by [SubBranchController.select]).
+final selectedSubBranchProvider = StateProvider<String?>((ref) => null);
+
+/// Resolves the sub-branch id a caller should submit, from endpoint data
+/// only — never invents an id.
+///
+/// Order: an explicit selection (if it is one of the returned rows), then
+/// the backend's own `selected_sub_branch_id` (when it is one of the rows),
+/// then — scoped mode only, with exactly one row — that row, silently.
+/// Centralized mode with several rows and no pick returns `null`: the
+/// caller must show the selector first. An id that is not in [list] (a
+/// stale selection from a previous login) is ignored, never submitted.
+String? effectiveSubBranchId(SubBranchList list, String? selected) {
+  if (selected != null && list.data.any((branch) => branch.id == selected)) {
+    return selected;
+  }
+  final backendSelected = list.selectedSubBranchId;
+  if (backendSelected != null &&
+      list.data.any((branch) => branch.id == backendSelected)) {
+    return backendSelected;
+  }
+  if (!list.isCentralized && list.data.length == 1) {
+    return list.data.first.id;
+  }
+  return null;
+}
+
+/// Snapshot of the sub-branch scope for the create-data / OLT callers
+/// (Phase C/E/F) and the selector sheet.
+///
+/// The last-known list is kept across a failed refetch so the UI can show
+/// stale data labelled as stale (APP_BRIEF rule 7) instead of blanking —
+/// but [canProceed] stays `false` until a FRESH list arrives, so a create
+/// can never go out against a stale scope.
+class SubBranchState {
+  const SubBranchState({
+    this.lastKnownList,
+    this.lastUpdated,
+    this.errorMessage,
+    this.isLoading = true,
+    this.selectedId,
+  });
+
+  /// Last successfully fetched list, or `null` if none ever arrived.
+  final SubBranchList? lastKnownList;
+
+  /// When [lastKnownList] was fetched. `null` when nothing was fetched.
+  final DateTime? lastUpdated;
+
+  /// The fetch error message when the latest fetch failed, else `null`.
+  final String? errorMessage;
+
+  /// True while the first (or a retry) fetch is in flight.
+  final bool isLoading;
+
+  /// The explicit in-memory selection, if any.
+  final String? selectedId;
+
+  /// True when [lastKnownList] came from a successful fetch and no fetch
+  /// is currently in flight or failed.
+  bool get hasFreshList =>
+      lastKnownList != null && errorMessage == null && !isLoading;
+
+  /// True when a previous list is on screen but the latest fetch failed —
+  /// the data is shown labelled stale, never trusted for a create.
+  bool get isStale => lastKnownList != null && errorMessage != null;
+
+  /// The id a caller should submit, or `null` when no id is resolved yet.
+  String? get effectiveId => lastKnownList == null
+      ? null
+      : effectiveSubBranchId(lastKnownList!, selectedId);
+
+  /// The create gate. True ONLY when a fresh list is in hand AND an id is
+  /// resolved. False while loading, on any fetch error (stale list or
+  /// not), on an empty list, and in centralized mode until the user picks.
+  /// Callers must show a clear "couldn't load sub-branches" message when
+  /// this is `false` because of an error — never a silent default.
+  bool get canProceed => hasFreshList && effectiveId != null;
+}
+
+/// Tracks the sub-branch scope: keeps the last-known list + fetch time
+/// across failures and exposes the create gate ([SubBranchState.canProceed]).
+class SubBranchController extends Notifier<SubBranchState> {
+  SubBranchList? _lastList;
+  DateTime? _lastFetchedAt;
+
+  @override
+  SubBranchState build() {
+    final selected = ref.watch(selectedSubBranchProvider);
+    final listAsync = ref.watch(subBranchListProvider);
+
+    // Stamp the fetch time only when a NEW fresh list arrives, so a
+    // selection change (which rebuilds this controller) does not re-label
+    // old data as fresh.
+    if (listAsync case AsyncData(:final value)) {
+      if (!identical(value, _lastList)) {
+        _lastList = value;
+        _lastFetchedAt = DateTime.now();
+      }
+    }
+
+    return listAsync.when(
+      data: (list) => SubBranchState(
+        lastKnownList: list,
+        lastUpdated: _lastFetchedAt,
+        isLoading: false,
+        selectedId: selected,
+      ),
+      loading: () => SubBranchState(
+        lastKnownList: listAsync.valueOrNull,
+        lastUpdated: _lastFetchedAt,
+        isLoading: true,
+        selectedId: selected,
+      ),
+      error: (error, _) => SubBranchState(
+        lastKnownList: listAsync.valueOrNull,
+        lastUpdated: _lastFetchedAt,
+        isLoading: false,
+        errorMessage: error is ApiException
+            ? error.message
+            : 'Something went wrong. Please try again.',
+        selectedId: selected,
+      ),
+    );
+  }
+
+  /// Stores a selection — only if [id] is one of the rows the endpoint
+  /// returned. Any other id is ignored, never submitted.
+  void select(String id) {
+    final list = state.lastKnownList;
+    if (list == null || !list.data.any((branch) => branch.id == id)) return;
+    ref.read(selectedSubBranchProvider.notifier).state = id;
+  }
+
+  /// Clears the in-memory selection (e.g. when the scope must be re-picked).
+  void clearSelection() {
+    ref.read(selectedSubBranchProvider.notifier).state = null;
+  }
+
+  /// Re-fetches the list (the selector sheet's Retry button).
+  void refresh() => ref.invalidate(subBranchListProvider);
+}
+
+final subBranchStateProvider =
+    NotifierProvider<SubBranchController, SubBranchState>(
+      SubBranchController.new,
+    );
+
+/// Clears the per-session sub-branch scope on logout.
+///
+/// Call this from the logout path — one line, next to `clearSession()` in
+/// `team_dashboard_screen.dart` `_logout`:
+/// ```dart
+/// invalidateSubBranchState(ref);
+/// ```
+/// That file is owned by the dashboard worker, so the call itself is
+/// intentionally NOT wired here; without it a stale selection could survive
+/// into the next employee's session.
+void invalidateSubBranchState(WidgetRef ref) {
+  ref.invalidate(subBranchListProvider);
+  ref.invalidate(selectedSubBranchProvider);
+  ref.invalidate(subBranchStateProvider);
+}

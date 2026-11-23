@@ -20,6 +20,7 @@ class SplicingDetail {
     this.installationNotes,
     this.notes = const [],
     this.allowedAction,
+    this.allowedActions,
   });
 
   final String id;
@@ -38,7 +39,32 @@ class SplicingDetail {
   final List<SplicingNote> notes;
   final String? allowedAction;
 
-  bool get canComplete => allowedAction == 'complete_splicing';
+  /// Plural `allowed_actions` (current shape); the singular is the fallback
+  /// for old payloads. May appear at the top level or nested under `data`.
+  final List<String>? allowedActions;
+
+  /// All actions the backend offers: the plural list when present and
+  /// non-empty, otherwise the singular `allowed_action`. Unknown wire
+  /// values are dropped.
+  List<String> get actions {
+    final plural = allowedActions;
+    if (plural != null && plural.isNotEmpty) {
+      return plural.where(_isKnownAction).toList(growable: false);
+    }
+    final single = allowedAction;
+    return single != null && _isKnownAction(single) ? [single] : const [];
+  }
+
+  static bool _isKnownAction(String raw) => const {
+    'complete_survey',
+    'complete_installation',
+    'complete_splicing',
+    'complete_verification',
+    'complete_closing',
+    'authorize_onu',
+  }.contains(raw);
+
+  bool get canComplete => actions.contains('complete_splicing');
 
   factory SplicingDetail.fromJson(Map<String, dynamic> json) {
     final data = _map(json['data']) ?? json;
@@ -62,6 +88,9 @@ class SplicingDetail {
           .map((note) => SplicingNote.fromJson(Map<String, dynamic>.from(note)))
           .toList(growable: false),
       allowedAction: _string(json['allowed_action']) ?? _string(data['allowed_action']),
+      allowedActions: _stringList(
+        json['allowed_actions'] ?? data['allowed_actions'],
+      ),
     );
   }
 }
@@ -117,4 +146,7 @@ class CompleteSplicingResponse {
 
 Map<String, dynamic>? _map(Object? value) => value is Map ? Map<String, dynamic>.from(value) : null;
 String? _string(Object? value) => value?.toString();
+List<String>? _stringList(Object? value) => value is List
+    ? value.whereType<String>().toList(growable: false)
+    : null;
 double? _number(Object? value) => value is num ? value.toDouble() : double.tryParse('$value');

@@ -55,6 +55,18 @@ class _InMemoryFlutterSecureStorage extends FlutterSecureStorage {
       _store[key];
 
   @override
+  Future<void> delete({
+    required String key,
+    IOSOptions? iOptions,
+    AndroidOptions? aOptions,
+    LinuxOptions? lOptions,
+    WebOptions? webOptions,
+    MacOsOptions? mOptions,
+    WindowsOptions? wOptions,
+  }) async =>
+      _store.remove(key);
+
+  @override
   Future<void> deleteAll({
     IOSOptions? iOptions,
     AndroidOptions? aOptions,
@@ -201,7 +213,12 @@ void main() {
         child: MaterialApp.router(routerConfig: router),
       ),
     );
-    await tester.pumpAndSettle();
+    // Bounded pumps only: the dashboard mounts PulseDot, whose controller
+    // repeats forever, so pumpAndSettle can never settle. A few frames are
+    // enough for the async guard redirect to land on the dashboard.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('Splicing Detail'), findsNothing);
     expect(find.text('Verification'), findsOneWidget);

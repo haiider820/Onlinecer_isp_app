@@ -16,6 +16,10 @@ class LoginResponse with _$LoginResponse {
     @JsonKey(name: 'token_type') required String tokenType,
     required String token,
     @JsonKey(name: 'expires_at') String? expiresAt,
+    // ISPFINAL §1: distinguishes the employee mobile app from the
+    // device-scanner account flow. Nullable: old payloads omit it, and a
+    // missing value must NEVER fail login (employee fallback).
+    @JsonKey(name: 'account_type') String? accountType,
     @JsonKey(name: 'user') AuthUser? user,
     Employee? employee,
     List<String>? permissions,
@@ -39,7 +43,21 @@ class Employee with _$Employee {
     @JsonKey(name: 'is_active') bool? isActive,
     Organization? organization,
     Team? team,
+    // ISPFINAL §1: the guide shows employee.branch / employee.sub_branch.
+    // Parsed leniently as maps (same shape as ConnectionRequest.subBranch):
+    // only the `name` is stored (employee.branch_name /
+    // employee.sub_branch_name); an unexpected shape must never break login.
+    @JsonKey(fromJson: _lenientMap) Map<String, Object?>? branch,
+    @JsonKey(name: 'sub_branch', fromJson: _lenientMap)
+    Map<String, Object?>? subBranch,
   }) = _Employee;
 
   factory Employee.fromJson(Map<String, Object?> json) => _$EmployeeFromJson(json);
+}
+
+/// Returns the value as a map, or null for anything else (a wrong-typed
+/// branch/sub_branch in the payload must never break login parsing).
+Map<String, Object?>? _lenientMap(Object? value) {
+  if (value is Map) return Map<String, Object?>.from(value);
+  return null;
 }

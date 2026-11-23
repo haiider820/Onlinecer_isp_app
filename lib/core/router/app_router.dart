@@ -1,8 +1,14 @@
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/device_scan/presentation/scanner_home_screen.dart';
+import '../../features/device_scan/presentation/scanner_login_screen.dart';
 import '../../features/closing/presentation/closing_list_screen.dart';
 import '../../features/closing/presentation/closing_request_detail_screen.dart';
+import '../../features/connection_requests/presentation/create_request_screen.dart';
+import '../../features/onu/presentation/authorize_onu_screen.dart';
+import '../../features/onu/presentation/olt_list_screen.dart';
+import '../../features/onu/presentation/waiting_onu_list_screen.dart';
 import '../../features/dashboard/dashboard_shell.dart';
 import '../../features/installation/presentation/installation_list_screen.dart';
 import '../../features/installation/presentation/installation_request_detail_screen.dart';
@@ -30,7 +36,10 @@ abstract final class Routes {
   /// it is the only route allowed to decide its own destination.
   static const boot = '/boot';
   static const login = '/login';
+  static const scannerLogin = '/scanner-login';
+  static const scannerHome = '/scanner/home';
   static const dashboard = '/dashboard';
+  static const newRequest = '/requests/new';
   static const surveyList = '/survey/requests';
   static const surveyDetail = '/survey/requests/:id';
   static const submitSurvey = '/survey/requests/:id/submit-survey';
@@ -38,6 +47,14 @@ abstract final class Routes {
 
   static const installationList = '/installation/requests';
   static const installationDetail = '/installation/requests/:id';
+  // ONU authorization (ISPFINAL Phases E–F). Installation-team only; the
+  // OLT list is scoped by the request's sub-branch, the waiting-ONU list by
+  // OLT, and the authorize form by OLT + waiting ONU (or serial fallback
+  // when the :onuId segment is absent).
+  static const oltList = '/installation/requests/:id/olts';
+  static const waitingOnus = '/installation/requests/:id/olts/:oltId/onus';
+  static const authorizeOnu = '/installation/requests/:id/olts/:oltId/authorize/:onuId';
+  static const authorizeOnuSerial = '/installation/requests/:id/olts/:oltId/authorize';
   static const splicingList = '/splicing/requests';
   static const splicingDetail = '/splicing/requests/:id';
   static const verificationList = '/verification/requests';
@@ -60,6 +77,21 @@ abstract final class Routes {
 
   /// Concrete submit-survey path for a given request id.
   static String submitSurveyFor(String id) => '/survey/requests/$id/submit-survey';
+
+  /// Concrete OLT-list path for a given request id (ISPFINAL Phase E).
+  static String oltListFor(String id) => '/installation/requests/$id/olts';
+
+  /// Concrete waiting-ONU list path for a given request + OLT (Phase E).
+  static String waitingOnusFor(String requestId, String oltId) =>
+      '/installation/requests/$requestId/olts/$oltId/onus';
+
+  /// Concrete authorize path for a discovered waiting ONU (Phase F).
+  static String authorizeOnuFor(String requestId, String oltId, String onuId) =>
+      '/installation/requests/$requestId/olts/$oltId/authorize/$onuId';
+
+  /// Concrete authorize path for the serial fallback (Phase F, shape 2).
+  static String authorizeOnuSerialFor(String requestId, String oltId) =>
+      '/installation/requests/$requestId/olts/$oltId/authorize';
 
   /// Concrete route-planning path for a given request id.
   static String surveyRouteFor(String id) => '/survey/requests/$id/route';
@@ -86,19 +118,59 @@ GoRouter buildAppRouter({required SecureStorage storage}) {
         return null;
       }
       final loggedIn = await storage.isLoggedIn();
+      final scannerLoggedIn = await storage.isScannerLoggedIn();
       final onLogin = state.matchedLocation == Routes.login;
-      if (!loggedIn) {
-        return onLogin ? null : Routes.login;
+      final onScannerLogin = state.matchedLocation == Routes.scannerLogin;
+      final onScannerHome = state.matchedLocation == Routes.scannerHome;
+
+      // Neither session exists: only the two login screens are reachable.
+      if (!loggedIn && !scannerLoggedIn) {
+        return (onLogin || onScannerLogin) ? null : Routes.login;
       }
+      // Staff login while a session already exists goes to that session's
+      // home (employee → dashboard, scanner-only → scanner home).
       if (onLogin) {
+        return loggedIn ? Routes.dashboard : Routes.scannerHome;
+      }
+      // Scanner login while a session already exists: scanner session →
+      // scanner home, employee-only session → dashboard.
+      if (onScannerLogin) {
+        return scannerLoggedIn ? Routes.scannerHome : Routes.dashboard;
+      }
+      // Scanner home needs a scanner session only — an employee-only
+      // session goes to the dashboard instead of the scanner home.
+      if (onScannerHome && !scannerLoggedIn) {
         return Routes.dashboard;
+      }
+      // Employee routes need the employee session: a scanner-only session
+      // belongs on the scanner home, not the dashboard.
+      if (!loggedIn) {
+        return scannerLoggedIn ? Routes.scannerHome : Routes.login;
       }
       return null;
     },
     routes: [
       GoRoute(path: Routes.boot, builder: (context, state) => const SplashScreen()),
       GoRoute(path: Routes.login, builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: Routes.scannerLogin,
+        builder: (context, state) => const ScannerLoginScreen(),
+      ),
+      GoRoute(
+        path: Routes.scannerHome,
+        builder: (context, state) => const ScannerHomeScreen(),
+      ),
       GoRoute(path: Routes.dashboard, builder: (context, state) => const DashboardShell()),
+      // New connection request (ISPFINAL Phase C). Protected route — the
+      // redirect above bounces unauthenticated users to login as usual.
+      // Survey-team only: a new request always starts at survey (§4).
+      GoRoute(
+        path: Routes.newRequest,
+        builder: (context, state) => const SessionTeamGuard(
+          expectedTeam: FunctionalTeamType.survey,
+          child: CreateRequestScreen(),
+        ),
+      ),
       GoRoute(path: Routes.ticketsList, builder: (context, state) => const TicketListScreen()),
       // Notifications — UI renders sample data until the backend endpoint
       // exists (see notifications_screen.dart).
@@ -189,6 +261,48 @@ GoRouter buildAppRouter({required SecureStorage storage}) {
           expectedTeam: FunctionalTeamType.installation,
           child: InstallationRequestDetailScreen(
             requestId: state.pathParameters['id'] ?? '',
+          ),
+        ),
+      ),
+      // ONU authorization (ISPFINAL Phases E–F). Installation-team only,
+      // matching the installation detail guard above.
+      GoRoute(
+        path: Routes.oltList,
+        builder: (context, state) => SessionTeamGuard(
+          expectedTeam: FunctionalTeamType.installation,
+          child: OltListScreen(
+            requestId: state.pathParameters['id'] ?? '',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: Routes.waitingOnus,
+        builder: (context, state) => SessionTeamGuard(
+          expectedTeam: FunctionalTeamType.installation,
+          child: WaitingOnuListScreen(
+            requestId: state.pathParameters['id'] ?? '',
+            oltId: state.pathParameters['oltId'] ?? '',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: Routes.authorizeOnu,
+        builder: (context, state) => SessionTeamGuard(
+          expectedTeam: FunctionalTeamType.installation,
+          child: AuthorizeOnuScreen(
+            requestId: state.pathParameters['id'] ?? '',
+            oltId: state.pathParameters['oltId'] ?? '',
+            onuId: state.pathParameters['onuId'],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: Routes.authorizeOnuSerial,
+        builder: (context, state) => SessionTeamGuard(
+          expectedTeam: FunctionalTeamType.installation,
+          child: AuthorizeOnuScreen(
+            requestId: state.pathParameters['id'] ?? '',
+            oltId: state.pathParameters['oltId'] ?? '',
           ),
         ),
       ),

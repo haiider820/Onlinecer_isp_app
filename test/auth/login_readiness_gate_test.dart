@@ -45,6 +45,19 @@ class _FakeFlutterSecureStorage extends FlutterSecureStorage {
   }
 
   @override
+  Future<void> delete({
+    required String key,
+    IOSOptions? iOptions,
+    AndroidOptions? aOptions,
+    LinuxOptions? lOptions,
+    WebOptions? webOptions,
+    MacOsOptions? mOptions,
+    WindowsOptions? wOptions,
+  }) async {
+    store.remove(key);
+  }
+
+  @override
   Future<void> deleteAll({
     IOSOptions? iOptions,
     AndroidOptions? aOptions,

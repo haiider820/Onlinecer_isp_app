@@ -1,3 +1,4 @@
+import '../../../core/network/api_exceptions.dart';
 import '../../../core/storage/secure_storage.dart';
 import '../../../models/auth.dart';
 import 'auth_network.dart';
@@ -31,6 +32,19 @@ class AuthRepository {
     final map = await _network.postLogin(body);
     final response = LoginResponse.fromJson(map);
 
+    // ISPFINAL §1: the same endpoint serves scanner accounts. A response
+    // whose account_type is present and is not "employee" is NOT an
+    // employee session — never save its token under the employee keys.
+    // A missing account_type is treated as employee (old payloads).
+    final accountType = response.accountType;
+    if (accountType != null && accountType.toLowerCase() != 'employee') {
+      throw ApiException(
+        message: response.message.isNotEmpty
+            ? response.message
+            : 'Please use Scanner login for this account.',
+      );
+    }
+
     await _saveSession(response);
     return response;
   }
@@ -52,9 +66,17 @@ class AuthRepository {
         employeeEmail: employee.email,
         functionalTeamType: employee.team?.functionalTeamType ?? '',
         teamName: employee.team?.name,
+        branchName: _branchName(employee.branch),
+        subBranchName: _branchName(employee.subBranch),
       );
     }
     return employee;
+  }
+
+  /// Reads the `name` out of a leniently-parsed branch/sub-branch map.
+  static String? _branchName(Map<String, Object?>? branch) {
+    final name = branch?['name'];
+    return name is String && name.isNotEmpty ? name : null;
   }
 
   /// Deletes the server-side mobile token, then clears the local session.
@@ -79,6 +101,8 @@ class AuthRepository {
       employeeEmail: employee?.email,
       functionalTeamType: team?.functionalTeamType ?? '',
       teamName: team?.name,
+      branchName: _branchName(employee?.branch),
+      subBranchName: _branchName(employee?.subBranch),
     );
 
     // Readiness gate: the login is only successful once the token (and team

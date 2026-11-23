@@ -32,6 +32,7 @@ class TeamModule {
     required this.detailRouteFor,
     required this.inboxPageProvider,
     this.stageConfig,
+    this.showNewRequest = false,
   });
 
   /// The team this module describes.
@@ -73,6 +74,10 @@ class TeamModule {
   /// Stage-specific completion config — only Verification and Closing have one.
   final TeamStageConfig? stageConfig;
 
+  /// Show the dashboard's "New request" entry (ISPFINAL Phase C). Only the
+  /// survey team creates requests — a new request always starts at survey.
+  final bool showNewRequest;
+
   /// The mounted dashboard for this team, built entirely from [TeamModule]
   /// values so the AppBar title, pending label, "View All" button, and routes
   /// can never disagree with the team that was dispatched.
@@ -84,6 +89,7 @@ class TeamModule {
         viewAllLabel: viewAllLabel,
         listRoute: listRoute,
         detailRouteFor: detailRouteFor,
+        showNewRequest: showNewRequest,
       );
 
   /// The canonical dispatch. Exhaustive `switch` with NO default arm: if a team
@@ -103,6 +109,7 @@ class TeamModule {
           listRoute: Routes.surveyList,
           detailRouteFor: Routes.surveyDetailFor,
           inboxPageProvider: connectionRequestsProvider,
+          showNewRequest: true,
         ),
       FunctionalTeamType.installation => TeamModule(
           team: FunctionalTeamType.installation,

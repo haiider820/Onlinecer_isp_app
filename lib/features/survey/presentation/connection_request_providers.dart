@@ -28,3 +28,13 @@ final connectionRequestDetailProvider =
     FutureProvider.family<ConnectionRequestDetail, String>((ref, id) {
   return ref.watch(connectionRequestRepositoryProvider).fetchDetail(id);
 });
+
+/// Refetches one request's detail after a stage transition (ISPFINAL §11).
+///
+/// Every stage controller calls this on a successful transition so the next
+/// detail read re-derives its buttons from fresh `allowed_actions` — never
+/// from the pre-transition payload. Invalidation only marks the provider
+/// stale; the refetch itself happens when a watcher reads it again.
+void refreshConnectionRequestDetail(Ref ref, String id) {
+  ref.invalidate(connectionRequestDetailProvider(id));
+}

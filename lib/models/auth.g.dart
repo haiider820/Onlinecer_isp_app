@@ -12,6 +12,7 @@ _$LoginResponseImpl _$$LoginResponseImplFromJson(Map<String, dynamic> json) =>
       tokenType: json['token_type'] as String,
       token: json['token'] as String,
       expiresAt: json['expires_at'] as String?,
+      accountType: json['account_type'] as String?,
       user: json['user'] == null
           ? null
           : AuthUser.fromJson(json['user'] as Map<String, dynamic>),
@@ -32,6 +33,7 @@ Map<String, dynamic> _$$LoginResponseImplToJson(_$LoginResponseImpl instance) =>
       'token_type': instance.tokenType,
       'token': instance.token,
       'expires_at': instance.expiresAt,
+      'account_type': instance.accountType,
       'user': instance.user,
       'employee': instance.employee,
       'permissions': instance.permissions,
@@ -53,6 +55,8 @@ _$EmployeeImpl _$$EmployeeImplFromJson(Map<String, dynamic> json) =>
       team: json['team'] == null
           ? null
           : Team.fromJson(json['team'] as Map<String, dynamic>),
+      branch: _lenientMap(json['branch']),
+      subBranch: _lenientMap(json['sub_branch']),
     );
 
 Map<String, dynamic> _$$EmployeeImplToJson(_$EmployeeImpl instance) =>
@@ -66,4 +70,6 @@ Map<String, dynamic> _$$EmployeeImplToJson(_$EmployeeImpl instance) =>
       'is_active': instance.isActive,
       'organization': instance.organization,
       'team': instance.team,
+      'branch': instance.branch,
+      'sub_branch': instance.subBranch,
     };

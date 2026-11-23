@@ -19,6 +19,7 @@ enum ConnectionRequestAction {
   completeSplicing,
   completeVerification,
   completeClosing,
+  authorizeOnu,
   unknown;
 
   static ConnectionRequestAction parse(String? raw) {
@@ -28,6 +29,7 @@ enum ConnectionRequestAction {
       'complete_splicing' => ConnectionRequestAction.completeSplicing,
       'complete_verification' => ConnectionRequestAction.completeVerification,
       'complete_closing' => ConnectionRequestAction.completeClosing,
+      'authorize_onu' => ConnectionRequestAction.authorizeOnu,
       _ => ConnectionRequestAction.unknown,
     };
   }
@@ -39,6 +41,7 @@ enum ConnectionRequestAction {
         ConnectionRequestAction.completeSplicing => 'complete_splicing',
         ConnectionRequestAction.completeVerification => 'complete_verification',
         ConnectionRequestAction.completeClosing => 'complete_closing',
+        ConnectionRequestAction.authorizeOnu => 'authorize_onu',
         ConnectionRequestAction.unknown => '',
       };
 }
@@ -63,13 +66,22 @@ class ConnectionRequest with _$ConnectionRequest {
     // stage has run).
     @JsonKey(name: 'stage_data') StageData? stageData,
     Locations? locations,
+    // Detail-only blocks from guide §11. Parsed as generic maps on purpose:
+    // their shapes are not pinned down by the guide, so a typed model would
+    // throw on any unexpected field. Callers read the keys they need.
+    @JsonKey(name: 'sub_branch') Map<String, Object?>? subBranch,
+    @JsonKey(name: 'installed_device') Map<String, Object?>? installedDevice,
   }) = _ConnectionRequest;
 
   factory ConnectionRequest.fromJson(Map<String, Object?> json) => _$ConnectionRequestFromJson(json);
 }
 
 /// Full detail response for `GET /connection-requests/{id}` —
-/// `{ "data": {...}, "allowed_action": "complete_survey" }`.
+/// `{ "data": {...}, "allowed_action": "complete_survey",
+///    "allowed_actions": ["complete_survey"] }`.
+/// The plural `allowed_actions` is the current shape; the singular
+/// `allowed_action` is kept for old backend payloads and is the fallback
+/// when the plural list is absent.
 @freezed
 class ConnectionRequestDetail with _$ConnectionRequestDetail {
   const ConnectionRequestDetail._();
@@ -77,6 +89,7 @@ class ConnectionRequestDetail with _$ConnectionRequestDetail {
   const factory ConnectionRequestDetail({
     @JsonKey(name: 'data') required ConnectionRequest request,
     @JsonKey(name: 'allowed_action') String? allowedAction,
+    @JsonKey(name: 'allowed_actions') List<String>? allowedActions,
   }) = _ConnectionRequestDetail;
 
   factory ConnectionRequestDetail.fromJson(Map<String, Object?> json) =>
@@ -86,6 +99,21 @@ class ConnectionRequestDetail with _$ConnectionRequestDetail {
   ConnectionRequestAction? get action {
     final parsed = ConnectionRequestAction.parse(allowedAction);
     return parsed == ConnectionRequestAction.unknown ? null : parsed;
+  }
+
+  /// All actions the backend offers, parsed from the plural
+  /// `allowed_actions`. Falls back to the singular `allowed_action` when the
+  /// plural list is absent or empty; unknown wire values are dropped.
+  List<ConnectionRequestAction> get actions {
+    final plural = allowedActions;
+    if (plural != null && plural.isNotEmpty) {
+      return plural
+          .map(ConnectionRequestAction.parse)
+          .where((a) => a != ConnectionRequestAction.unknown)
+          .toList();
+    }
+    final single = action;
+    return single == null ? const [] : [single];
   }
 }
 
