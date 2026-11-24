@@ -2,8 +2,9 @@
 
 **App:** Onlinecer ISP (Malik Fiber), `haiider820/Onlinecer_isp_app`
 **Branch:** `feature/kit-navy-redesign`, tip `c7fff8a8` (plan written against this tip)
-**Status:** IMPLEMENTED 2026-11-23 (Phases 0–G, local tree only, NOT pushed). Haider re-checks screenshots + test report first. Base URL unchanged. See "Implementation notes" at the end for divergences from this plan.
-**Base URL: UNCHANGED.** `http://184.164.137.101/api/mobile` (see §0). No endpoint, field, or URL in this plan is invented — everything comes from the ISPFINAL guide or from code read at tip `c7fff8a8`.
+**Status:** IMPLEMENTED 2026-11-23 (Phases 0–G, local tree only, NOT pushed). Haider re-checks screenshots + test report first. Base URL changed 2026-11-24 (see note below). See "Implementation notes" at the end for divergences from this plan.
+**Base URL: `https://184-164-137-101.sslip.io/api/mobile`** (see §0). No endpoint, field, or URL in this plan is invented — everything comes from the ISPFINAL guide or from code read at tip `c7fff8a8`.
+**NOTE 2026-11-24 — the 2026-11-23 "base URL never changes" rule is SUPERSEDED:** the backend developer moved the server to `https://184-164-137-101.sslip.io/api/mobile` (valid Let's Encrypt certificate, verified live 2026-11-24). The old URL `http://184.164.137.101/api/mobile` is dead — it 301-redirects to https and port 443 on the raw IP serves nothing (empty reply), so login could no longer succeed. SSL verification stays ON; no cert bypass anywhere.
 
 ---
 
@@ -14,12 +15,12 @@
 `lib/core/constants/app_constants.dart:14`:
 
 ```dart
-static const String _defaultBaseUrl = 'http://184.164.137.101/api/mobile';
+static const String _defaultBaseUrl = 'https://184-164-137-101.sslip.io/api/mobile';
 ```
 
-- Scheme `http`, host `184.164.137.101`, **no port**, path prefix `/api/mobile`.
+- Scheme `https`, host `184-164-137-101.sslip.io`, **no port**, path prefix `/api/mobile`.
 - `AppConstants.baseUrl` returns this unless `--dart-define=API_BASE_URL=...` is passed (local dev only, `http://127.0.0.1:8000/api/mobile`).
-- Dio is built once on this base URL (`lib/core/network/api_client.dart`); every endpoint in `Endpoints` is a relative path (`/login`, `/connection-requests/$id`, …), so `POST /login` in code = `POST http://184.164.137.101/api/mobile/login`, exactly the guide's `POST /api/mobile/login`. **Do not change the base URL in any phase.**
+- Dio is built once on this base URL (`lib/core/network/api_client.dart`); every endpoint in `Endpoints` is a relative path (`/login`, `/connection-requests/$id`, …), so `POST /login` in code = `POST https://184-164-137-101.sslip.io/api/mobile/login`, exactly the guide's `POST /api/mobile/login`. (The 2026-11-23 "do not change the base URL" instruction was superseded 2026-11-24 — see the note at the top of this file.)
 - Timeouts: connect 15s, receive 30s. Headers: `Accept: application/json`, `Content-Type: application/json`, `Authorization: Bearer <token>` via `AuthInterceptor` (reads `SecureStorage.getToken()` per request).
 
 ### Current login vs guide §1
@@ -233,7 +234,7 @@ static const String _defaultBaseUrl = 'http://184.164.137.101/api/mobile';
 6. **Authorize-ONU entry point:** dedicated screen from the installation detail (plan proposes this) vs a section inside the detail screen — Haider's call.
 7. **Selected sub-branch persistence:** in-memory per session (plan proposes) vs persisted across restarts — Haider's call.
 8. **Orphaned scanner files:** delete (Phase A2 option 2) vs repair (option 1) — Haider's call. Note: they still exist in the local tree; the PC agent was given a delete prompt but has not run it (or ran it on his PC only — verify on his PC before Phase A: `ls lib/features/device_scan/presentation/`).
-9. **Base URL confirmation:** the plan keeps `http://184.164.137.101/api/mobile` exactly as set (no port). Haider already confirmed ("184 wali jo abhi set hay wohi rakhni hay") — recorded here so no phase re-opens it.
+9. **Base URL confirmation:** the plan keeps `https://184-164-137-101.sslip.io/api/mobile` exactly as set (no port). Haider confirmed on 2026-11-23 ("184 wali jo abhi set hay wohi rakhni hay") — that confirmation referred to the old `http://184.164.137.101/api/mobile`, which the backend developer replaced on 2026-11-24 with the sslip.io URL (old URL dead: 301 + empty 443); the 2026-11-23 "never changes" rule is superseded — see the note at the top of this file.
 10. **Backend readiness:** the guide's endpoints (`create-data`, `direct-olts`, `authorize-onu`, …) are assumed live on the 184 server. If any returns 404 today, that phase blocks on the backend, not the app — check with a raw call (curl/Postman) before the phase starts.
 
 ---

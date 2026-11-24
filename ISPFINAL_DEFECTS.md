@@ -2,7 +2,7 @@
 
 **App:** Onlinecer ISP (Malik Fiber), `haiider820/Onlinecer_isp_app`
 **Branch:** `feature/kit-navy-redesign`, remote tip `38908ab`
-**Base URL:** `http://184.164.137.101/api/mobile` (unchanged)
+**Base URL:** `https://184-164-137-101.sslip.io/api/mobile` (changed 2026-11-24 — backend developer moved the server off the old `http://184.164.137.101/api/mobile`, which is dead; the 2026-11-23 "base URL never changes" rule is superseded)
 **Status:** 14 defects (2 blocker, 7 major, 5 minor). **ALL FIXED 2026-11-23 in the local tree (not pushed)** — D0 (bounce) + D1–D13, verified by the full suite (338 pass, 1 pre-existing fail) and `flutter analyze` 0 issues. Each section below carries its fix + test evidence.
 **How found:** widget tests with faked network (never a live server) in `test/ispfinal_adversarial/` — 91 tests, 78 pass, 13 fail at discovery. After the fixes all 13 DEFECT tests pass; the full suite is 338 pass / 1 fail (pre-existing `test/installation/complete_installation_flow_test.dart`, fails to load — imports non-existent files; unrelated). `flutter analyze lib --no-pub`: 0 issues.
 
@@ -198,7 +198,7 @@ Entry: staff login had a "Device scanner? Sign in here" link to `Routes.scannerL
 
 **Headline:** Haider's "it worked before the redesign" cannot be confirmed from any surviving code — either it worked from a PC-only state that was never pushed (possibly the now-deleted backup branch), or from an earlier build. This does not disprove his memory; it means no surviving code proves the flow end-to-end.
 
-### 2. Endpoint table (base `http://184.164.137.101/api/mobile`)
+### 2. Endpoint table (base `https://184-164-137-101.sslip.io/api/mobile`)
 
 Every path below comes from a docstring comment or a method name in the surviving code — **no HTTP call site for any device-scan endpoint survives**, so method + path + payload are as-claimed, not as-verified. Nothing here is in the ISPFINAL guide or in `Endpoints` (which has no device-scan paths at all).
 

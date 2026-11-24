@@ -11,7 +11,7 @@ abstract final class AppConstants {
   /// Whether the app is running as a debug/flutter run build.
   static bool get isDebug => kDebugMode;
 
-  static const String _defaultBaseUrl = 'http://184.164.137.101/api/mobile';
+  static const String _defaultBaseUrl = 'https://184-164-137-101.sslip.io/api/mobile';
 
   /// Production API base URL.
   static const String prodBaseUrl = _defaultBaseUrl;
