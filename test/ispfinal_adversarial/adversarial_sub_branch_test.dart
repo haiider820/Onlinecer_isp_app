@@ -193,6 +193,122 @@ void main() {
     });
   });
 
+  group('SubBranchController — employee sub-branch auto-default', () {
+    /// Container with a scripted list and a seeded employee session whose
+    /// own sub-branch id is [employeeSubBranchId] (`null` = the session
+    /// carries no sub-branch). Waits for both the list and the stored id
+    /// to resolve, so the controller has rebuilt with the default.
+    Future<ProviderContainer> containerWith({
+      required SubBranchList list,
+      String? employeeSubBranchId,
+    }) async {
+      final backing = InMemoryFlutterSecureStorage();
+      final storage = freshStorage(backing);
+      await seedEmployeeSession(
+        storage,
+        subBranchId: employeeSubBranchId,
+        subBranchName: employeeSubBranchId == null
+            ? null
+            : 'Seeded Sub-Branch',
+      );
+      final container = ProviderContainer(
+        overrides: [
+          secureStorageProvider.overrideWithValue(storage),
+          subBranchRepositoryProvider.overrideWithValue(
+            _FakeSubBranchRepository(list),
+          ),
+        ],
+      );
+      await container.read(subBranchListProvider.future);
+      await container.read(employeeSubBranchIdProvider.future);
+      return container;
+    }
+
+    test('centralized multi-row: employee own sub-branch opens the gate, no pick needed',
+        () async {
+      final container = await containerWith(
+        list: _list(
+          [_branch('a', 'A'), _branch('b', 'B')],
+          mode: 'centralized',
+        ),
+        employeeSubBranchId: 'b',
+      );
+      addTearDown(container.dispose);
+
+      final state = container.read(subBranchStateProvider);
+      expect(state.effectiveId, 'b');
+      expect(state.canProceed, isTrue);
+    });
+
+    test('centralized multi-row: no employee sub-branch in the session keeps the gate closed',
+        () async {
+      final container = await containerWith(
+        list: _list(
+          [_branch('a', 'A'), _branch('b', 'B')],
+          mode: 'centralized',
+        ),
+      );
+      addTearDown(container.dispose);
+
+      final state = container.read(subBranchStateProvider);
+      expect(state.effectiveId, isNull);
+      expect(state.canProceed, isFalse);
+    });
+
+    test('manual pick wins over the employee default for the rest of the session',
+        () async {
+      final container = await containerWith(
+        list: _list(
+          [_branch('a', 'A'), _branch('b', 'B')],
+          mode: 'centralized',
+        ),
+        employeeSubBranchId: 'b',
+      );
+      addTearDown(container.dispose);
+
+      expect(container.read(subBranchStateProvider).effectiveId, 'b');
+      container.read(subBranchStateProvider.notifier).select('a');
+      expect(container.read(selectedSubBranchProvider), 'a');
+      expect(container.read(subBranchStateProvider).effectiveId, 'a');
+    });
+
+    test('employee sub-branch NOT in the fresh list is ignored (stale id)', () async {
+      final container = await containerWith(
+        list: _list(
+          [_branch('a', 'A'), _branch('b', 'B')],
+          mode: 'centralized',
+        ),
+        employeeSubBranchId: 'ghost-from-previous-login',
+      );
+      addTearDown(container.dispose);
+
+      final state = container.read(subBranchStateProvider);
+      expect(state.effectiveId, isNull);
+      expect(state.canProceed, isFalse);
+    });
+
+    test('session clear drops the employee default (D5)', () async {
+      final container = await containerWith(
+        list: _list(
+          [_branch('a', 'A'), _branch('b', 'B')],
+          mode: 'centralized',
+        ),
+        employeeSubBranchId: 'b',
+      );
+      addTearDown(container.dispose);
+      expect(container.read(subBranchStateProvider).effectiveId, 'b');
+
+      // What the central 401 path does: storage.clearSession() only.
+      await container.read(secureStorageProvider).clearSession();
+      await container.read(subBranchListProvider.future);
+      await container.read(employeeSubBranchIdProvider.future);
+
+      final state = container.read(subBranchStateProvider);
+      expect(state.effectiveId, isNull);
+      expect(state.canProceed, isFalse);
+    });
+  });
+
   group('SubBranch scope vs logout / 401 (DEFECT-DOCUMENTING)', () {
     test('DEFECT: a 401-style session clear leaves the in-memory sub-branch scope in place',
         () async {

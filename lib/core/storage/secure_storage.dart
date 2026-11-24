@@ -22,6 +22,7 @@ class SecureStorage {
   static const _kTeamType = 'employee.functional_team_type';
   static const _kTeamName = 'employee.team_name';
   static const _kBranchName = 'employee.branch_name';
+  static const _kSubBranchId = 'employee.sub_branch_id';
   static const _kSubBranchName = 'employee.sub_branch_name';
   static const _kThemeMode = 'ui.theme_mode';
   static const _kRememberDevice = 'ui.remember_device';
@@ -48,6 +49,7 @@ class SecureStorage {
     _kTeamType,
     _kTeamName,
     _kBranchName,
+    _kSubBranchId,
     _kSubBranchName,
   ];
 
@@ -71,6 +73,7 @@ class SecureStorage {
     required String functionalTeamType,
     required String? teamName,
     String? branchName,
+    String? subBranchId,
     String? subBranchName,
   }) async {
     await _storage.write(key: _kToken, value: token);
@@ -87,6 +90,11 @@ class SecureStorage {
     } else {
       await _storage.write(key: _kBranchName, value: branchName);
     }
+    if (subBranchId == null) {
+      await _storage.delete(key: _kSubBranchId);
+    } else {
+      await _storage.write(key: _kSubBranchId, value: subBranchId);
+    }
     if (subBranchName == null) {
       await _storage.delete(key: _kSubBranchName);
     } else {
@@ -102,6 +110,7 @@ class SecureStorage {
   Future<String?> getFunctionalTeamType() => _storage.read(key: _kTeamType);
   Future<String?> getTeamName() => _storage.read(key: _kTeamName);
   Future<String?> getBranchName() => _storage.read(key: _kBranchName);
+  Future<String?> getSubBranchId() => _storage.read(key: _kSubBranchId);
   Future<String?> getSubBranchName() => _storage.read(key: _kSubBranchName);
 
   // Scanner session (mirrors the employee session above, own keys only).
@@ -208,6 +217,7 @@ class SecureStorage {
     required String functionalTeamType,
     required String? teamName,
     String? branchName,
+    String? subBranchId,
     String? subBranchName,
   }) async {
     await _storage.write(key: _kEmployeeId, value: employeeId);
@@ -227,6 +237,11 @@ class SecureStorage {
       await _storage.delete(key: _kBranchName);
     } else {
       await _storage.write(key: _kBranchName, value: branchName);
+    }
+    if (subBranchId == null) {
+      await _storage.delete(key: _kSubBranchId);
+    } else {
+      await _storage.write(key: _kSubBranchId, value: subBranchId);
     }
     if (subBranchName == null) {
       await _storage.delete(key: _kSubBranchName);

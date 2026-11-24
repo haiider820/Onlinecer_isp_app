@@ -198,5 +198,89 @@ void main() {
 
       expect(effectiveSubBranchId(list, null), isNull);
     });
+
+    test('centralized multi-row: employee own sub-branch is the default', () {
+      final list = SubBranchList.fromJson({
+        'mode': 'centralized',
+        'selected_sub_branch_id': null,
+        'data': [
+          {'id': 'sb_a', 'name': 'A'},
+          {'id': 'sb_b', 'name': 'B'},
+        ],
+      });
+
+      expect(
+        effectiveSubBranchId(list, null, employeeSubBranchId: 'sb_b'),
+        'sb_b',
+      );
+    });
+
+    test('scoped multi-row: employee own sub-branch is the default', () {
+      final list = SubBranchList.fromJson({
+        'mode': 'scoped',
+        'selected_sub_branch_id': null,
+        'data': [
+          {'id': 'sb_a', 'name': 'A'},
+          {'id': 'sb_b', 'name': 'B'},
+        ],
+      });
+
+      expect(
+        effectiveSubBranchId(list, null, employeeSubBranchId: 'sb_a'),
+        'sb_a',
+      );
+    });
+
+    test('backend selected id wins over the employee default', () {
+      final list = SubBranchList.fromJson({
+        'mode': 'centralized',
+        'selected_sub_branch_id': 'sb_a',
+        'data': [
+          {'id': 'sb_a', 'name': 'A'},
+          {'id': 'sb_b', 'name': 'B'},
+        ],
+      });
+
+      expect(
+        effectiveSubBranchId(list, null, employeeSubBranchId: 'sb_b'),
+        'sb_a',
+      );
+    });
+
+    test('explicit manual pick wins over the employee default', () {
+      final list = SubBranchList.fromJson({
+        'mode': 'centralized',
+        'selected_sub_branch_id': null,
+        'data': [
+          {'id': 'sb_a', 'name': 'A'},
+          {'id': 'sb_b', 'name': 'B'},
+        ],
+      });
+
+      expect(
+        effectiveSubBranchId(list, 'sb_a', employeeSubBranchId: 'sb_b'),
+        'sb_a',
+      );
+    });
+
+    test('employee sub-branch NOT in the list is ignored, never submitted', () {
+      final list = SubBranchList.fromJson({
+        'mode': 'centralized',
+        'selected_sub_branch_id': null,
+        'data': [
+          {'id': 'sb_a', 'name': 'A'},
+          {'id': 'sb_b', 'name': 'B'},
+        ],
+      });
+
+      expect(
+        effectiveSubBranchId(
+          list,
+          null,
+          employeeSubBranchId: 'ghost-from-previous-login',
+        ),
+        isNull,
+      );
+    });
   });
 }

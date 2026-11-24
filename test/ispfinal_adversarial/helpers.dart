@@ -107,6 +107,8 @@ Future<void> seedEmployeeSession(
   SecureStorage storage, {
   String expiresAt = '2099-10-10T11:00:00.000000Z',
   String teamType = 'survey',
+  String? subBranchId,
+  String? subBranchName,
 }) =>
     storage.saveSession(
       token: 'emp-token-1',
@@ -117,6 +119,8 @@ Future<void> seedEmployeeSession(
       employeeEmail: 'ahmed@isp360.com',
       functionalTeamType: teamType,
       teamName: 'Survey Team',
+      subBranchId: subBranchId,
+      subBranchName: subBranchName,
     );
 
 Future<void> seedScannerSession(

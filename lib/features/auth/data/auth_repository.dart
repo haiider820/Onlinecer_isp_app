@@ -67,6 +67,7 @@ class AuthRepository {
         functionalTeamType: employee.team?.functionalTeamType ?? '',
         teamName: employee.team?.name,
         branchName: _branchName(employee.branch),
+        subBranchId: _branchId(employee.subBranch),
         subBranchName: _branchName(employee.subBranch),
       );
     }
@@ -77,6 +78,15 @@ class AuthRepository {
   static String? _branchName(Map<String, Object?>? branch) {
     final name = branch?['name'];
     return name is String && name.isNotEmpty ? name : null;
+  }
+
+  /// Reads the `id` out of a leniently-parsed branch/sub-branch map.
+  /// Only a non-empty string counts: the id is what the sub-branch
+  /// auto-default matches against the `GET /lookups/sub-branches` rows,
+  /// so a wrong-typed value must never be persisted as an id.
+  static String? _branchId(Map<String, Object?>? branch) {
+    final id = branch?['id'];
+    return id is String && id.isNotEmpty ? id : null;
   }
 
   /// Deletes the server-side mobile token, then clears the local session.
@@ -102,6 +112,7 @@ class AuthRepository {
       functionalTeamType: team?.functionalTeamType ?? '',
       teamName: team?.name,
       branchName: _branchName(employee?.branch),
+      subBranchId: _branchId(employee?.subBranch),
       subBranchName: _branchName(employee?.subBranch),
     );
 

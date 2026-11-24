@@ -24,6 +24,21 @@ final subBranchListProvider = FutureProvider<SubBranchList>((ref) {
   return ref.watch(subBranchRepositoryProvider).fetchSubBranches();
 });
 
+/// The logged-in employee's own sub-branch id, as stored at login and
+/// refreshed by the boot `GET /me` (see `AuthRepository`): the id from
+/// `employee.sub_branch` in the session payload. `null` when the session
+/// carries no sub-branch (or no session is stored).
+///
+/// Read by [SubBranchController] so the create-request gate can pre-select
+/// the employee's own sub-branch — the auto-default. The value is only
+/// ever used when it matches one of the rows `GET /lookups/sub-branches`
+/// returned (see [effectiveSubBranchId]); it is never submitted on its
+/// own. Invalidated with the rest of the sub-branch scope on logout /
+/// session clear (D5), so a stale id can never leak into the next login.
+final employeeSubBranchIdProvider = FutureProvider<String?>((ref) async {
+  return ref.watch(secureStorageProvider).getSubBranchId();
+});
+
 /// The selected sub-branch id for this session.
 ///
 /// IN-MEMORY ONLY — deliberately NOT secure storage: scope is a per-session
@@ -46,6 +61,7 @@ class SelectedSubBranchNotifier extends Notifier<String?> {
     void onSessionCleared() {
       state = null;
       ref.invalidate(subBranchListProvider);
+      ref.invalidate(employeeSubBranchIdProvider);
     }
 
     storage.addSessionClearedListener(onSessionCleared);
@@ -62,11 +78,18 @@ final selectedSubBranchProvider =
 ///
 /// Order: an explicit selection (if it is one of the returned rows), then
 /// the backend's own `selected_sub_branch_id` (when it is one of the rows),
-/// then — scoped mode only, with exactly one row — that row, silently.
-/// Centralized mode with several rows and no pick returns `null`: the
-/// caller must show the selector first. An id that is not in [list] (a
-/// stale selection from a previous login) is ignored, never submitted.
-String? effectiveSubBranchId(SubBranchList list, String? selected) {
+/// then the logged-in employee's own sub-branch ([employeeSubBranchId],
+/// from the session payload — when it is one of the rows), then — scoped
+/// mode only, with exactly one row — that row, silently. Centralized mode
+/// with several rows and no pick (and no employee sub-branch in the list)
+/// returns `null`: the caller must show the selector first. An id that is
+/// not in [list] (a stale selection from a previous login) is ignored,
+/// never submitted.
+String? effectiveSubBranchId(
+  SubBranchList list,
+  String? selected, {
+  String? employeeSubBranchId,
+}) {
   if (selected != null && list.data.any((branch) => branch.id == selected)) {
     return selected;
   }
@@ -74,6 +97,10 @@ String? effectiveSubBranchId(SubBranchList list, String? selected) {
   if (backendSelected != null &&
       list.data.any((branch) => branch.id == backendSelected)) {
     return backendSelected;
+  }
+  if (employeeSubBranchId != null &&
+      list.data.any((branch) => branch.id == employeeSubBranchId)) {
+    return employeeSubBranchId;
   }
   if (!list.isCentralized && list.data.length == 1) {
     return list.data.first.id;
@@ -95,6 +122,7 @@ class SubBranchState {
     this.errorMessage,
     this.isLoading = true,
     this.selectedId,
+    this.employeeSubBranchId,
   });
 
   /// Last successfully fetched list, or `null` if none ever arrived.
@@ -112,6 +140,12 @@ class SubBranchState {
   /// The explicit in-memory selection, if any.
   final String? selectedId;
 
+  /// The logged-in employee's own sub-branch id (from the session), if
+  /// any. The auto-default: used by [effectiveId] when no explicit pick
+  /// and no backend pre-selection resolve, and only when it is one of the
+  /// returned rows.
+  final String? employeeSubBranchId;
+
   /// True when [lastKnownList] came from a successful fetch and no fetch
   /// is currently in flight or failed.
   bool get hasFreshList =>
@@ -124,11 +158,16 @@ class SubBranchState {
   /// The id a caller should submit, or `null` when no id is resolved yet.
   String? get effectiveId => lastKnownList == null
       ? null
-      : effectiveSubBranchId(lastKnownList!, selectedId);
+      : effectiveSubBranchId(
+          lastKnownList!,
+          selectedId,
+          employeeSubBranchId: employeeSubBranchId,
+        );
 
   /// The create gate. True ONLY when a fresh list is in hand AND an id is
   /// resolved. False while loading, on any fetch error (stale list or
-  /// not), on an empty list, and in centralized mode until the user picks.
+  /// not), on an empty list, and in centralized mode until the user picks
+  /// or their own sub-branch (from the session) resolves as the default.
   /// Callers must show a clear "couldn't load sub-branches" message when
   /// this is `false` because of an error — never a silent default.
   bool get canProceed => hasFreshList && effectiveId != null;
@@ -144,6 +183,11 @@ class SubBranchController extends Notifier<SubBranchState> {
   SubBranchState build() {
     final selected = ref.watch(selectedSubBranchProvider);
     final listAsync = ref.watch(subBranchListProvider);
+    // The employee's own sub-branch (session) — the auto-default. Read
+    // leniently: while it is still loading (or the read fails) there is
+    // simply no default yet, and the list fetch proceeds on its own.
+    final employeeSubBranchId =
+        ref.watch(employeeSubBranchIdProvider).valueOrNull;
 
     // Stamp the fetch time only when a NEW fresh list arrives, so a
     // selection change (which rebuilds this controller) does not re-label
@@ -161,12 +205,14 @@ class SubBranchController extends Notifier<SubBranchState> {
         lastUpdated: _lastFetchedAt,
         isLoading: false,
         selectedId: selected,
+        employeeSubBranchId: employeeSubBranchId,
       ),
       loading: () => SubBranchState(
         lastKnownList: listAsync.valueOrNull,
         lastUpdated: _lastFetchedAt,
         isLoading: true,
         selectedId: selected,
+        employeeSubBranchId: employeeSubBranchId,
       ),
       error: (error, _) => SubBranchState(
         lastKnownList: listAsync.valueOrNull,
@@ -176,6 +222,7 @@ class SubBranchController extends Notifier<SubBranchState> {
             ? error.message
             : 'Something went wrong. Please try again.',
         selectedId: selected,
+        employeeSubBranchId: employeeSubBranchId,
       ),
     );
   }
@@ -216,5 +263,6 @@ final subBranchStateProvider =
 void invalidateSubBranchState(WidgetRef ref) {
   ref.invalidate(subBranchListProvider);
   ref.invalidate(selectedSubBranchProvider);
+  ref.invalidate(employeeSubBranchIdProvider);
   ref.invalidate(subBranchStateProvider);
 }

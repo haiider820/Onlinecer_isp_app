@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:isp_onlinecer/core/network/api_exceptions.dart';
+import 'package:isp_onlinecer/core/storage/secure_storage.dart';
+import 'package:isp_onlinecer/features/auth/presentation/providers.dart';
 import 'package:isp_onlinecer/features/connection_requests/data/create_request_network.dart';
 import 'package:isp_onlinecer/features/connection_requests/data/create_request_repository.dart';
 import 'package:isp_onlinecer/features/connection_requests/presentation/create_request_providers.dart';
@@ -14,11 +16,24 @@ import 'package:isp_onlinecer/features/lookups/data/sub_branch_network.dart';
 import 'package:isp_onlinecer/features/lookups/data/sub_branch_repository.dart';
 import 'package:isp_onlinecer/features/lookups/presentation/sub_branch_providers.dart';
 
+import '../ispfinal_adversarial/helpers.dart';
+
 const _scopedSingleMap = {
   'mode': 'scoped',
   'selected_sub_branch_id': null,
   'data': [
     {'id': 'sb_only', 'name': 'Only Sub-Branch'},
+  ],
+};
+
+/// Centralized org: several rows, no backend pre-selection — the case
+/// where only the employee's own sub-branch can supply a default.
+const _centralizedMap = {
+  'mode': 'centralized',
+  'selected_sub_branch_id': null,
+  'data': [
+    {'id': 'sb_gulberg', 'name': 'Gulberg Sub-Branch', 'type': 'sub_branch'},
+    {'id': 'sb_north', 'name': 'North Sub-Branch', 'type': 'sub_branch'},
   ],
 };
 
@@ -55,9 +70,13 @@ const _createdMap = {
 };
 
 class _FakeSubBranchNetwork implements SubBranchNetwork {
+  _FakeSubBranchNetwork([this.result = _scopedSingleMap]);
+
+  final Map<String, dynamic> result;
+
   @override
   Future<Map<String, dynamic>> fetchSubBranches({String? subBranchId}) async =>
-      _scopedSingleMap;
+      result;
 }
 
 class _FakeCreateRequestNetwork implements CreateRequestNetwork {
@@ -93,11 +112,16 @@ class _FakeCreateRequestNetwork implements CreateRequestNetwork {
   }
 }
 
-Widget _buildApp(_FakeCreateRequestNetwork network) {
+Widget _buildApp(
+  _FakeCreateRequestNetwork network, {
+  Map<String, dynamic> subBranchMap = _scopedSingleMap,
+  SecureStorage? storage,
+}) {
   return ProviderScope(
     overrides: [
+      if (storage != null) secureStorageProvider.overrideWithValue(storage),
       subBranchRepositoryProvider.overrideWithValue(
-        SubBranchRepository(network: _FakeSubBranchNetwork()),
+        SubBranchRepository(network: _FakeSubBranchNetwork(subBranchMap)),
       ),
       createRequestRepositoryProvider.overrideWithValue(
         CreateRequestRepository(network: network),
@@ -195,6 +219,52 @@ void main() {
     await tester.tap(find.text('Choose a team flow'));
     await _settle(tester);
     expect(find.text('Standard'), findsOneWidget);
+  });
+
+  testWidgets('centralized multi-row: employee own sub-branch is pre-selected',
+      (tester) async {
+    setViewport(tester);
+    final network = _FakeCreateRequestNetwork();
+    final storage = freshStorage(InMemoryFlutterSecureStorage());
+    await seedEmployeeSession(
+      storage,
+      subBranchId: 'sb_north',
+      subBranchName: 'North Sub-Branch',
+    );
+    await tester.pumpWidget(
+      _buildApp(
+        network,
+        subBranchMap: _centralizedMap,
+        storage: storage,
+      ),
+    );
+    await _settle(tester);
+
+    // The form opens straight away — no manual pick first — with the
+    // employee's own sub-branch already showing in the selector button.
+    expect(find.text('North Sub-Branch'), findsOneWidget);
+    expect(find.text('Customer name *'), findsOneWidget);
+    expect(find.text('Choose a sub-branch to continue.'), findsNothing);
+  });
+
+  testWidgets('centralized multi-row: no employee sub-branch — gate asks for a pick',
+      (tester) async {
+    setViewport(tester);
+    final network = _FakeCreateRequestNetwork();
+    final storage = freshStorage(InMemoryFlutterSecureStorage());
+    await seedEmployeeSession(storage);
+    await tester.pumpWidget(
+      _buildApp(
+        network,
+        subBranchMap: _centralizedMap,
+        storage: storage,
+      ),
+    );
+    await _settle(tester);
+
+    // No default resolves, so the gate — not the form — is on screen.
+    expect(find.text('Choose a sub-branch to continue.'), findsOneWidget);
+    expect(find.text('Customer name *'), findsNothing);
   });
 
   testWidgets('empty submit shows inline errors and does not call the API',

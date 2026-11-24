@@ -105,6 +105,10 @@ Map<String, Object?> loginJson() => <String, Object?>{
           'name': 'Survey Team',
           'functional_team_type': 'survey',
         },
+        'sub_branch': <String, Object?>{
+          'id': 'sb_employee',
+          'name': 'Employee Sub-Branch',
+        },
       },
       'permissions': <Object?>[],
       'permission_labels': <Object?>[],
@@ -152,6 +156,14 @@ void main() {
       expect(await storage.getTokenType(), 'Bearer');
       expect(await storage.isLoggedIn(), isTrue);
       expect(await storage.getFunctionalTeamType(), 'survey');
+    });
+
+    test('persists the employee sub-branch id + name from the login payload', () async {
+      await buildRepo().login(email: 'a@b.pk', password: 'pw');
+
+      // The sub-branch auto-default matches on the id, not the name.
+      expect(await storage.getSubBranchId(), 'sb_employee');
+      expect(await storage.getSubBranchName(), 'Employee Sub-Branch');
     });
 
     test('propagates network exceptions (not swallowed)', () async {
