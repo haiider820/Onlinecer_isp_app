@@ -207,6 +207,7 @@ class _FakeSubmitSurveyNetwork implements SubmitSurveyNetwork {
     String id, {
     String? notes,
     String? feasibilityStatus,
+    String? notFeasibleReason,
   }) async => _submitResultMap;
 
   @override
@@ -214,6 +215,7 @@ class _FakeSubmitSurveyNetwork implements SubmitSurveyNetwork {
     String id, {
     String? notes,
     String? feasibilityStatus,
+    String? notFeasibleReason,
     required String voiceNotePath,
     required String voiceNoteMimeType,
   }) async =>
@@ -360,6 +362,12 @@ void main() {
     final notesField = find.byType(TextField);
     expect(notesField, findsOneWidget);
     await tester.enterText(notesField, 'All wiring checked. FAT accessible.');
+    // D14: the backend requires a feasibility verdict — pick Feasible
+    // before submitting (the submit is blocked client-side without it).
+    await tester.ensureVisible(find.text('Feasible'));
+    await _settle(tester);
+    await tester.tap(find.text('Feasible'));
+    await _settle(tester);
     await tester.tap(
       find.ancestor(of: find.text('Submit Survey'), matching: find.bySubtype<FilledButton>()),
     );

@@ -18,20 +18,22 @@ import '../../../shared/widgets/ops_widgets.dart';
 import 'connection_request_providers.dart';
 import 'submit_survey_providers.dart';
 
-/// Collects `survey_notes` + an optional recorded voice note and submits them
-/// via `POST .../complete-survey`.
+/// Collects the feasibility verdict (`feasible` / `not_feasible`, plus a
+/// required reason when not feasible), `survey_notes` and an optional
+/// recorded voice note, and submits them via `POST .../complete-survey`.
 ///
 /// Voice-first edition (palette #4, kit DESIGN.md Rules 1-14). The notes card leads with a big
 /// glowing mic (the existing recorder state machine is untouched), then site
 /// photos, a tappable site checklist, and the typed-notes fallback — with a
 /// sticky submit shelf. Renders ONLY the fields the API actually accepts
-/// (notes + voice note); photos and checklist items are on-device helpers and
+/// (feasibility + reason + notes + voice note); photos and checklist items are on-device helpers and
 /// are never submitted.
 ///
 /// [isReview] is the survey-review case (request came back from Inventory,
 /// status `survey_review`, `allowed_action` `review_survey`): the same
 /// endpoint confirms it, with `survey_feasibility_status: "feasible"` added
-/// to the body and no `requested_items` re-sent.
+/// to the body and no `requested_items` re-sent. The feasibility selector
+/// is hidden in review mode — the verdict is already settled there.
 class SubmitSurveyScreen extends ConsumerStatefulWidget {
   const SubmitSurveyScreen({super.key, required this.requestId, this.isReview = false});
 
@@ -47,6 +49,7 @@ class SubmitSurveyScreen extends ConsumerStatefulWidget {
 class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
   final _notesController = TextEditingController();
   final _notesFocus = FocusNode();
+  final _reasonController = TextEditingController();
   final AudioRecorder _recorder = AudioRecorder();
   final AudioPlayer _player = AudioPlayer();
   final ImagePicker _photoPicker = ImagePicker();
@@ -60,6 +63,11 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
   String? _recordedPath;
   String? _recordedMime;
   bool _isPlaying = false;
+
+  /// The surveyor's feasibility verdict (D14): `"feasible"` or
+  /// `"not_feasible"`, or `null` until picked. The backend requires it on
+  /// every normal complete-survey — the submit is blocked until it is set.
+  String? _feasibility;
 
   /// On-device site photos (evidence helpers — not submitted).
   final List<XFile> _photos = [];
@@ -83,6 +91,7 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
     _recordingTicker?.cancel();
     _notesController.dispose();
     _notesFocus.dispose();
+    _reasonController.dispose();
     _recorder.dispose();
     _player.dispose();
     super.dispose();
@@ -227,6 +236,7 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     final notes = _notesController.text.trim();
+    final reason = _reasonController.text.trim();
     final result = await ref
         .read(submitSurveyControllerProvider.notifier)
         .submit(
@@ -235,6 +245,11 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
           voiceNotePath: _recordedPath,
           voiceNoteMimeType: _recordedMime,
           isReview: widget.isReview,
+          // Review mode forces 'feasible' inside the controller; the
+          // screen never passes a verdict there (no selector is shown).
+          feasibilityStatus: widget.isReview ? null : _feasibility,
+          notFeasibleReason:
+              _feasibility == 'not_feasible' && reason.isNotEmpty ? reason : null,
         );
     if (!mounted) return;
 
@@ -389,6 +404,102 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
                   ),
                 ],
                 const SizedBox(height: 8),
+
+                // ── Feasibility verdict (D14, normal flow only) ──
+                // The backend requires `survey_feasibility_status` on every
+                // complete-survey; before this card existed the screen had
+                // no way to fill it and every normal submit 422d. In review
+                // mode the verdict is already settled ('feasible'), so no
+                // selector is shown.
+                if (!widget.isReview) ...[
+                  OpsCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                Icons.fact_check_outlined,
+                                size: 18,
+                                color: theme.colorScheme.onPrimaryContainer,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Feasibility',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              'Required',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: theme.colorScheme.error,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment<String>(
+                              value: 'feasible',
+                              label: Text('Feasible'),
+                              icon: Icon(Icons.check_circle_outline, size: 18),
+                            ),
+                            ButtonSegment<String>(
+                              value: 'not_feasible',
+                              label: Text('Not feasible'),
+                              icon: Icon(Icons.cancel_outlined, size: 18),
+                            ),
+                          ],
+                          selected: _feasibility == null
+                              ? const <String>{}
+                              : {_feasibility!},
+                          emptySelectionAllowed: true,
+                          showSelectedIcon: false,
+                          onSelectionChanged: (selection) {
+                            setState(() {
+                              _feasibility =
+                                  selection.isEmpty ? null : selection.first;
+                            });
+                            // Drop a stale validation banner as soon as the
+                            // surveyor picks (or re-picks) a verdict.
+                            ref
+                                .read(submitSurveyControllerProvider.notifier)
+                                .clearError();
+                          },
+                        ),
+                        if (_feasibility == 'not_feasible') ...[
+                          const SizedBox(height: 12),
+                          TextField(
+                            controller: _reasonController,
+                            maxLines: 3,
+                            maxLength: 500,
+                            decoration: const InputDecoration(
+                              labelText: 'Reason (required)',
+                              hintText:
+                                  'e.g. No FAT port is reachable from this address',
+                              alignLabelWithHint: true,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
 
                 // ── Field notes (typed fallback) ──
                 OpsCard(

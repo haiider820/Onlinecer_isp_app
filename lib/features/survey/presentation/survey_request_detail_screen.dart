@@ -718,15 +718,29 @@ class _BottomShelf extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
               ],
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _flag(context),
-                  icon: const Icon(Icons.flag_outlined, size: 18),
-                  label: const Text('Flag'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 52),
-                    foregroundColor: theme.colorScheme.error,
-                    side: BorderSide(color: theme.colorScheme.errorContainer),
+              // Flag is icon-only (D15): at 360px the three-button row gave
+              // the Flag button ~55px and its "Flag" label wrapped to one
+              // letter per line, squeezing "Complete Survey" until it
+              // wrapped and clipped at 52px. The 52x52 icon button keeps the
+              // same error colour, border and "not available yet" snackbar;
+              // the Semantics label keeps it identifiable as "Flag issue".
+              Semantics(
+                label: 'Flag issue',
+                button: true,
+                child: SizedBox(
+                  width: 52,
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: () => _flag(context),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(52, 52),
+                      padding: EdgeInsets.zero,
+                      foregroundColor: theme.colorScheme.error,
+                      side: BorderSide(
+                        color: theme.colorScheme.errorContainer,
+                      ),
+                    ),
+                    child: const Icon(Icons.flag_outlined, size: 18),
                   ),
                 ),
               ),

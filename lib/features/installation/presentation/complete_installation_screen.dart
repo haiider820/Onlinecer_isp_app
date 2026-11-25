@@ -844,7 +844,7 @@ class CompleteInstallationFormState
     );
   }
 
-  /// Builds the `inventory_items` payload lines, stripping untouched rows
+  /// Builds the `items` payload lines, stripping untouched rows
   /// (no item AND no quantity entered). Valid rows are guaranteed non-null by
   /// the row validators running before this.
   List<InventoryLine> _buildInventoryLines() {

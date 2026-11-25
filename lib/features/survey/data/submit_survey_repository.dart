@@ -42,16 +42,19 @@ class SubmitSurveyRepository {
   /// [allowedVoiceNoteMimeTypes]); otherwise plain JSON. Both paths are
   /// covered by dedicated tests.
   ///
-  /// [feasibilityStatus] is the survey-review case only: pass `'feasible'`
-  /// when confirming a request that came back from Inventory
-  /// (`survey_review` / `review_survey`). It is forwarded as
-  /// `survey_feasibility_status`; a normal submit passes nothing and the
-  /// field is omitted. `requested_items` is never sent — a review that
-  /// re-sent them would push the request back to `inventory_pending`.
+  /// [feasibilityStatus] is the survey's feasibility verdict
+  /// (`"feasible"` / `"not_feasible"`): the backend requires it on every
+  /// complete-survey (D14). [notFeasibleReason] is required by the backend
+  /// when the value is `"not_feasible"` and is forwarded as
+  /// `survey_not_feasible_reason`; it is never sent when the site is
+  /// feasible. `requested_items` is never sent — the backend confirmed it
+  /// is optional, and a review that re-sent items would push the request
+  /// back to `inventory_pending`.
   Future<CompleteSurveyResponse> submit({
     required String id,
     String? notes,
     String? feasibilityStatus,
+    String? notFeasibleReason,
     String? voiceNotePath,
     String? voiceNoteMimeType,
   }) async {
@@ -68,6 +71,7 @@ class SubmitSurveyRepository {
         id,
         notes: notes,
         feasibilityStatus: feasibilityStatus,
+        notFeasibleReason: notFeasibleReason,
         voiceNotePath: voiceNotePath,
         voiceNoteMimeType: mime,
       );
@@ -78,6 +82,7 @@ class SubmitSurveyRepository {
       id,
       notes: notes,
       feasibilityStatus: feasibilityStatus,
+      notFeasibleReason: notFeasibleReason,
     );
     return CompleteSurveyResponse.fromJson(map);
   }

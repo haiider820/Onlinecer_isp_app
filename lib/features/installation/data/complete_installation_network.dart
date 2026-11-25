@@ -1,12 +1,10 @@
-import 'dart:convert';
-
 import 'package:dio/dio.dart';
 import 'package:http_parser/http_parser.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
 
-/// One line in the complete-installation `inventory_items` payload: a catalog
+/// One line in the complete-installation `items` payload: a catalog
 /// item id plus the quantity used on this installation.
 ///
 /// Stored as a Dart record so tests can build lines without a JSON dependency.
@@ -22,11 +20,13 @@ abstract interface class CompleteInstallationNetwork {
   /// Plain-JSON call: `POST .../complete-installation` with
   /// `{ olt_device_ownership, connection_fat_node_id, dp_latitude,
   ///    dp_longitude, total_wire_used?, installation_notes?,
-  ///    inventory_items? }`.
+  ///    items? }`.
   ///
   /// `dp_latitude`/`dp_longitude` are the selected FAT node's coordinates
   /// (backend decision: the DP location is the FAT node, no separate GPS
-  /// read). `inventory_items` is an array of `{ item_id, quantity }` objects.
+  /// read). `items` is an array of `{ item_id, quantity }` objects — the
+  /// server reads ONLY this field name (D16): the old `inventory_items`
+  /// name was silently ignored, so inventory usage never landed.
   Future<Map<String, dynamic>> completeInstallationJson(
     String id, {
     required String oltDeviceOwnership,
@@ -83,7 +83,7 @@ class DioCompleteInstallationNetwork implements CompleteInstallationNetwork {
         if (totalWireUsed != null) 'total_wire_used': totalWireUsed,
         if (notes != null && notes.isNotEmpty) 'installation_notes': notes,
         if (inventoryLines != null && inventoryLines.isNotEmpty)
-          'inventory_items': [
+          'items': [
             for (final line in inventoryLines)
               {'item_id': line.itemId, 'quantity': line.quantity},
           ],
@@ -112,11 +112,15 @@ class DioCompleteInstallationNetwork implements CompleteInstallationNetwork {
       'dp_longitude': dpLongitude,
       if (totalWireUsed != null) 'total_wire_used': totalWireUsed,
       if (notes != null && notes.isNotEmpty) 'installation_notes': notes,
+      // Multipart has no nested arrays: each line is sent as indexed
+      // form fields `items[i][item_id]` / `items[i][quantity]` (D16).
+      // The old single `inventory_items` JSON-encoded string was never
+      // read by the server.
       if (inventoryLines != null && inventoryLines.isNotEmpty)
-        'inventory_items': jsonEncode([
-          for (final line in inventoryLines)
-            {'item_id': line.itemId, 'quantity': line.quantity},
-        ]),
+        for (var i = 0; i < inventoryLines.length; i++) ...{
+          'items[$i][item_id]': inventoryLines[i].itemId,
+          'items[$i][quantity]': inventoryLines[i].quantity.toString(),
+        },
       if (photos != null && photos.isNotEmpty)
         'installation_photos[]': [
           for (final photo in photos)

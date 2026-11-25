@@ -41,21 +41,45 @@ class SubmitSurveyController extends Notifier<SubmitSurveyState> {
   /// Submits the survey for [id]. [isReview] marks the survey-review case
   /// (request came back from Inventory, `survey_review` / `review_survey`):
   /// the confirm POST carries `survey_feasibility_status: "feasible"` and
-  /// never re-sends `requested_items`. A normal submit passes nothing extra.
+  /// never re-sends `requested_items`.
+  ///
+  /// A normal submit must carry the surveyor's pick: [feasibilityStatus]
+  /// (`"feasible"` / `"not_feasible"`) is required, and [notFeasibleReason]
+  /// is required when the pick is `"not_feasible"` — the backend 422s
+  /// without them (D14). Both are validated here, before any network call,
+  /// so a missing pick never leaves the phone as a failed POST.
   Future<CompleteSurveyResponse?> submit({
     required String id,
     String? notes,
     String? voiceNotePath,
     String? voiceNoteMimeType,
     bool isReview = false,
+    String? feasibilityStatus,
+    String? notFeasibleReason,
   }) async {
+    if (!isReview) {
+      if (feasibilityStatus == null || feasibilityStatus.isEmpty) {
+        state = const SubmitSurveyState(
+          errorMessage: 'Select whether the site is feasible.',
+        );
+        return null;
+      }
+      if (feasibilityStatus == 'not_feasible' &&
+          (notFeasibleReason == null || notFeasibleReason.trim().isEmpty)) {
+        state = const SubmitSurveyState(
+          errorMessage: 'Add a reason why the site is not feasible.',
+        );
+        return null;
+      }
+    }
     state = const SubmitSurveyState(isSubmitting: true);
     try {
       final repo = ref.read(submitSurveyRepositoryProvider);
       final result = await repo.submit(
         id: id,
         notes: notes,
-        feasibilityStatus: isReview ? 'feasible' : null,
+        feasibilityStatus: isReview ? 'feasible' : feasibilityStatus,
+        notFeasibleReason: isReview ? null : notFeasibleReason,
         voiceNotePath: voiceNotePath,
         voiceNoteMimeType: voiceNoteMimeType,
       );

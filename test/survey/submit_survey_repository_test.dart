@@ -13,9 +13,11 @@ class _FakeSubmitSurveyNetwork implements SubmitSurveyNetwork {
   String? lastJsonId;
   String? lastJsonNotes;
   String? lastJsonFeasibility;
+  String? lastJsonReason;
   String? lastMultipartId;
   String? lastMultipartNotes;
   String? lastMultipartFeasibility;
+  String? lastMultipartReason;
   String? lastMultipartPath;
   String? lastMultipartMime;
 
@@ -24,10 +26,12 @@ class _FakeSubmitSurveyNetwork implements SubmitSurveyNetwork {
     String id, {
     String? notes,
     String? feasibilityStatus,
+    String? notFeasibleReason,
   }) async {
     lastJsonId = id;
     lastJsonNotes = notes;
     lastJsonFeasibility = feasibilityStatus;
+    lastJsonReason = notFeasibleReason;
     if (error != null) throw error!;
     return result;
   }
@@ -37,12 +41,14 @@ class _FakeSubmitSurveyNetwork implements SubmitSurveyNetwork {
     String id, {
     String? notes,
     String? feasibilityStatus,
+    String? notFeasibleReason,
     required String voiceNotePath,
     required String voiceNoteMimeType,
   }) async {
     lastMultipartId = id;
     lastMultipartNotes = notes;
     lastMultipartFeasibility = feasibilityStatus;
+    lastMultipartReason = notFeasibleReason;
     lastMultipartPath = voiceNotePath;
     lastMultipartMime = voiceNoteMimeType;
     if (error != null) throw error!;
@@ -79,7 +85,8 @@ void main() {
     expect(network.lastJsonId, '101');
     expect(network.lastJsonNotes, 'All good');
     expect(network.lastJsonFeasibility, isNull,
-        reason: 'a normal survey submit omits survey_feasibility_status');
+        reason:
+            'feasibility is supplied by the controller; the repository omits the field only when the caller passes none');
     expect(network.lastMultipartId, isNull);
     expect(response.message, 'Survey marked as completed.');
     expect(response.data?.status, 'installation_assigned');
@@ -126,6 +133,66 @@ void main() {
     expect(network.lastMultipartFeasibility, 'feasible');
     expect(network.lastMultipartNotes, 'Reviewed.');
     expect(network.lastMultipartPath, voice.path);
+  });
+
+  test('not-feasible submit (plain JSON): sends status + reason', () async {
+    final network = _FakeSubmitSurveyNetwork(_successMap);
+    final repository = SubmitSurveyRepository(network: network);
+
+    await repository.submit(
+      id: '101',
+      notes: 'No FAT nearby.',
+      feasibilityStatus: 'not_feasible',
+      notFeasibleReason: 'No FAT port is reachable from this address',
+    );
+
+    expect(network.lastJsonId, '101');
+    expect(network.lastJsonFeasibility, 'not_feasible');
+    expect(
+      network.lastJsonReason,
+      'No FAT port is reachable from this address',
+    );
+    expect(network.lastMultipartId, isNull);
+  });
+
+  test('not-feasible submit (multipart): status + reason travel with the voice note',
+      () async {
+    final voice = File('${tempDir.path}/voice.m4a')..writeAsBytesSync(List.filled(1024, 0));
+    final network = _FakeSubmitSurveyNetwork(_successMap);
+    final repository = SubmitSurveyRepository(network: network);
+
+    await repository.submit(
+      id: '101',
+      notes: 'No FAT nearby.',
+      feasibilityStatus: 'not_feasible',
+      notFeasibleReason: 'No FAT port is reachable from this address',
+      voiceNotePath: voice.path,
+      voiceNoteMimeType: 'audio/mp4',
+    );
+
+    expect(network.lastJsonId, isNull);
+    expect(network.lastMultipartId, '101');
+    expect(network.lastMultipartFeasibility, 'not_feasible');
+    expect(
+      network.lastMultipartReason,
+      'No FAT port is reachable from this address',
+    );
+    expect(network.lastMultipartPath, voice.path);
+  });
+
+  test('feasible submit (plain JSON): sends status, never a reason', () async {
+    final network = _FakeSubmitSurveyNetwork(_successMap);
+    final repository = SubmitSurveyRepository(network: network);
+
+    await repository.submit(
+      id: '101',
+      notes: 'All good',
+      feasibilityStatus: 'feasible',
+    );
+
+    expect(network.lastJsonFeasibility, 'feasible');
+    expect(network.lastJsonReason, isNull);
+    expect(network.lastMultipartId, isNull);
   });
 
   test('multipart branch when a voice note is attached', () async {

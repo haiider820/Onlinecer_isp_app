@@ -155,6 +155,36 @@
 
 ---
 
+## D14 — BLOCKER — FIXED 2026-11-25 — Normal survey submit never sends `survey_feasibility_status`; the Complete Survey screen has no feasibility picker
+
+- **Flow:** Survey → Complete Survey → Submit Survey.
+- **Repro:** Fill notes/photos/checklist, tap Submit Survey → red banner "The survey feasibility status field is required." (server 422). No way to fill the field: the screen has no Feasible / Not feasible input anywhere.
+- **Expected:** The screen collects the feasibility verdict; the POST carries `survey_feasibility_status` (`"feasible"` / `"not_feasible"`), plus `survey_not_feasible_reason` when not feasible.
+- **Actual:** `submit_survey_providers.dart:58` passed `feasibilityStatus: isReview ? 'feasible' : null` — the field was sent only on the review path; a normal submit sent nothing. The screen had only Voice Note / Field Notes / Site Photos / Site Checklist.
+- **Evidence:** Backend answers (2026-11-25): allowed values are ONLY `feasible` / `not_feasible`; a `not_feasible` verdict REQUIRES `survey_not_feasible_reason`; `requested_items` is OPTIONAL (omit is valid — no items picker built, per the answers).
+- **Fix (2026-11-25):** `lib/features/survey/presentation/submit_survey_screen.dart` — "Feasibility" card above Field Notes (normal flow only; hidden in review mode), a `SegmentedButton` (Feasible / Not feasible) plus a "Reason (required)" field shown when Not feasible is picked. `lib/features/survey/presentation/submit_survey_providers.dart` — `submit()` gains `feasibilityStatus` + `notFeasibleReason` params and validates client-side before any network call (no pick → "Select whether the site is feasible."; not-feasible with no reason → "Add a reason why the site is not feasible."); review still forces `'feasible'` with no reason. `lib/features/survey/data/submit_survey_repository.dart` + `submit_survey_network.dart` — both JSON and multipart paths send `survey_feasibility_status` always and `survey_not_feasible_reason` only when the value is `'not_feasible'` (never when feasible). The pre-existing controller test that pinned "normal submit forwards nothing" was rewritten to the new contract. **Tests:** new `submit_survey_controller_review_test.dart` (5), `submit_survey_repository_test.dart` (+3 reason tests), `submit_survey_network_test.dart` (5 wire-level, via a capturing `ApiClient`), `submit_survey_feasibility_screen_test.dart` (5 widget tests incl. review-mode hiding); `survey_flow_test.dart` updated to pick Feasible before submitting.
+
+## D15 — MAJOR — FIXED 2026-11-25 (partial — see limit) — Request Detail bottom shelf overflows at narrow width
+
+- **Flow:** Request Detail (survey) bottom shelf.
+- **Repro:** On a narrow phone the three-button row (Plan Route + Flag + Complete Survey) squeezes the Flag label vertical ("F I a g") and wraps/clips "Complete Survey" ("Comple te Survey", cut off at 52px).
+- **Expected:** All three actions fit; "Complete Survey" renders fully on one line.
+- **Actual:** `_BottomShelf` (`survey_request_detail_screen.dart:667-760`) laid out Plan Route at intrinsic width + Flag `Expanded` flex 1 + Complete Survey `Expanded` flex 2 at 52px height — too narrow for the labels.
+- **Evidence:** Haider's phone screenshots, 2026-11-25 11:21 PKT.
+- **Fix (2026-11-25):** `lib/features/survey/presentation/survey_request_detail_screen.dart` — the Flag button is now icon-only (52x52 `OutlinedButton` with the flag icon, same error colour/border and the same "not available yet" snackbar, `Semantics(label: 'Flag issue')`). Plan Route / Complete Survey labels, 52px height and button order are unchanged.
+- **LIMIT (measured 2026-11-25, real Plus Jakarta Sans SemiBold metrics):** icon-only Flag alone does NOT make "Complete Survey" fit on one line at a real 360dp — the button gets 133.8dp but one line needs 185.6dp (icon 20 + gap 8 + text 117.6 + M3 icon-button padding 40). One line needs a screen ≥ 412dp; at 364–411dp the label renders on two clean lines without clipping; below 364dp it still clips to three lines. The one-line bar needs a follow-up decision (e.g. dropping the icon from Complete Survey too, or a tighter padding). The widget test runs at 600px (the test font renders ~2x wider than Jakarta Sans, so a 360px test viewport overflows even the fixed layout; 600px is the narrowest test width where the fixed shelf fits while the old one did not). **Tests:** new `detail_bottom_shelf_test.dart` (2: icon-only Flag + snackbar; verified to fail on the old code). **Phone check still needed:** confirm on Haider's phone whether the label now shows fully (one line on ≥412dp, two clean lines on 364–411dp) or still clips (<364dp).
+
+## D16 — MAJOR — FIXED 2026-11-25 — Complete-installation sends `inventory_items`; the server only reads `items` (inventory usage silently dropped)
+
+- **Flow:** Installation → Complete Installation with inventory rows.
+- **Repro:** Submit an installation with inventory items → the server records no inventory usage (no error — the field is silently ignored).
+- **Expected:** Inventory lines reach the server as `items`.
+- **Actual:** `lib/features/installation/data/complete_installation_network.dart` sent `'inventory_items'` — a JSON array on the JSON path and a JSON-encoded string on the multipart path. The field name appears in no backend doc; the PDF doc lists `items[0][item_id]` / `items[0][quantity]`.
+- **Evidence:** Backend answers (2026-11-25): the server reads `items`, NOT `inventory_items`. JSON: `"items": [{"item_id": "uuid", "quantity": 2}]`. Multipart: form fields `items[0][item_id]` / `items[0][quantity]`.
+- **Fix (2026-11-25):** `lib/features/installation/data/complete_installation_network.dart` — JSON path now sends `"items": [{item_id, quantity}]`; multipart path now sends indexed `items[i][item_id]` / `items[i][quantity]` form fields (one index per line); all `inventory_items` sends removed (the unused `dart:convert` import dropped too). The `InventoryLine` record type and the repository/screen plumbing are unchanged; only the wire field name changed. `lib/features/installation/presentation/complete_installation_screen.dart:847` comment updated (`inventory_items` → `items`). **Tests:** new `complete_installation_network_test.dart` (4 wire-level tests via a capturing `ApiClient`: JSON `items` array, JSON no-lines, multipart indexed fields, multipart no-lines — all asserting `inventory_items` is never sent). Shared capture helper: `test/helpers/capturing_api_client.dart`.
+
+---
+
 ## Verified passing (no defect)
 
 - Scanner bounce fix holds (employee session seeded → scanner link reaches the form, back link works).
