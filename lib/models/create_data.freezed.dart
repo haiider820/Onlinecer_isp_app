@@ -604,6 +604,597 @@ abstract class _CreateDataFatNode implements CreateDataFatNode {
       throw _privateConstructorUsedError;
 }
 
+CreateDataTeam _$CreateDataTeamFromJson(Map<String, dynamic> json) {
+  return _CreateDataTeam.fromJson(json);
+}
+
+/// @nodoc
+mixin _$CreateDataTeam {
+  String? get id => throw _privateConstructorUsedError;
+  String? get name => throw _privateConstructorUsedError;
+  String? get code => throw _privateConstructorUsedError;
+  @JsonKey(name: 'functional_team_type')
+  String? get functionalTeamType => throw _privateConstructorUsedError;
+  @JsonKey(name: 'functional_team_types')
+  List<String>? get functionalTeamTypes => throw _privateConstructorUsedError;
+  @JsonKey(name: 'flow_order')
+  int? get flowOrder => throw _privateConstructorUsedError;
+  @JsonKey(name: 'is_active')
+  bool? get isActive => throw _privateConstructorUsedError;
+
+  /// Serializes this CreateDataTeam to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of CreateDataTeam
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $CreateDataTeamCopyWith<CreateDataTeam> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $CreateDataTeamCopyWith<$Res> {
+  factory $CreateDataTeamCopyWith(
+    CreateDataTeam value,
+    $Res Function(CreateDataTeam) then,
+  ) = _$CreateDataTeamCopyWithImpl<$Res, CreateDataTeam>;
+  @useResult
+  $Res call({
+    String? id,
+    String? name,
+    String? code,
+    @JsonKey(name: 'functional_team_type') String? functionalTeamType,
+    @JsonKey(name: 'functional_team_types') List<String>? functionalTeamTypes,
+    @JsonKey(name: 'flow_order') int? flowOrder,
+    @JsonKey(name: 'is_active') bool? isActive,
+  });
+}
+
+/// @nodoc
+class _$CreateDataTeamCopyWithImpl<$Res, $Val extends CreateDataTeam>
+    implements $CreateDataTeamCopyWith<$Res> {
+  _$CreateDataTeamCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of CreateDataTeam
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = freezed,
+    Object? name = freezed,
+    Object? code = freezed,
+    Object? functionalTeamType = freezed,
+    Object? functionalTeamTypes = freezed,
+    Object? flowOrder = freezed,
+    Object? isActive = freezed,
+  }) {
+    return _then(
+      _value.copyWith(
+            id: freezed == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            name: freezed == name
+                ? _value.name
+                : name // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            code: freezed == code
+                ? _value.code
+                : code // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            functionalTeamType: freezed == functionalTeamType
+                ? _value.functionalTeamType
+                : functionalTeamType // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            functionalTeamTypes: freezed == functionalTeamTypes
+                ? _value.functionalTeamTypes
+                : functionalTeamTypes // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+            flowOrder: freezed == flowOrder
+                ? _value.flowOrder
+                : flowOrder // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            isActive: freezed == isActive
+                ? _value.isActive
+                : isActive // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$CreateDataTeamImplCopyWith<$Res>
+    implements $CreateDataTeamCopyWith<$Res> {
+  factory _$$CreateDataTeamImplCopyWith(
+    _$CreateDataTeamImpl value,
+    $Res Function(_$CreateDataTeamImpl) then,
+  ) = __$$CreateDataTeamImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    String? id,
+    String? name,
+    String? code,
+    @JsonKey(name: 'functional_team_type') String? functionalTeamType,
+    @JsonKey(name: 'functional_team_types') List<String>? functionalTeamTypes,
+    @JsonKey(name: 'flow_order') int? flowOrder,
+    @JsonKey(name: 'is_active') bool? isActive,
+  });
+}
+
+/// @nodoc
+class __$$CreateDataTeamImplCopyWithImpl<$Res>
+    extends _$CreateDataTeamCopyWithImpl<$Res, _$CreateDataTeamImpl>
+    implements _$$CreateDataTeamImplCopyWith<$Res> {
+  __$$CreateDataTeamImplCopyWithImpl(
+    _$CreateDataTeamImpl _value,
+    $Res Function(_$CreateDataTeamImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of CreateDataTeam
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = freezed,
+    Object? name = freezed,
+    Object? code = freezed,
+    Object? functionalTeamType = freezed,
+    Object? functionalTeamTypes = freezed,
+    Object? flowOrder = freezed,
+    Object? isActive = freezed,
+  }) {
+    return _then(
+      _$CreateDataTeamImpl(
+        id: freezed == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        name: freezed == name
+            ? _value.name
+            : name // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        code: freezed == code
+            ? _value.code
+            : code // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        functionalTeamType: freezed == functionalTeamType
+            ? _value.functionalTeamType
+            : functionalTeamType // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        functionalTeamTypes: freezed == functionalTeamTypes
+            ? _value._functionalTeamTypes
+            : functionalTeamTypes // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+        flowOrder: freezed == flowOrder
+            ? _value.flowOrder
+            : flowOrder // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        isActive: freezed == isActive
+            ? _value.isActive
+            : isActive // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$CreateDataTeamImpl implements _CreateDataTeam {
+  const _$CreateDataTeamImpl({
+    this.id,
+    this.name,
+    this.code,
+    @JsonKey(name: 'functional_team_type') this.functionalTeamType,
+    @JsonKey(name: 'functional_team_types')
+    final List<String>? functionalTeamTypes,
+    @JsonKey(name: 'flow_order') this.flowOrder,
+    @JsonKey(name: 'is_active') this.isActive,
+  }) : _functionalTeamTypes = functionalTeamTypes;
+
+  factory _$CreateDataTeamImpl.fromJson(Map<String, dynamic> json) =>
+      _$$CreateDataTeamImplFromJson(json);
+
+  @override
+  final String? id;
+  @override
+  final String? name;
+  @override
+  final String? code;
+  @override
+  @JsonKey(name: 'functional_team_type')
+  final String? functionalTeamType;
+  final List<String>? _functionalTeamTypes;
+  @override
+  @JsonKey(name: 'functional_team_types')
+  List<String>? get functionalTeamTypes {
+    final value = _functionalTeamTypes;
+    if (value == null) return null;
+    if (_functionalTeamTypes is EqualUnmodifiableListView)
+      return _functionalTeamTypes;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  @override
+  @JsonKey(name: 'flow_order')
+  final int? flowOrder;
+  @override
+  @JsonKey(name: 'is_active')
+  final bool? isActive;
+
+  @override
+  String toString() {
+    return 'CreateDataTeam(id: $id, name: $name, code: $code, functionalTeamType: $functionalTeamType, functionalTeamTypes: $functionalTeamTypes, flowOrder: $flowOrder, isActive: $isActive)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CreateDataTeamImpl &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.name, name) || other.name == name) &&
+            (identical(other.code, code) || other.code == code) &&
+            (identical(other.functionalTeamType, functionalTeamType) ||
+                other.functionalTeamType == functionalTeamType) &&
+            const DeepCollectionEquality().equals(
+              other._functionalTeamTypes,
+              _functionalTeamTypes,
+            ) &&
+            (identical(other.flowOrder, flowOrder) ||
+                other.flowOrder == flowOrder) &&
+            (identical(other.isActive, isActive) ||
+                other.isActive == isActive));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    name,
+    code,
+    functionalTeamType,
+    const DeepCollectionEquality().hash(_functionalTeamTypes),
+    flowOrder,
+    isActive,
+  );
+
+  /// Create a copy of CreateDataTeam
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$CreateDataTeamImplCopyWith<_$CreateDataTeamImpl> get copyWith =>
+      __$$CreateDataTeamImplCopyWithImpl<_$CreateDataTeamImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$CreateDataTeamImplToJson(this);
+  }
+}
+
+abstract class _CreateDataTeam implements CreateDataTeam {
+  const factory _CreateDataTeam({
+    final String? id,
+    final String? name,
+    final String? code,
+    @JsonKey(name: 'functional_team_type') final String? functionalTeamType,
+    @JsonKey(name: 'functional_team_types')
+    final List<String>? functionalTeamTypes,
+    @JsonKey(name: 'flow_order') final int? flowOrder,
+    @JsonKey(name: 'is_active') final bool? isActive,
+  }) = _$CreateDataTeamImpl;
+
+  factory _CreateDataTeam.fromJson(Map<String, dynamic> json) =
+      _$CreateDataTeamImpl.fromJson;
+
+  @override
+  String? get id;
+  @override
+  String? get name;
+  @override
+  String? get code;
+  @override
+  @JsonKey(name: 'functional_team_type')
+  String? get functionalTeamType;
+  @override
+  @JsonKey(name: 'functional_team_types')
+  List<String>? get functionalTeamTypes;
+  @override
+  @JsonKey(name: 'flow_order')
+  int? get flowOrder;
+  @override
+  @JsonKey(name: 'is_active')
+  bool? get isActive;
+
+  /// Create a copy of CreateDataTeam
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$CreateDataTeamImplCopyWith<_$CreateDataTeamImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+CreateDataStageAssignment _$CreateDataStageAssignmentFromJson(
+  Map<String, dynamic> json,
+) {
+  return _CreateDataStageAssignment.fromJson(json);
+}
+
+/// @nodoc
+mixin _$CreateDataStageAssignment {
+  @JsonKey(name: 'stage_key')
+  String? get stageKey => throw _privateConstructorUsedError;
+  @JsonKey(name: 'stage_label')
+  String? get stageLabel => throw _privateConstructorUsedError;
+  @JsonKey(name: 'stage_order')
+  int? get stageOrder => throw _privateConstructorUsedError;
+  CreateDataTeam? get team => throw _privateConstructorUsedError;
+
+  /// Serializes this CreateDataStageAssignment to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of CreateDataStageAssignment
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $CreateDataStageAssignmentCopyWith<CreateDataStageAssignment> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $CreateDataStageAssignmentCopyWith<$Res> {
+  factory $CreateDataStageAssignmentCopyWith(
+    CreateDataStageAssignment value,
+    $Res Function(CreateDataStageAssignment) then,
+  ) = _$CreateDataStageAssignmentCopyWithImpl<$Res, CreateDataStageAssignment>;
+  @useResult
+  $Res call({
+    @JsonKey(name: 'stage_key') String? stageKey,
+    @JsonKey(name: 'stage_label') String? stageLabel,
+    @JsonKey(name: 'stage_order') int? stageOrder,
+    CreateDataTeam? team,
+  });
+
+  $CreateDataTeamCopyWith<$Res>? get team;
+}
+
+/// @nodoc
+class _$CreateDataStageAssignmentCopyWithImpl<
+  $Res,
+  $Val extends CreateDataStageAssignment
+>
+    implements $CreateDataStageAssignmentCopyWith<$Res> {
+  _$CreateDataStageAssignmentCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of CreateDataStageAssignment
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? stageKey = freezed,
+    Object? stageLabel = freezed,
+    Object? stageOrder = freezed,
+    Object? team = freezed,
+  }) {
+    return _then(
+      _value.copyWith(
+            stageKey: freezed == stageKey
+                ? _value.stageKey
+                : stageKey // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            stageLabel: freezed == stageLabel
+                ? _value.stageLabel
+                : stageLabel // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            stageOrder: freezed == stageOrder
+                ? _value.stageOrder
+                : stageOrder // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            team: freezed == team
+                ? _value.team
+                : team // ignore: cast_nullable_to_non_nullable
+                      as CreateDataTeam?,
+          )
+          as $Val,
+    );
+  }
+
+  /// Create a copy of CreateDataStageAssignment
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $CreateDataTeamCopyWith<$Res>? get team {
+    if (_value.team == null) {
+      return null;
+    }
+
+    return $CreateDataTeamCopyWith<$Res>(_value.team!, (value) {
+      return _then(_value.copyWith(team: value) as $Val);
+    });
+  }
+}
+
+/// @nodoc
+abstract class _$$CreateDataStageAssignmentImplCopyWith<$Res>
+    implements $CreateDataStageAssignmentCopyWith<$Res> {
+  factory _$$CreateDataStageAssignmentImplCopyWith(
+    _$CreateDataStageAssignmentImpl value,
+    $Res Function(_$CreateDataStageAssignmentImpl) then,
+  ) = __$$CreateDataStageAssignmentImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    @JsonKey(name: 'stage_key') String? stageKey,
+    @JsonKey(name: 'stage_label') String? stageLabel,
+    @JsonKey(name: 'stage_order') int? stageOrder,
+    CreateDataTeam? team,
+  });
+
+  @override
+  $CreateDataTeamCopyWith<$Res>? get team;
+}
+
+/// @nodoc
+class __$$CreateDataStageAssignmentImplCopyWithImpl<$Res>
+    extends
+        _$CreateDataStageAssignmentCopyWithImpl<
+          $Res,
+          _$CreateDataStageAssignmentImpl
+        >
+    implements _$$CreateDataStageAssignmentImplCopyWith<$Res> {
+  __$$CreateDataStageAssignmentImplCopyWithImpl(
+    _$CreateDataStageAssignmentImpl _value,
+    $Res Function(_$CreateDataStageAssignmentImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of CreateDataStageAssignment
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? stageKey = freezed,
+    Object? stageLabel = freezed,
+    Object? stageOrder = freezed,
+    Object? team = freezed,
+  }) {
+    return _then(
+      _$CreateDataStageAssignmentImpl(
+        stageKey: freezed == stageKey
+            ? _value.stageKey
+            : stageKey // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        stageLabel: freezed == stageLabel
+            ? _value.stageLabel
+            : stageLabel // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        stageOrder: freezed == stageOrder
+            ? _value.stageOrder
+            : stageOrder // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        team: freezed == team
+            ? _value.team
+            : team // ignore: cast_nullable_to_non_nullable
+                  as CreateDataTeam?,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$CreateDataStageAssignmentImpl implements _CreateDataStageAssignment {
+  const _$CreateDataStageAssignmentImpl({
+    @JsonKey(name: 'stage_key') this.stageKey,
+    @JsonKey(name: 'stage_label') this.stageLabel,
+    @JsonKey(name: 'stage_order') this.stageOrder,
+    this.team,
+  });
+
+  factory _$CreateDataStageAssignmentImpl.fromJson(Map<String, dynamic> json) =>
+      _$$CreateDataStageAssignmentImplFromJson(json);
+
+  @override
+  @JsonKey(name: 'stage_key')
+  final String? stageKey;
+  @override
+  @JsonKey(name: 'stage_label')
+  final String? stageLabel;
+  @override
+  @JsonKey(name: 'stage_order')
+  final int? stageOrder;
+  @override
+  final CreateDataTeam? team;
+
+  @override
+  String toString() {
+    return 'CreateDataStageAssignment(stageKey: $stageKey, stageLabel: $stageLabel, stageOrder: $stageOrder, team: $team)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CreateDataStageAssignmentImpl &&
+            (identical(other.stageKey, stageKey) ||
+                other.stageKey == stageKey) &&
+            (identical(other.stageLabel, stageLabel) ||
+                other.stageLabel == stageLabel) &&
+            (identical(other.stageOrder, stageOrder) ||
+                other.stageOrder == stageOrder) &&
+            (identical(other.team, team) || other.team == team));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, stageKey, stageLabel, stageOrder, team);
+
+  /// Create a copy of CreateDataStageAssignment
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$CreateDataStageAssignmentImplCopyWith<_$CreateDataStageAssignmentImpl>
+  get copyWith =>
+      __$$CreateDataStageAssignmentImplCopyWithImpl<
+        _$CreateDataStageAssignmentImpl
+      >(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$CreateDataStageAssignmentImplToJson(this);
+  }
+}
+
+abstract class _CreateDataStageAssignment implements CreateDataStageAssignment {
+  const factory _CreateDataStageAssignment({
+    @JsonKey(name: 'stage_key') final String? stageKey,
+    @JsonKey(name: 'stage_label') final String? stageLabel,
+    @JsonKey(name: 'stage_order') final int? stageOrder,
+    final CreateDataTeam? team,
+  }) = _$CreateDataStageAssignmentImpl;
+
+  factory _CreateDataStageAssignment.fromJson(Map<String, dynamic> json) =
+      _$CreateDataStageAssignmentImpl.fromJson;
+
+  @override
+  @JsonKey(name: 'stage_key')
+  String? get stageKey;
+  @override
+  @JsonKey(name: 'stage_label')
+  String? get stageLabel;
+  @override
+  @JsonKey(name: 'stage_order')
+  int? get stageOrder;
+  @override
+  CreateDataTeam? get team;
+
+  /// Create a copy of CreateDataStageAssignment
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$CreateDataStageAssignmentImplCopyWith<_$CreateDataStageAssignmentImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
 CreateDataTeamFlow _$CreateDataTeamFlowFromJson(Map<String, dynamic> json) {
   return _CreateDataTeamFlow.fromJson(json);
 }
@@ -614,6 +1205,10 @@ mixin _$CreateDataTeamFlow {
   String? get name => throw _privateConstructorUsedError;
   @JsonKey(name: 'functional_team_type')
   String? get functionalTeamType => throw _privateConstructorUsedError;
+  @JsonKey(name: 'stage_assignments')
+  List<CreateDataStageAssignment>? get stageAssignments =>
+      throw _privateConstructorUsedError;
+  List<CreateDataTeam>? get teams => throw _privateConstructorUsedError;
 
   /// Serializes this CreateDataTeamFlow to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -636,6 +1231,9 @@ abstract class $CreateDataTeamFlowCopyWith<$Res> {
     String? id,
     String? name,
     @JsonKey(name: 'functional_team_type') String? functionalTeamType,
+    @JsonKey(name: 'stage_assignments')
+    List<CreateDataStageAssignment>? stageAssignments,
+    List<CreateDataTeam>? teams,
   });
 }
 
@@ -657,6 +1255,8 @@ class _$CreateDataTeamFlowCopyWithImpl<$Res, $Val extends CreateDataTeamFlow>
     Object? id = freezed,
     Object? name = freezed,
     Object? functionalTeamType = freezed,
+    Object? stageAssignments = freezed,
+    Object? teams = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -672,6 +1272,14 @@ class _$CreateDataTeamFlowCopyWithImpl<$Res, $Val extends CreateDataTeamFlow>
                 ? _value.functionalTeamType
                 : functionalTeamType // ignore: cast_nullable_to_non_nullable
                       as String?,
+            stageAssignments: freezed == stageAssignments
+                ? _value.stageAssignments
+                : stageAssignments // ignore: cast_nullable_to_non_nullable
+                      as List<CreateDataStageAssignment>?,
+            teams: freezed == teams
+                ? _value.teams
+                : teams // ignore: cast_nullable_to_non_nullable
+                      as List<CreateDataTeam>?,
           )
           as $Val,
     );
@@ -691,6 +1299,9 @@ abstract class _$$CreateDataTeamFlowImplCopyWith<$Res>
     String? id,
     String? name,
     @JsonKey(name: 'functional_team_type') String? functionalTeamType,
+    @JsonKey(name: 'stage_assignments')
+    List<CreateDataStageAssignment>? stageAssignments,
+    List<CreateDataTeam>? teams,
   });
 }
 
@@ -711,6 +1322,8 @@ class __$$CreateDataTeamFlowImplCopyWithImpl<$Res>
     Object? id = freezed,
     Object? name = freezed,
     Object? functionalTeamType = freezed,
+    Object? stageAssignments = freezed,
+    Object? teams = freezed,
   }) {
     return _then(
       _$CreateDataTeamFlowImpl(
@@ -726,6 +1339,14 @@ class __$$CreateDataTeamFlowImplCopyWithImpl<$Res>
             ? _value.functionalTeamType
             : functionalTeamType // ignore: cast_nullable_to_non_nullable
                   as String?,
+        stageAssignments: freezed == stageAssignments
+            ? _value._stageAssignments
+            : stageAssignments // ignore: cast_nullable_to_non_nullable
+                  as List<CreateDataStageAssignment>?,
+        teams: freezed == teams
+            ? _value._teams
+            : teams // ignore: cast_nullable_to_non_nullable
+                  as List<CreateDataTeam>?,
       ),
     );
   }
@@ -738,7 +1359,11 @@ class _$CreateDataTeamFlowImpl implements _CreateDataTeamFlow {
     this.id,
     this.name,
     @JsonKey(name: 'functional_team_type') this.functionalTeamType,
-  });
+    @JsonKey(name: 'stage_assignments')
+    final List<CreateDataStageAssignment>? stageAssignments,
+    final List<CreateDataTeam>? teams,
+  }) : _stageAssignments = stageAssignments,
+       _teams = teams;
 
   factory _$CreateDataTeamFlowImpl.fromJson(Map<String, dynamic> json) =>
       _$$CreateDataTeamFlowImplFromJson(json);
@@ -750,10 +1375,31 @@ class _$CreateDataTeamFlowImpl implements _CreateDataTeamFlow {
   @override
   @JsonKey(name: 'functional_team_type')
   final String? functionalTeamType;
+  final List<CreateDataStageAssignment>? _stageAssignments;
+  @override
+  @JsonKey(name: 'stage_assignments')
+  List<CreateDataStageAssignment>? get stageAssignments {
+    final value = _stageAssignments;
+    if (value == null) return null;
+    if (_stageAssignments is EqualUnmodifiableListView)
+      return _stageAssignments;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<CreateDataTeam>? _teams;
+  @override
+  List<CreateDataTeam>? get teams {
+    final value = _teams;
+    if (value == null) return null;
+    if (_teams is EqualUnmodifiableListView) return _teams;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
 
   @override
   String toString() {
-    return 'CreateDataTeamFlow(id: $id, name: $name, functionalTeamType: $functionalTeamType)';
+    return 'CreateDataTeamFlow(id: $id, name: $name, functionalTeamType: $functionalTeamType, stageAssignments: $stageAssignments, teams: $teams)';
   }
 
   @override
@@ -764,12 +1410,24 @@ class _$CreateDataTeamFlowImpl implements _CreateDataTeamFlow {
             (identical(other.id, id) || other.id == id) &&
             (identical(other.name, name) || other.name == name) &&
             (identical(other.functionalTeamType, functionalTeamType) ||
-                other.functionalTeamType == functionalTeamType));
+                other.functionalTeamType == functionalTeamType) &&
+            const DeepCollectionEquality().equals(
+              other._stageAssignments,
+              _stageAssignments,
+            ) &&
+            const DeepCollectionEquality().equals(other._teams, _teams));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, id, name, functionalTeamType);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    name,
+    functionalTeamType,
+    const DeepCollectionEquality().hash(_stageAssignments),
+    const DeepCollectionEquality().hash(_teams),
+  );
 
   /// Create a copy of CreateDataTeamFlow
   /// with the given fields replaced by the non-null parameter values.
@@ -793,6 +1451,9 @@ abstract class _CreateDataTeamFlow implements CreateDataTeamFlow {
     final String? id,
     final String? name,
     @JsonKey(name: 'functional_team_type') final String? functionalTeamType,
+    @JsonKey(name: 'stage_assignments')
+    final List<CreateDataStageAssignment>? stageAssignments,
+    final List<CreateDataTeam>? teams,
   }) = _$CreateDataTeamFlowImpl;
 
   factory _CreateDataTeamFlow.fromJson(Map<String, dynamic> json) =
@@ -805,6 +1466,11 @@ abstract class _CreateDataTeamFlow implements CreateDataTeamFlow {
   @override
   @JsonKey(name: 'functional_team_type')
   String? get functionalTeamType;
+  @override
+  @JsonKey(name: 'stage_assignments')
+  List<CreateDataStageAssignment>? get stageAssignments;
+  @override
+  List<CreateDataTeam>? get teams;
 
   /// Create a copy of CreateDataTeamFlow
   /// with the given fields replaced by the non-null parameter values.
@@ -828,6 +1494,8 @@ mixin _$CreateData {
   List<CreateDataFatNode>? get fatNodes => throw _privateConstructorUsedError;
   @JsonKey(name: 'team_flows')
   List<CreateDataTeamFlow>? get teamFlows => throw _privateConstructorUsedError;
+  @JsonKey(name: 'default_team_flow_id')
+  String? get defaultTeamFlowId => throw _privateConstructorUsedError;
 
   /// Serializes this CreateData to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -851,6 +1519,7 @@ abstract class $CreateDataCopyWith<$Res> {
     List<CreateDataPlan>? plans,
     @JsonKey(name: 'fat_nodes') List<CreateDataFatNode>? fatNodes,
     @JsonKey(name: 'team_flows') List<CreateDataTeamFlow>? teamFlows,
+    @JsonKey(name: 'default_team_flow_id') String? defaultTeamFlowId,
   });
 }
 
@@ -873,6 +1542,7 @@ class _$CreateDataCopyWithImpl<$Res, $Val extends CreateData>
     Object? plans = freezed,
     Object? fatNodes = freezed,
     Object? teamFlows = freezed,
+    Object? defaultTeamFlowId = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -892,6 +1562,10 @@ class _$CreateDataCopyWithImpl<$Res, $Val extends CreateData>
                 ? _value.teamFlows
                 : teamFlows // ignore: cast_nullable_to_non_nullable
                       as List<CreateDataTeamFlow>?,
+            defaultTeamFlowId: freezed == defaultTeamFlowId
+                ? _value.defaultTeamFlowId
+                : defaultTeamFlowId // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -912,6 +1586,7 @@ abstract class _$$CreateDataImplCopyWith<$Res>
     List<CreateDataPlan>? plans,
     @JsonKey(name: 'fat_nodes') List<CreateDataFatNode>? fatNodes,
     @JsonKey(name: 'team_flows') List<CreateDataTeamFlow>? teamFlows,
+    @JsonKey(name: 'default_team_flow_id') String? defaultTeamFlowId,
   });
 }
 
@@ -933,6 +1608,7 @@ class __$$CreateDataImplCopyWithImpl<$Res>
     Object? plans = freezed,
     Object? fatNodes = freezed,
     Object? teamFlows = freezed,
+    Object? defaultTeamFlowId = freezed,
   }) {
     return _then(
       _$CreateDataImpl(
@@ -952,6 +1628,10 @@ class __$$CreateDataImplCopyWithImpl<$Res>
             ? _value._teamFlows
             : teamFlows // ignore: cast_nullable_to_non_nullable
                   as List<CreateDataTeamFlow>?,
+        defaultTeamFlowId: freezed == defaultTeamFlowId
+            ? _value.defaultTeamFlowId
+            : defaultTeamFlowId // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -966,6 +1646,7 @@ class _$CreateDataImpl implements _CreateData {
     final List<CreateDataPlan>? plans,
     @JsonKey(name: 'fat_nodes') final List<CreateDataFatNode>? fatNodes,
     @JsonKey(name: 'team_flows') final List<CreateDataTeamFlow>? teamFlows,
+    @JsonKey(name: 'default_team_flow_id') this.defaultTeamFlowId,
   }) : _customerTypes = customerTypes,
        _plans = plans,
        _fatNodes = fatNodes,
@@ -1018,8 +1699,12 @@ class _$CreateDataImpl implements _CreateData {
   }
 
   @override
+  @JsonKey(name: 'default_team_flow_id')
+  final String? defaultTeamFlowId;
+
+  @override
   String toString() {
-    return 'CreateData(customerTypes: $customerTypes, plans: $plans, fatNodes: $fatNodes, teamFlows: $teamFlows)';
+    return 'CreateData(customerTypes: $customerTypes, plans: $plans, fatNodes: $fatNodes, teamFlows: $teamFlows, defaultTeamFlowId: $defaultTeamFlowId)';
   }
 
   @override
@@ -1036,7 +1721,9 @@ class _$CreateDataImpl implements _CreateData {
             const DeepCollectionEquality().equals(
               other._teamFlows,
               _teamFlows,
-            ));
+            ) &&
+            (identical(other.defaultTeamFlowId, defaultTeamFlowId) ||
+                other.defaultTeamFlowId == defaultTeamFlowId));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1047,6 +1734,7 @@ class _$CreateDataImpl implements _CreateData {
     const DeepCollectionEquality().hash(_plans),
     const DeepCollectionEquality().hash(_fatNodes),
     const DeepCollectionEquality().hash(_teamFlows),
+    defaultTeamFlowId,
   );
 
   /// Create a copy of CreateData
@@ -1070,6 +1758,7 @@ abstract class _CreateData implements CreateData {
     final List<CreateDataPlan>? plans,
     @JsonKey(name: 'fat_nodes') final List<CreateDataFatNode>? fatNodes,
     @JsonKey(name: 'team_flows') final List<CreateDataTeamFlow>? teamFlows,
+    @JsonKey(name: 'default_team_flow_id') final String? defaultTeamFlowId,
   }) = _$CreateDataImpl;
 
   factory _CreateData.fromJson(Map<String, dynamic> json) =
@@ -1086,6 +1775,9 @@ abstract class _CreateData implements CreateData {
   @override
   @JsonKey(name: 'team_flows')
   List<CreateDataTeamFlow>? get teamFlows;
+  @override
+  @JsonKey(name: 'default_team_flow_id')
+  String? get defaultTeamFlowId;
 
   /// Create a copy of CreateData
   /// with the given fields replaced by the non-null parameter values.

@@ -260,6 +260,40 @@ class _CreateRequestFormState extends ConsumerState<_CreateRequestForm> {
         ? state.teamFlowId
         : null;
 
+    // Backend default (D17): `default_team_flow_id` from create-data is the
+    // initial selection when it names a flow in this scope's list. Applied
+    // post-frame, like the customer-type fallback above, so the submitted
+    // value always matches what the dropdown shows.
+    //
+    // The selection is re-applied on every fresh create-data response, so a
+    // sub-branch change never keeps a stale pre-selection from the old
+    // scope: if the current selection is not in the new scope's list it is
+    // replaced by the new scope's default (or cleared when there is none).
+    // A manual pick that is still in the list is never overridden.
+    final defaultFlowId = data?.defaultTeamFlowId;
+    final defaultInList =
+        defaultFlowId != null &&
+        defaultFlowId.isNotEmpty &&
+        teamFlows.any((f) => f.id == defaultFlowId);
+    if (state.teamFlowId != null &&
+        !teamFlows.any((f) => f.id == state.teamFlowId)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref
+              .read(createRequestControllerProvider.notifier)
+              .selectTeamFlow(defaultInList ? defaultFlowId : null);
+        }
+      });
+    } else if (state.teamFlowId == null && defaultInList) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref
+              .read(createRequestControllerProvider.notifier)
+              .selectTeamFlow(defaultFlowId);
+        }
+      });
+    }
+
     // SingleChildScrollView + Column (not ListView): the form's children
     // change shape across states (dropdowns, custom-price field, error
     // banner), and a ListView here trips the sliver child-order assertion.
@@ -369,6 +403,19 @@ class _CreateRequestFormState extends ConsumerState<_CreateRequestForm> {
             onChanged: (value) => ref
                 .read(createRequestControllerProvider.notifier)
                 .selectTeamFlow(value),
+          ),
+          const SizedBox(height: FieldOpsDesignTokens.spaceMd),
+        ] else ...[
+          // D17: no flow is configured for this scope — say so plainly
+          // instead of hiding the section. The rest of the form still
+          // works; the request goes in without a flow and stays pending
+          // for flow assignment (backend rule), so nothing is blocked.
+          _FieldLabel('Team flow'),
+          Text(
+            'No team flow is configured for this sub-branch. The request will stay pending for flow assignment.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: FieldOpsDesignTokens.spaceMd),
         ],
