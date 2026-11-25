@@ -360,7 +360,14 @@ class _PaginatedRequestListScreenState extends ConsumerState<PaginatedRequestLis
                       request: request,
                       onTap: widget.detailRouteFor == null
                           ? null
-                          : () => context.push(widget.detailRouteFor!(request.id)),
+                          // D18: the detail screen follows the request's
+                          // stage, not the viewer's session team.
+                          : () => context.push(
+                                Routes.detailRouteForRequest(
+                                  request,
+                                  widget.detailRouteFor!,
+                                ),
+                              ),
                     );
                   },
                 ),

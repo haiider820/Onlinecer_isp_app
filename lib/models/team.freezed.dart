@@ -26,6 +26,8 @@ mixin _$Team {
   String? get code => throw _privateConstructorUsedError;
   @JsonKey(name: 'functional_team_type')
   String get functionalTeamType => throw _privateConstructorUsedError;
+  @JsonKey(name: 'functional_team_types')
+  List<String>? get functionalTeamTypes => throw _privateConstructorUsedError;
   @JsonKey(name: 'flow_order')
   int? get flowOrder => throw _privateConstructorUsedError;
   @JsonKey(name: 'is_active')
@@ -50,6 +52,7 @@ abstract class $TeamCopyWith<$Res> {
     String name,
     String? code,
     @JsonKey(name: 'functional_team_type') String functionalTeamType,
+    @JsonKey(name: 'functional_team_types') List<String>? functionalTeamTypes,
     @JsonKey(name: 'flow_order') int? flowOrder,
     @JsonKey(name: 'is_active') bool? isActive,
   });
@@ -74,6 +77,7 @@ class _$TeamCopyWithImpl<$Res, $Val extends Team>
     Object? name = null,
     Object? code = freezed,
     Object? functionalTeamType = null,
+    Object? functionalTeamTypes = freezed,
     Object? flowOrder = freezed,
     Object? isActive = freezed,
   }) {
@@ -95,6 +99,10 @@ class _$TeamCopyWithImpl<$Res, $Val extends Team>
                 ? _value.functionalTeamType
                 : functionalTeamType // ignore: cast_nullable_to_non_nullable
                       as String,
+            functionalTeamTypes: freezed == functionalTeamTypes
+                ? _value.functionalTeamTypes
+                : functionalTeamTypes // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
             flowOrder: freezed == flowOrder
                 ? _value.flowOrder
                 : flowOrder // ignore: cast_nullable_to_non_nullable
@@ -122,6 +130,7 @@ abstract class _$$TeamImplCopyWith<$Res> implements $TeamCopyWith<$Res> {
     String name,
     String? code,
     @JsonKey(name: 'functional_team_type') String functionalTeamType,
+    @JsonKey(name: 'functional_team_types') List<String>? functionalTeamTypes,
     @JsonKey(name: 'flow_order') int? flowOrder,
     @JsonKey(name: 'is_active') bool? isActive,
   });
@@ -143,6 +152,7 @@ class __$$TeamImplCopyWithImpl<$Res>
     Object? name = null,
     Object? code = freezed,
     Object? functionalTeamType = null,
+    Object? functionalTeamTypes = freezed,
     Object? flowOrder = freezed,
     Object? isActive = freezed,
   }) {
@@ -164,6 +174,10 @@ class __$$TeamImplCopyWithImpl<$Res>
             ? _value.functionalTeamType
             : functionalTeamType // ignore: cast_nullable_to_non_nullable
                   as String,
+        functionalTeamTypes: freezed == functionalTeamTypes
+            ? _value._functionalTeamTypes
+            : functionalTeamTypes // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
         flowOrder: freezed == flowOrder
             ? _value.flowOrder
             : flowOrder // ignore: cast_nullable_to_non_nullable
@@ -185,9 +199,11 @@ class _$TeamImpl implements _Team {
     required this.name,
     this.code,
     @JsonKey(name: 'functional_team_type') required this.functionalTeamType,
+    @JsonKey(name: 'functional_team_types')
+    final List<String>? functionalTeamTypes,
     @JsonKey(name: 'flow_order') this.flowOrder,
     @JsonKey(name: 'is_active') this.isActive,
-  });
+  }) : _functionalTeamTypes = functionalTeamTypes;
 
   factory _$TeamImpl.fromJson(Map<String, dynamic> json) =>
       _$$TeamImplFromJson(json);
@@ -201,6 +217,18 @@ class _$TeamImpl implements _Team {
   @override
   @JsonKey(name: 'functional_team_type')
   final String functionalTeamType;
+  final List<String>? _functionalTeamTypes;
+  @override
+  @JsonKey(name: 'functional_team_types')
+  List<String>? get functionalTeamTypes {
+    final value = _functionalTeamTypes;
+    if (value == null) return null;
+    if (_functionalTeamTypes is EqualUnmodifiableListView)
+      return _functionalTeamTypes;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   @JsonKey(name: 'flow_order')
   final int? flowOrder;
@@ -210,7 +238,7 @@ class _$TeamImpl implements _Team {
 
   @override
   String toString() {
-    return 'Team(id: $id, name: $name, code: $code, functionalTeamType: $functionalTeamType, flowOrder: $flowOrder, isActive: $isActive)';
+    return 'Team(id: $id, name: $name, code: $code, functionalTeamType: $functionalTeamType, functionalTeamTypes: $functionalTeamTypes, flowOrder: $flowOrder, isActive: $isActive)';
   }
 
   @override
@@ -223,6 +251,10 @@ class _$TeamImpl implements _Team {
             (identical(other.code, code) || other.code == code) &&
             (identical(other.functionalTeamType, functionalTeamType) ||
                 other.functionalTeamType == functionalTeamType) &&
+            const DeepCollectionEquality().equals(
+              other._functionalTeamTypes,
+              _functionalTeamTypes,
+            ) &&
             (identical(other.flowOrder, flowOrder) ||
                 other.flowOrder == flowOrder) &&
             (identical(other.isActive, isActive) ||
@@ -237,6 +269,7 @@ class _$TeamImpl implements _Team {
     name,
     code,
     functionalTeamType,
+    const DeepCollectionEquality().hash(_functionalTeamTypes),
     flowOrder,
     isActive,
   );
@@ -262,6 +295,8 @@ abstract class _Team implements Team {
     final String? code,
     @JsonKey(name: 'functional_team_type')
     required final String functionalTeamType,
+    @JsonKey(name: 'functional_team_types')
+    final List<String>? functionalTeamTypes,
     @JsonKey(name: 'flow_order') final int? flowOrder,
     @JsonKey(name: 'is_active') final bool? isActive,
   }) = _$TeamImpl;
@@ -277,6 +312,9 @@ abstract class _Team implements Team {
   @override
   @JsonKey(name: 'functional_team_type')
   String get functionalTeamType;
+  @override
+  @JsonKey(name: 'functional_team_types')
+  List<String>? get functionalTeamTypes;
   @override
   @JsonKey(name: 'flow_order')
   int? get flowOrder;

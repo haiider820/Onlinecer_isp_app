@@ -440,7 +440,12 @@ class _DashboardBody extends StatelessWidget {
                 request: request,
                 onTap: detailRouteFor == null
                     ? null
-                    : () => context.push(detailRouteFor!(request.id)),
+                    // D18: the detail screen follows the request's stage,
+                    // not the viewer's session team, so a later-stage
+                    // request opens its own stage's detail screen.
+                    : () => context.push(
+                          Routes.detailRouteForRequest(request, detailRouteFor!),
+                        ),
               ),
 
           // ── View All button ──

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../network/api_exceptions.dart';
@@ -20,6 +22,7 @@ class SecureStorage {
   static const _kEmployeeName = 'employee.name';
   static const _kEmployeeEmail = 'employee.email';
   static const _kTeamType = 'employee.functional_team_type';
+  static const _kTeamTypes = 'employee.functional_team_types';
   static const _kTeamName = 'employee.team_name';
   static const _kBranchName = 'employee.branch_name';
   static const _kSubBranchId = 'employee.sub_branch_id';
@@ -47,6 +50,7 @@ class SecureStorage {
     _kEmployeeName,
     _kEmployeeEmail,
     _kTeamType,
+    _kTeamTypes,
     _kTeamName,
     _kBranchName,
     _kSubBranchId,
@@ -62,6 +66,17 @@ class SecureStorage {
     _kScannerAccountName,
   ];
 
+  /// Persists the `functional_team_types` list (D18) as JSON. A `null` list
+  /// clears any stale value from a previous login, mirroring the
+  /// branch/sub-branch handling.
+  Future<void> _writeTeamTypes(List<String>? types) async {
+    if (types == null) {
+      await _storage.delete(key: _kTeamTypes);
+    } else {
+      await _storage.write(key: _kTeamTypes, value: jsonEncode(types));
+    }
+  }
+
   // Session
   Future<void> saveSession({
     required String token,
@@ -71,6 +86,7 @@ class SecureStorage {
     required String employeeName,
     required String? employeeEmail,
     required String functionalTeamType,
+    List<String>? functionalTeamTypes,
     required String? teamName,
     String? branchName,
     String? subBranchId,
@@ -83,6 +99,7 @@ class SecureStorage {
     await _storage.write(key: _kEmployeeName, value: employeeName);
     if (employeeEmail != null) await _storage.write(key: _kEmployeeEmail, value: employeeEmail);
     await _storage.write(key: _kTeamType, value: functionalTeamType);
+    await _writeTeamTypes(functionalTeamTypes);
     if (teamName != null) await _storage.write(key: _kTeamName, value: teamName);
     // A null branch/sub-branch clears any stale value from a previous login.
     if (branchName == null) {
@@ -108,6 +125,22 @@ class SecureStorage {
   Future<String?> getEmployeeId() => _storage.read(key: _kEmployeeId);
   Future<String?> getEmployeeName() => _storage.read(key: _kEmployeeName);
   Future<String?> getFunctionalTeamType() => _storage.read(key: _kTeamType);
+
+  /// The stored `functional_team_types` list (D18), JSON-encoded by
+  /// [_writeTeamTypes]. `null` when nothing was ever stored (legacy
+  /// sessions) or the stored value does not decode to a list of strings —
+  /// callers must treat `null` as "unknown", never as "no stages".
+  Future<List<String>?> getFunctionalTeamTypes() async {
+    final raw = await _storage.read(key: _kTeamTypes);
+    if (raw == null) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return null;
+      return decoded.whereType<String>().toList();
+    } catch (_) {
+      return null;
+    }
+  }
   Future<String?> getTeamName() => _storage.read(key: _kTeamName);
   Future<String?> getBranchName() => _storage.read(key: _kBranchName);
   Future<String?> getSubBranchId() => _storage.read(key: _kSubBranchId);
@@ -215,6 +248,7 @@ class SecureStorage {
     required String employeeName,
     required String? employeeEmail,
     required String functionalTeamType,
+    List<String>? functionalTeamTypes,
     required String? teamName,
     String? branchName,
     String? subBranchId,
@@ -228,6 +262,7 @@ class SecureStorage {
       await _storage.write(key: _kEmployeeEmail, value: employeeEmail);
     }
     await _storage.write(key: _kTeamType, value: functionalTeamType);
+    await _writeTeamTypes(functionalTeamTypes);
     if (teamName == null) {
       await _storage.delete(key: _kTeamName);
     } else {

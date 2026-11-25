@@ -11,6 +11,9 @@ _$TeamImpl _$$TeamImplFromJson(Map<String, dynamic> json) => _$TeamImpl(
   name: json['name'] as String,
   code: json['code'] as String?,
   functionalTeamType: json['functional_team_type'] as String,
+  functionalTeamTypes: (json['functional_team_types'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
   flowOrder: (json['flow_order'] as num?)?.toInt(),
   isActive: json['is_active'] as bool?,
 );
@@ -21,6 +24,7 @@ Map<String, dynamic> _$$TeamImplToJson(_$TeamImpl instance) =>
       'name': instance.name,
       'code': instance.code,
       'functional_team_type': instance.functionalTeamType,
+      'functional_team_types': instance.functionalTeamTypes,
       'flow_order': instance.flowOrder,
       'is_active': instance.isActive,
     };

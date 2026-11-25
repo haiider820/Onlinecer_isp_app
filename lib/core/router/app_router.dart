@@ -24,9 +24,11 @@ import '../../features/tickets/presentation/ticket_list_screen.dart';
 import '../../features/tickets/presentation/ticket_detail_screen.dart';
 import '../../features/verification/presentation/verification_list_screen.dart';
 import '../../features/verification/presentation/verification_request_detail_screen.dart';
+import '../constants/app_constants.dart';
+import '../storage/secure_storage.dart';
+import '../../models/connection_request.dart';
 import 'functional_team.dart';
 import 'session_team_guard.dart';
-import '../storage/secure_storage.dart';
 
 /// Route names so navigation can reference stable identifiers.
 abstract final class Routes {
@@ -102,6 +104,39 @@ abstract final class Routes {
 
   /// Concrete route-planning path for a given request id.
   static String surveyRouteFor(String id) => '/survey/requests/$id/route';
+
+  /// Chooses the detail route for a request from its backend `status`
+  /// (D18) — not from the viewer's session team.
+  ///
+  /// A team can now own several stages at once, so a request's current stage
+  /// may be ahead of the viewer's session team (e.g. a survey-session user
+  /// tapping an `installation_assigned` request). The list payload carries
+  /// `status` but no `allowed_actions`, so the status is the routing signal;
+  /// it matches the backend's own status → allowed_action map
+  /// (`survey_assigned → complete_survey`,
+  /// `installation_assigned → complete_installation`, and so on for every
+  /// stage). The detail screens themselves still gate their buttons on
+  /// `allowed_actions` — this only picks which screen opens.
+  ///
+  /// An unknown or unmapped status falls back to [fallbackRouteFor] (the
+  /// session team's detail route), so a tap can never go dead or crash on a
+  /// status this build does not know yet.
+  static String detailRouteForRequest(
+    ConnectionRequest request,
+    String Function(String requestId) fallbackRouteFor,
+  ) {
+    return switch (request.status) {
+      ConnectionStatus.surveyAssigned => surveyDetailFor(request.id),
+      ConnectionStatus.surveyReview => surveyDetailFor(request.id),
+      ConnectionStatus.installationAssigned =>
+        installationDetailFor(request.id),
+      ConnectionStatus.splicingAssigned => splicingDetailFor(request.id),
+      ConnectionStatus.verificationAssigned =>
+        verificationDetailFor(request.id),
+      ConnectionStatus.closingAssigned => closingDetailFor(request.id),
+      _ => fallbackRouteFor(request.id),
+    };
+  }
 }
 
 /// Builds the app's [GoRouter].
@@ -115,7 +150,10 @@ abstract final class Routes {
 /// secure storage and routes to [`DashboardShell`], which itself dispatches to
 /// the team's dashboard. Every team-scoped sub-route is gated by
 /// [SessionTeamGuard] against that same session value, so a Verification or
-/// Closing employee can never land on another team's list or detail screen.
+/// Closing employee can never land on another team's list screen. Detail
+/// routes are stage-aware (D18): a user whose team owns several stages may
+/// open a later stage's detail screen — the guard checks the team's
+/// `functional_team_types` there instead of the single session team.
 GoRouter buildAppRouter({required SecureStorage storage}) {
   return GoRouter(
     initialLocation: Routes.boot,
@@ -215,6 +253,7 @@ GoRouter buildAppRouter({required SecureStorage storage}) {
         path: Routes.verificationDetail,
         builder: (context, state) => SessionTeamGuard(
           expectedTeam: FunctionalTeamType.connectionVerification,
+          stageAware: true,
           child: VerificationRequestDetailScreen(
             requestId: state.pathParameters['id'] ?? '',
           ),
@@ -231,6 +270,7 @@ GoRouter buildAppRouter({required SecureStorage storage}) {
         path: Routes.closingDetail,
         builder: (context, state) => SessionTeamGuard(
           expectedTeam: FunctionalTeamType.closing,
+          stageAware: true,
           child: ClosingRequestDetailScreen(
             requestId: state.pathParameters['id'] ?? '',
           ),
@@ -247,6 +287,7 @@ GoRouter buildAppRouter({required SecureStorage storage}) {
         path: Routes.surveyDetail,
         builder: (context, state) => SessionTeamGuard(
           expectedTeam: FunctionalTeamType.survey,
+          stageAware: true,
           child: SurveyRequestDetailScreen(
             requestId: state.pathParameters['id'] ?? '',
           ),
@@ -291,17 +332,21 @@ GoRouter buildAppRouter({required SecureStorage storage}) {
         path: Routes.installationDetail,
         builder: (context, state) => SessionTeamGuard(
           expectedTeam: FunctionalTeamType.installation,
+          stageAware: true,
           child: InstallationRequestDetailScreen(
             requestId: state.pathParameters['id'] ?? '',
           ),
         ),
       ),
-      // ONU authorization (ISPFINAL Phases E–F). Installation-team only,
-      // matching the installation detail guard above.
+      // ONU authorization (ISPFINAL Phases E–F). Stage-aware like the
+      // installation detail guard above: these screens are reached from
+      // the installation detail's "Authorize ONU" button, so a multi-stage
+      // user admitted to that detail screen must also reach them.
       GoRoute(
         path: Routes.oltList,
         builder: (context, state) => SessionTeamGuard(
           expectedTeam: FunctionalTeamType.installation,
+          stageAware: true,
           child: OltListScreen(
             requestId: state.pathParameters['id'] ?? '',
           ),
@@ -311,6 +356,7 @@ GoRouter buildAppRouter({required SecureStorage storage}) {
         path: Routes.waitingOnus,
         builder: (context, state) => SessionTeamGuard(
           expectedTeam: FunctionalTeamType.installation,
+          stageAware: true,
           child: WaitingOnuListScreen(
             requestId: state.pathParameters['id'] ?? '',
             oltId: state.pathParameters['oltId'] ?? '',
@@ -321,6 +367,7 @@ GoRouter buildAppRouter({required SecureStorage storage}) {
         path: Routes.authorizeOnu,
         builder: (context, state) => SessionTeamGuard(
           expectedTeam: FunctionalTeamType.installation,
+          stageAware: true,
           child: AuthorizeOnuScreen(
             requestId: state.pathParameters['id'] ?? '',
             oltId: state.pathParameters['oltId'] ?? '',
@@ -332,6 +379,7 @@ GoRouter buildAppRouter({required SecureStorage storage}) {
         path: Routes.authorizeOnuSerial,
         builder: (context, state) => SessionTeamGuard(
           expectedTeam: FunctionalTeamType.installation,
+          stageAware: true,
           child: AuthorizeOnuScreen(
             requestId: state.pathParameters['id'] ?? '',
             oltId: state.pathParameters['oltId'] ?? '',
@@ -349,6 +397,7 @@ GoRouter buildAppRouter({required SecureStorage storage}) {
         path: Routes.splicingDetail,
         builder: (context, state) => SessionTeamGuard(
           expectedTeam: FunctionalTeamType.fiberSplicing,
+          stageAware: true,
           child: SplicingRequestDetailScreen(
             requestId: state.pathParameters['id'] ?? '',
           ),

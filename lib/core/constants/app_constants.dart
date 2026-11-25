@@ -96,12 +96,21 @@ abstract final class Endpoints {
 
 /// Backend status strings that drive per-team request queues. Each team's list
 /// endpoint filters the connection-request queue to the statuses it owns.
+/// The status → allowed_action map (backend reply, API report §13) is:
+/// `survey_assigned → complete_survey`, `survey_review → review_survey`,
+/// `installation_assigned → complete_installation`,
+/// `splicing_assigned → complete_splicing`,
+/// `verification_assigned → complete_verification`,
+/// `closing_assigned → complete_closing`, anything else → no action.
 abstract final class ConnectionStatus {
   ConnectionStatus._();
 
   static const String surveyAssigned = 'survey_assigned';
+  static const String surveyReview = 'survey_review';
   static const String installationAssigned = 'installation_assigned';
   static const String splicingAssigned = 'splicing_assigned';
+  static const String verificationAssigned = 'verification_assigned';
+  static const String closingAssigned = 'closing_assigned';
 }
 
 /// Backend wire values for `olt_device_ownership` on complete-installation.

@@ -18,6 +18,22 @@ final functionalTeamTypeProvider = FutureProvider.autoDispose<FunctionalTeamType
   return FunctionalTeamType.fromWire(raw);
 });
 
+/// Exposes the employee's `functional_team_types` list from secure storage
+/// (D18): every stage the employee's team owns, parsed into typed values.
+/// Unknown wire values are dropped. An empty list means nothing was stored
+/// (legacy sessions, or a backend that omits the field) — callers must
+/// treat it as "unknown", never as "no stages", and fall back to the single
+/// [functionalTeamTypeProvider] value.
+final functionalTeamTypesProvider =
+    FutureProvider.autoDispose<List<FunctionalTeamType>>((ref) async {
+  final raw = await ref.watch(secureStorageProvider).getFunctionalTeamTypes();
+  if (raw == null) return const <FunctionalTeamType>[];
+  return raw
+      .map(FunctionalTeamType.fromWire)
+      .whereType<FunctionalTeamType>()
+      .toList();
+});
+
 /// Route-level dispatcher: after login, shows the dashboard for the employee's
 /// team. The dispatch is a single exhaustive switch over [FunctionalTeamType]
 /// through [TeamModule] — there is no fallback arm, so every known team maps to
