@@ -118,6 +118,22 @@ class ApiClient {
     return _asMap(response);
   }
 
+  /// Downloads raw bytes (e.g. a document file) with the same auth +
+  /// error mapping as every other call. The URL may be absolute (used
+  /// as-is, e.g. the exact `data.documents` URL from guide §21) or
+  /// relative (resolved against [AppConstants.baseUrl]).
+  Future<List<int>> downloadBytes(String url) async {
+    final response = await _guard(
+      () => _dio.get<List<int>>(
+        url,
+        options: Options(responseType: ResponseType.bytes),
+      ),
+    );
+    final data = response.data;
+    if (data is List<int>) return data;
+    throw const ServerFromException();
+  }
+
   Future<Response<Object?>> _guard(Future<Response<Object?>> Function() send) async {
     try {
       return await send();

@@ -128,6 +128,12 @@ abstract final class Routes {
     return switch (request.status) {
       ConnectionStatus.surveyAssigned => surveyDetailFor(request.id),
       ConnectionStatus.surveyReview => surveyDetailFor(request.id),
+      // Guide §8 survey-lifecycle statuses: no action, read-only survey
+      // detail (inventory approval is web-only). The survey detail screen
+      // offers no action button when `allowed_actions` is empty (D19).
+      ConnectionStatus.inventoryPending => surveyDetailFor(request.id),
+      ConnectionStatus.surveyNotFeasible => surveyDetailFor(request.id),
+      ConnectionStatus.surveyCompleted => surveyDetailFor(request.id),
       ConnectionStatus.installationAssigned =>
         installationDetailFor(request.id),
       ConnectionStatus.splicingAssigned => splicingDetailFor(request.id),

@@ -6,6 +6,7 @@ import '../../../core/network/api_exceptions.dart';
 import '../../../core/router/app_router.dart';
 import '../../../models/connection_request.dart';
 import '../../../models/direct_olt.dart';
+import '../../../models/olt_profiles.dart';
 import '../../../models/waiting_onu.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../../shared/widgets/status_badge.dart';
@@ -13,6 +14,74 @@ import '../../lookups/presentation/sub_branch_providers.dart';
 import '../../survey/presentation/connection_request_providers.dart';
 import 'authorize_onu_providers.dart';
 import 'olt_providers.dart';
+
+/// Validator for the authorize description (guide §16: max 64 chars).
+/// The backend 422s a longer description, so a pre-filled customer name
+/// longer than 64 must be trimmed by the technician before submit — the
+/// validator flags it instead of letting the POST fail.
+String? validateAuthorizeDescription(String? value) {
+  if (value == null || value.trim().isEmpty) {
+    return 'Description is required.';
+  }
+  if (value.trim().length > 64) {
+    return 'Description must be 64 characters or fewer.';
+  }
+  return null;
+}
+
+/// Dropdown items for a profile list, plus the current value as an extra
+/// item when it is not in the list (e.g. a preset value the profiles
+/// endpoint does not return). A `DropdownButtonFormField` value must always
+/// match one of its items, so the pre-filled value can never crash the
+/// dropdown. Pure functions, unit-tested.
+List<DropdownMenuItem<String>> profileDropdownItems(
+  List<OltProfileOption> options,
+  String? currentValue,
+) {
+  final items = [
+    for (final option in options)
+      DropdownMenuItem(
+        value: option.value,
+        child: Text(option.label, overflow: TextOverflow.ellipsis),
+      ),
+  ];
+  if (currentValue != null &&
+      currentValue.isNotEmpty &&
+      !options.any((o) => o.value == currentValue)) {
+    items.add(
+      DropdownMenuItem(
+        value: currentValue,
+        child: Text(currentValue, overflow: TextOverflow.ellipsis),
+      ),
+    );
+  }
+  return items;
+}
+
+/// Same rule for VLANs: both the VLAN and User VLAN dropdowns use the same
+/// `vlans` array with independent selections (guide §15).
+List<DropdownMenuItem<int>> vlanDropdownItems(
+  List<OltVlanOption> options,
+  int? currentValue,
+) {
+  final items = [
+    for (final option in options)
+      DropdownMenuItem(
+        value: option.value,
+        child: Text(option.label, overflow: TextOverflow.ellipsis),
+      ),
+  ];
+  if (currentValue != null &&
+      !options.any((o) => o.value == currentValue)) {
+    items.add(
+      DropdownMenuItem(
+        value: currentValue,
+        child: Text('VLAN $currentValue', overflow: TextOverflow.ellipsis),
+      ),
+    );
+  }
+  return items;
+}
 
 /// Authorize one ONU (ISPFINAL §9–§10).
 ///
@@ -256,6 +325,10 @@ class _AuthorizeBody extends ConsumerWidget {
     final showForm = phase == AuthorizePhase.idle;
     // Local copy so the null check below promotes the type.
     final discoveredOnu = onu;
+    // Profiles for this OLT (guide §15). Loading/error/empty all fall back
+    // to today's free-text fields — the authorize flow must never break
+    // because the profiles endpoint is unavailable.
+    final profiles = ref.watch(oltProfilesProvider(olt.id)).valueOrNull;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -309,58 +382,51 @@ class _AuthorizeBody extends ConsumerWidget {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: description,
+                  maxLength: 64,
                   decoration: const InputDecoration(
                     labelText: 'Description',
+                    helperText: 'Max 64 characters',
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Description is required.'
-                      : null,
+                  validator: validateAuthorizeDescription,
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
+                _profileField(
+                  profiles: profiles,
+                  options: profiles?.lineProfiles,
                   controller: lineProfile,
-                  decoration: InputDecoration(
-                    labelText: presetReady
-                        ? 'Line profile (from preset)'
-                        : 'Line profile',
-                  ),
-                  validator: (v) => !presetReady &&
-                          (v == null || v.trim().isEmpty)
-                      ? 'Line profile is required — this OLT has no saved preset.'
-                      : null,
+                  label: presetReady
+                      ? 'Line profile (from preset)'
+                      : 'Line profile',
+                  requiredMessage: 'Line profile is required — this OLT has no saved preset.',
+                  presetReady: presetReady,
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
+                _profileField(
+                  profiles: profiles,
+                  options: profiles?.serviceProfiles,
                   controller: serviceProfile,
-                  decoration: InputDecoration(
-                    labelText: presetReady
-                        ? 'Service profile (from preset)'
-                        : 'Service profile',
-                  ),
-                  validator: (v) => !presetReady &&
-                          (v == null || v.trim().isEmpty)
-                      ? 'Service profile is required — this OLT has no saved preset.'
-                      : null,
+                  label: presetReady
+                      ? 'Service profile (from preset)'
+                      : 'Service profile',
+                  requiredMessage: 'Service profile is required — this OLT has no saved preset.',
+                  presetReady: presetReady,
                 ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
-                      child: TextFormField(
+                      child: _vlanField(
+                        profiles: profiles,
                         controller: vlan,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: 'VLAN'),
-                        validator: (v) => _intError(v, 'VLAN'),
+                        label: 'VLAN',
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: TextFormField(
+                      child: _vlanField(
+                        profiles: profiles,
                         controller: userVlan,
-                        keyboardType: TextInputType.number,
-                        decoration:
-                            const InputDecoration(labelText: 'User VLAN'),
-                        validator: (v) => _intError(v, 'User VLAN'),
+                        label: 'User VLAN',
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -410,6 +476,80 @@ class _AuthorizeBody extends ConsumerWidget {
         else
           _JobStatusCard(state: state),
       ],
+    );
+  }
+
+  /// Line/service profile field: a dropdown fed by the §15 profiles
+  /// response when it loaded with options, otherwise today's free-text
+  /// field. The controllers stay the single source of truth — the dropdown
+  /// reads/writes the same controller the submit path already uses, so the
+  /// authorize payload shapes are unchanged. When the preset is not ready
+  /// the dropdown is required, exactly like the free-text field was.
+  Widget _profileField({
+    required OltProfiles? profiles,
+    required List<OltProfileOption>? options,
+    required TextEditingController controller,
+    required String label,
+    required String requiredMessage,
+    required bool presetReady,
+  }) {
+    final list = options ?? const <OltProfileOption>[];
+    if (profiles == null || list.isEmpty) {
+      return TextFormField(
+        controller: controller,
+        decoration: InputDecoration(labelText: label),
+        validator: (v) =>
+            !presetReady && (v == null || v.trim().isEmpty)
+                ? requiredMessage
+                : null,
+      );
+    }
+    final current = controller.text.trim();
+    return DropdownButtonFormField<String>(
+      initialValue: current.isEmpty ? null : current,
+      isExpanded: true,
+      decoration: InputDecoration(labelText: label),
+      items: profileDropdownItems(
+        list,
+        current.isEmpty ? null : current,
+      ),
+      onChanged: (value) {
+        if (value != null) controller.text = value;
+      },
+      validator: (v) =>
+          !presetReady && (v == null || v.isEmpty) ? requiredMessage : null,
+    );
+  }
+
+  /// VLAN / User VLAN field: a dropdown fed by the §15 `vlans` array when
+  /// it loaded, otherwise today's free-text field. Both VLAN dropdowns use
+  /// the same array with independent selections. VLANs are optional (guide
+  /// §16), so the dropdown never fails validation — a selection is always
+  /// a valid int, and blank stays blank.
+  Widget _vlanField({
+    required OltProfiles? profiles,
+    required TextEditingController controller,
+    required String label,
+  }) {
+    final list = profiles?.vlans ?? const <OltVlanOption>[];
+    if (profiles == null || list.isEmpty) {
+      return TextFormField(
+        controller: controller,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(labelText: label),
+        validator: (v) => _intError(v, label),
+      );
+    }
+    final current = int.tryParse(controller.text.trim());
+    return DropdownButtonFormField<int>(
+      initialValue: current,
+      isExpanded: true,
+      decoration: InputDecoration(labelText: label),
+      items: vlanDropdownItems(list, current),
+      onChanged: (value) {
+        if (value != null) controller.text = value.toString();
+      },
+      validator: (_) => null,
     );
   }
 

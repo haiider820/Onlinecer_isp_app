@@ -15,6 +15,7 @@ import '../../../models/locations.dart';
 import '../../../shared/widgets/branded_header.dart';
 import '../../../shared/widgets/location_map.dart';
 import '../../../shared/widgets/navigate_action.dart';
+import '../../../shared/widgets/pppoe_inventory_cards.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/formatting/format_minor_price.dart';
@@ -72,7 +73,11 @@ class _DetailBody extends StatelessWidget {
         detail.actions.contains(ConnectionRequestAction.completeSurvey);
     final canReviewSurvey =
         detail.actions.contains(ConnectionRequestAction.reviewSurvey);
-    final canPlanRoute = detail.actions.isEmpty || canCompleteSurvey;
+    // D19: Plan Route is an action too — it must not show when the backend
+    // offers no action (e.g. `inventory_pending`, whose approval is
+    // web-only). The old `actions.isEmpty || canCompleteSurvey` left the
+    // button on every read-only survey detail.
+    final canPlanRoute = canCompleteSurvey || canReviewSurvey;
 
     return Column(
       children: [
@@ -114,6 +119,12 @@ class _DetailBody extends StatelessWidget {
               // ── Assignment & logistics ──
               _AssignmentCard(request: request),
               const SizedBox(height: 8),
+
+              // ── PPPoE credentials + inventory approval state (guide §6,
+              // Rev 1.0) — read-only; each card renders nothing when its
+              // block is absent from the detail payload.
+              PppoeCredentialsCard(credentials: request.pppoeCredentials),
+              InstallationInventoryCard(inventory: request.installationInventory),
 
               // ── Plan / charges summary ──
               _PlanSummaryCard(request: request),

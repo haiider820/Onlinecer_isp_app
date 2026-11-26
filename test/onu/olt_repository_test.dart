@@ -11,6 +11,12 @@ class _FakeOltNetwork implements OltNetwork {
   _FakeOltNetwork({
     this.oltsResult = const {'data': <Object?>[]},
     this.waitingResult = const {'data': <Object?>[]},
+    this.profilesResult = const {
+      'olt': {},
+      'line_profiles': <Object?>[],
+      'service_profiles': <Object?>[],
+      'vlans': <Object?>[],
+    },
     this.discoverResult = const {
       'message': 'Discovery complete',
       'source': 'live',
@@ -22,6 +28,7 @@ class _FakeOltNetwork implements OltNetwork {
 
   final Map<String, dynamic> oltsResult;
   final Map<String, dynamic> waitingResult;
+  final Map<String, dynamic> profilesResult;
   final Map<String, dynamic> discoverResult;
   final Exception? error;
 
@@ -57,6 +64,17 @@ class _FakeOltNetwork implements OltNetwork {
     lastSubBranchId = subBranchId;
     if (error != null) throw error!;
     return waitingResult;
+  }
+
+  @override
+  Future<Map<String, dynamic>> fetchProfiles(
+    String oltId, {
+    String? subBranchId,
+  }) async {
+    lastOltId = oltId;
+    lastSubBranchId = subBranchId;
+    if (error != null) throw error!;
+    return profilesResult;
   }
 }
 

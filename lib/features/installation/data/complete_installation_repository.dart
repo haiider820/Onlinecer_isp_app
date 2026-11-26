@@ -44,10 +44,17 @@ class CompleteInstallationRepository {
   /// upload: every photo must be within the 2 MB limit and use an accepted
   /// MIME type ([allowedInstallationPhotoMimeTypes]), and a voice note within
   /// the 10 MB limit and an accepted MIME type ([allowedVoiceNoteMimeTypes]).
+  ///
+  /// [installedDeviceMac] is REQUIRED (guide §9) and must already be
+  /// normalised to `AA:BB:CC:DD:EE:FF` by the caller (the form does this);
+  /// [installedDeviceSerial] is optional (max 150 chars, enforced by the
+  /// form) and is omitted when null/empty.
   Future<CompleteInstallationResponse> submit({
     required String id,
     required String oltDeviceOwnership,
     required String connectionFatNodeId,
+    required String installedDeviceMac,
+    String? installedDeviceSerial,
     required double dpLatitude,
     required double dpLongitude,
     num? totalWireUsed,
@@ -65,6 +72,8 @@ class CompleteInstallationRepository {
         id,
         oltDeviceOwnership: oltDeviceOwnership,
         connectionFatNodeId: connectionFatNodeId,
+        installedDeviceMac: installedDeviceMac,
+        installedDeviceSerial: installedDeviceSerial,
         dpLatitude: dpLatitude,
         dpLongitude: dpLongitude,
         totalWireUsed: totalWireUsed,
@@ -102,6 +111,8 @@ class CompleteInstallationRepository {
       id,
       oltDeviceOwnership: oltDeviceOwnership,
       connectionFatNodeId: connectionFatNodeId,
+      installedDeviceMac: installedDeviceMac,
+      installedDeviceSerial: installedDeviceSerial,
       dpLatitude: dpLatitude,
       dpLongitude: dpLongitude,
       totalWireUsed: totalWireUsed,

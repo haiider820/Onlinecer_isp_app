@@ -7,6 +7,7 @@ import '../../../models/connection_request.dart';
 import '../../../models/inventory_item.dart';
 import '../../auth/presentation/providers.dart';
 import '../../survey/presentation/connection_request_providers.dart';
+import '../../voice_notes/presentation/voice_note_providers.dart';
 import '../data/complete_installation_network.dart';
 import '../data/complete_installation_repository.dart';
 import '../data/inventory_network.dart';
@@ -62,11 +63,18 @@ class CompleteInstallationState {
     this.isSubmitting = false,
     this.errorMessage,
     this.done,
+    this.voiceNoteWarning,
   });
 
   final bool isSubmitting;
   final String? errorMessage;
   final CompleteInstallationResponse? done;
+
+  /// Best-effort voice-note follow-up failed after a successful submit
+  /// (guide §20): the stage is complete, this is only a warning for the
+  /// screen to show alongside the success message. `null` = uploaded (or
+  /// no recording was captured).
+  final String? voiceNoteWarning;
 
   bool get hasError => errorMessage != null;
 }
@@ -82,6 +90,8 @@ class CompleteInstallationController extends Notifier<CompleteInstallationState>
     required String id,
     required String oltDeviceOwnership,
     required String connectionFatNodeId,
+    required String installedDeviceMac,
+    String? installedDeviceSerial,
     required double dpLatitude,
     required double dpLongitude,
     num? totalWireUsed,
@@ -98,6 +108,8 @@ class CompleteInstallationController extends Notifier<CompleteInstallationState>
         id: id,
         oltDeviceOwnership: oltDeviceOwnership,
         connectionFatNodeId: connectionFatNodeId,
+        installedDeviceMac: installedDeviceMac,
+        installedDeviceSerial: installedDeviceSerial,
         dpLatitude: dpLatitude,
         dpLongitude: dpLongitude,
         totalWireUsed: totalWireUsed,
@@ -107,7 +119,21 @@ class CompleteInstallationController extends Notifier<CompleteInstallationState>
         voiceNotePath: voiceNotePath,
         voiceNoteMimeType: voiceNoteMimeType,
       );
-      state = CompleteInstallationState(done: result);
+      // Guide §20: stage completion may not save the voice note, so the
+      // recording is uploaded separately as a best-effort follow-up. The
+      // stage is already complete — a failure here only warns, never
+      // fails or rolls back the submit.
+      final voiceNoteWarning = await ref
+          .read(voiceNoteRepositoryProvider)
+          .uploadBestEffort(
+            requestId: id,
+            voiceNotePath: voiceNotePath,
+            voiceNoteMimeType: voiceNoteMimeType,
+          );
+      state = CompleteInstallationState(
+        done: result,
+        voiceNoteWarning: voiceNoteWarning,
+      );
       // Phase D: refetch detail so the next screen re-derives its stage
       // buttons from fresh `allowed_actions`, never the stale pre-submit one.
       refreshConnectionRequestDetail(ref, id);

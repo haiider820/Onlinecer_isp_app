@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/formatting/format_minor_price.dart';
+import '../../../shared/widgets/pppoe_inventory_cards.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../data/document_download.dart';
 import '../models/team_stage_detail.dart';
+import 'document_download_providers.dart';
 
 /// Reusable read-only detail body for Verification and Closing. A future
 /// screen supplies the completion widget beneath this context and the audio
@@ -46,6 +50,10 @@ class TeamStageDetailSections extends StatelessWidget {
         if (detail.notes.isNotEmpty) _notes(context),
         if (detail.items.isNotEmpty) _items(context),
         if (detail.documents.isNotEmpty) _documents(context),
+        // PPPoE credentials + inventory approval state (guide §6, Rev 1.0)
+        // — read-only; each card renders nothing when its block is absent.
+        PppoeCredentialsCard(credentials: detail.pppoeCredentials),
+        InstallationInventoryCard(inventory: detail.installationInventory),
         if (detail.charges != null) _charges(),
         if (detail.timestamps.isNotEmpty) _timestamps(),
         if (detail.stageData.isNotEmpty) _stageData(),
@@ -104,11 +112,7 @@ class TeamStageDetailSections extends StatelessWidget {
   }
 
   Widget _documents(BuildContext context) => SectionCard(title: 'Documents', icon: Icons.description_outlined, children: [
-    for (final document in detail.documents) ListTile(
-      contentPadding: EdgeInsets.zero,
-      title: Text(document.name ?? document.type ?? 'Document'),
-      subtitle: Text(document.url ?? 'Unavailable', maxLines: 1, overflow: TextOverflow.ellipsis),
-    ),
+    for (final document in detail.documents) _DocumentRow(document: document),
   ]);
 
   Widget _charges() => SectionCard(title: 'Charges', icon: Icons.payments_outlined, children: [
@@ -142,4 +146,79 @@ class _NoteRow extends StatelessWidget {
         icon: const Icon(Icons.play_circle_outline), label: const Text('Play voice note')),
     ]),
   );
+}
+
+/// One document row: tapping downloads the file through the authenticated
+/// client (guide §21) and opens it with the system viewer. While a
+/// download is in flight the row shows a spinner and ignores further taps;
+/// a failed download shows the error and never crashes the detail screen.
+/// When the file downloads but no viewer can open it, the saved temp path
+/// is shown so the technician can find it in a file manager.
+class _DocumentRow extends ConsumerStatefulWidget {
+  const _DocumentRow({required this.document});
+
+  final TeamStageDocument document;
+
+  @override
+  ConsumerState<_DocumentRow> createState() => _DocumentRowState();
+}
+
+class _DocumentRowState extends ConsumerState<_DocumentRow> {
+  bool _downloading = false;
+
+  Future<void> _download() async {
+    if (_downloading) return;
+    final document = widget.document;
+    if (document.url == null || document.url!.isEmpty) {
+      _snack('Document is unavailable.');
+      return;
+    }
+    setState(() => _downloading = true);
+    try {
+      final result =
+          await ref.read(documentDownloaderProvider).download(document);
+      if (!mounted) return;
+      if (result.opened) {
+        _snack('Document downloaded.');
+      } else {
+        _snack('Saved to ${result.savedPath} — no app could open it.');
+      }
+    } on DocumentDownloadException catch (e) {
+      if (mounted) _snack('Could not download document: ${e.message}');
+    } catch (_) {
+      if (mounted) _snack('Could not download document.');
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
+  void _snack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final document = widget.document;
+    final unavailable = document.url == null || document.url!.isEmpty;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(document.name ?? document.type ?? 'Document'),
+      subtitle: Text(
+        document.url ?? 'Unavailable',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: _downloading
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.download_outlined),
+      onTap: unavailable ? null : _download,
+    );
+  }
 }

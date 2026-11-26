@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:isp_onlinecer/core/constants/app_constants.dart';
 import 'package:isp_onlinecer/core/storage/secure_storage.dart';
 import 'package:isp_onlinecer/features/auth/presentation/providers.dart';
+import 'package:isp_onlinecer/features/installation/data/complete_installation_network.dart';
 import 'package:isp_onlinecer/features/installation/data/inventory_network.dart';
 import 'package:isp_onlinecer/features/installation/data/inventory_repository.dart';
 import 'package:isp_onlinecer/features/installation/presentation/installation_map_providers.dart';
@@ -228,6 +229,65 @@ class _FakeInventoryNetwork implements InventoryNetwork {
   Future<Map<String, dynamic>> fetchInventory() async => const {'data': <Object?>[]};
 }
 
+/// Counts complete-installation calls and records the device MAC/serial.
+/// Returns a success payload moving the request to `splicing_assigned`.
+class _FakeCompleteInstallationNetwork implements CompleteInstallationNetwork {
+  int jsonCalls = 0;
+  int multipartCalls = 0;
+  String? lastMac;
+  String? lastSerial;
+
+  static const _success = {
+    'message': 'Installation marked as completed.',
+    'data': {
+      'id': _requestId,
+      'request_number': _requestNumber,
+      'status': 'splicing_assigned',
+    },
+  };
+
+  @override
+  Future<Map<String, dynamic>> completeInstallationJson(
+    String id, {
+    required String oltDeviceOwnership,
+    required String connectionFatNodeId,
+    required String installedDeviceMac,
+    String? installedDeviceSerial,
+    required double dpLatitude,
+    required double dpLongitude,
+    num? totalWireUsed,
+    String? notes,
+    List<InventoryLine>? inventoryLines,
+  }) async {
+    jsonCalls++;
+    lastMac = installedDeviceMac;
+    lastSerial = installedDeviceSerial;
+    return _success;
+  }
+
+  @override
+  Future<Map<String, dynamic>> completeInstallationMultipart(
+    String id, {
+    required String oltDeviceOwnership,
+    required String connectionFatNodeId,
+    required String installedDeviceMac,
+    String? installedDeviceSerial,
+    required double dpLatitude,
+    required double dpLongitude,
+    num? totalWireUsed,
+    String? notes,
+    List<InventoryLine>? inventoryLines,
+    List<InstallationPhoto>? photos,
+    String? voiceNotePath,
+    String? voiceNoteMimeType,
+  }) async {
+    multipartCalls++;
+    lastMac = installedDeviceMac;
+    lastSerial = installedDeviceSerial;
+    return _success;
+  }
+}
+
 // ─── Harness ────────────────────────────────────────────────────────────────
 
 Future<SecureStorage> _sessionStorage() async {
@@ -253,6 +313,7 @@ Future<ProviderContainer> _openDetail(
   SecureStorage storage, {
   required Map<String, dynamic> detailMap,
   Object? points,
+  List<Override> extraOverrides = const [],
 }) async {
   final container = ProviderContainer(
     overrides: [
@@ -272,6 +333,7 @@ Future<ProviderContainer> _openDetail(
         InventoryRepository(network: _FakeInventoryNetwork()),
       ),
       mapTileProviderProvider.overrideWithValue(FakeTileProvider()),
+      ...extraOverrides,
     ],
   );
   addTearDown(container.dispose);
@@ -451,6 +513,83 @@ void main() {
     expect(find.byKey(const Key('location-map-user-marker')), findsWidgets);
     expect(find.byKey(const Key('location-map-dp-marker')), findsWidgets);
     expect(find.text(AppStrings.mapNoLocationYet), findsNothing);
+  });
+
+  testWidgets('submit without a MAC is blocked; a valid MAC submits normalised',
+      (tester) async {
+    final storage = await _sessionStorage();
+    final network = _FakeCompleteInstallationNetwork();
+    await _openDetail(
+      tester,
+      storage,
+      detailMap: _detailNoLocations,
+      extraOverrides: [
+        completeInstallationNetworkProvider.overrideWithValue(network),
+      ],
+    );
+
+    // All three checklist items so the sticky CTA enables: ownership,
+    // FAT node (which auto-fills the DP marker).
+    await tester.scrollUntilVisible(
+      find.text('User'),
+      300,
+      scrollable: _detailScrollable(),
+    );
+    await tester.ensureVisible(find.text('User'));
+    await tester.tap(find.text('User'));
+    await _settle(tester);
+    await tester.scrollUntilVisible(
+      find.text('Select the FAT node used'),
+      300,
+      scrollable: _detailScrollable(),
+    );
+    await tester.ensureVisible(find.text('Select the FAT node used'));
+    await tester.tap(find.text('Select the FAT node used'));
+    await _settle(tester);
+    await tester.tap(find.text('FAT-A Gulberg').last);
+    await _settle(tester);
+
+    Finder macField() =>
+        find.widgetWithText(TextFormField, 'Device MAC address');
+    Finder serialField() =>
+        find.widgetWithText(TextFormField, 'Device serial (optional)');
+
+    // Missing MAC: validation blocks the submit before any network call.
+    await tester.tap(find.text('Complete Installation'));
+    await _settle(tester);
+    expect(find.text('Enter the installed device MAC address.'),
+        findsOneWidget);
+    expect(network.jsonCalls, 0);
+    expect(network.multipartCalls, 0);
+
+    // Invalid MAC: still blocked.
+    await tester.scrollUntilVisible(
+      find.text('Device MAC address'),
+      300,
+      scrollable: _detailScrollable(),
+    );
+    await tester.enterText(macField(), 'not-a-mac');
+    await _settle(tester);
+    await tester.tap(find.text('Complete Installation'));
+    await _settle(tester);
+    expect(
+      find.text('Enter a valid MAC address (e.g. AA:BB:CC:DD:EE:FF).'),
+      findsOneWidget,
+    );
+    expect(network.jsonCalls, 0);
+
+    // Valid MAC (bare lowercase) + serial: submits once, MAC normalised.
+    await tester.enterText(macField(), 'aabbccddeeff');
+    await tester.enterText(serialField(), 'FHTT-22A25980');
+    await _settle(tester);
+    await tester.tap(find.text('Complete Installation'));
+    await _settle(tester);
+    expect(network.jsonCalls, 1);
+    expect(network.multipartCalls, 0);
+    expect(network.lastMac, 'AA:BB:CC:DD:EE:FF');
+    expect(network.lastSerial, 'FHTT-22A25980');
+
+    await _settleMap(tester);
   });
 
   testWidgets('missing route points fall back to a straight-lined note',

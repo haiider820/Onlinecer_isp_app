@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_exceptions.dart';
 import '../../../models/direct_olt.dart';
+import '../../../models/olt_profiles.dart';
 import '../../../models/waiting_onu.dart';
 import '../../auth/presentation/providers.dart';
 import '../../lookups/presentation/sub_branch_providers.dart';
@@ -38,6 +39,19 @@ final waitingOnusProvider =
     FutureProvider.family<WaitingOnuList, String>((ref, oltId) {
   final scope = ref.watch(subBranchStateProvider);
   return ref.watch(oltRepositoryProvider).fetchWaitingOnus(
+        oltId,
+        subBranchId: scope.canProceed ? scope.effectiveId : null,
+      );
+});
+
+/// Fetches the OLT profiles + VLANs for one OLT
+/// (`GET /lookups/direct-olts/{olt}/profiles`, guide §15), keyed by OLT
+/// id. Same scope rule as [waitingOnusProvider]: the sub-branch id comes
+/// from [subBranchStateProvider] at read time, never invented client-side.
+final oltProfilesProvider =
+    FutureProvider.family<OltProfiles, String>((ref, oltId) {
+  final scope = ref.watch(subBranchStateProvider);
+  return ref.watch(oltRepositoryProvider).fetchProfiles(
         oltId,
         subBranchId: scope.canProceed ? scope.effectiveId : null,
       );

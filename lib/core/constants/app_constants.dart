@@ -11,7 +11,7 @@ abstract final class AppConstants {
   /// Whether the app is running as a debug/flutter run build.
   static bool get isDebug => kDebugMode;
 
-  static const String _defaultBaseUrl = 'https://184-164-137-101.sslip.io/api/mobile';
+  static const String _defaultBaseUrl = 'https://ttsn.onlinecer.com/api/mobile';
 
   /// Production API base URL.
   static const String prodBaseUrl = _defaultBaseUrl;
@@ -74,6 +74,10 @@ abstract final class Endpoints {
       '/lookups/direct-olts/$oltId/discover-waiting-onus';
   static String waitingOnus(String oltId) =>
       '/lookups/direct-olts/$oltId/waiting-onus';
+  static String oltProfiles(String oltId, {String? subBranchId}) =>
+      subBranchId == null
+          ? '/lookups/direct-olts/$oltId/profiles'
+          : '/lookups/direct-olts/$oltId/profiles?sub_branch_id=$subBranchId';
 
   // Connection request creation (ISPFINAL §3–§4)
   static String createData({String? subBranchId}) => subBranchId == null
@@ -102,6 +106,14 @@ abstract final class Endpoints {
 /// `splicing_assigned → complete_splicing`,
 /// `verification_assigned → complete_verification`,
 /// `closing_assigned → complete_closing`, anything else → no action.
+///
+/// The survey-lifecycle statuses (guide §8) carry no action: a feasible
+/// survey with items lands in `inventory_pending` (web-only approval, then
+/// `installation_assigned` or `survey_review`); a not-feasible survey lands
+/// in `survey_not_feasible`; a feasible survey with no items lands in
+/// `survey_completed`. All three route to the survey detail, read-only —
+/// the detail screen offers no action button when `allowed_actions` is
+/// empty (D19).
 abstract final class ConnectionStatus {
   ConnectionStatus._();
 
@@ -111,6 +123,9 @@ abstract final class ConnectionStatus {
   static const String splicingAssigned = 'splicing_assigned';
   static const String verificationAssigned = 'verification_assigned';
   static const String closingAssigned = 'closing_assigned';
+  static const String inventoryPending = 'inventory_pending';
+  static const String surveyNotFeasible = 'survey_not_feasible';
+  static const String surveyCompleted = 'survey_completed';
 }
 
 /// Backend wire values for `olt_device_ownership` on complete-installation.

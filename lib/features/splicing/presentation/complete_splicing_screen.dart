@@ -75,6 +75,14 @@ class _CompleteSplicingFormState extends ConsumerState<CompleteSplicingForm> {
         .submit(id: widget.requestId, voiceNotePath: _path, voiceNoteMimeType: _path == null ? null : 'audio/mp4');
     if (!mounted || result == null) return;
     final status = result.status?.replaceAll('_', ' ');
+    final message = status == null || status.isEmpty
+        ? 'Splicing submitted.'
+        : 'Splicing submitted → $status';
+    // Guide §20: the follow-up voice-note upload may have warned — the
+    // stage is complete regardless, so the warning rides along with the
+    // success message instead of failing the submit.
+    final voiceNoteWarning =
+        ref.read(completeSplicingControllerProvider).voiceNoteWarning;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Row(
         children: [
@@ -89,9 +97,9 @@ class _CompleteSplicingFormState extends ConsumerState<CompleteSplicingForm> {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              status == null || status.isEmpty
-                  ? 'Splicing submitted.'
-                  : 'Splicing submitted → $status',
+              voiceNoteWarning == null
+                  ? message
+                  : '$message\n$voiceNoteWarning',
             ),
           ),
         ],

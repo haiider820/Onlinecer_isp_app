@@ -45,6 +45,7 @@ void main() {
         'req_ist1',
         oltDeviceOwnership: 'company',
         connectionFatNodeId: 'node_7',
+        installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
         dpLatitude: 23.7444,
         dpLongitude: 90.3788,
         inventoryLines: _lines,
@@ -58,6 +59,28 @@ void main() {
       ]);
       expect(body['olt_device_ownership'], 'company');
       expect(body['connection_fat_node_id'], 'node_7');
+      // Guide §9: the installed device MAC is required on every submit.
+      expect(body['installed_device_mac'], 'AA:BB:CC:DD:EE:FF');
+      expect(body.containsKey('installed_device_serial'), isFalse);
+    });
+
+    test('JSON: sends installed_device_serial when provided', () async {
+      final api = CapturingApiClient(_successMap);
+      final network = DioCompleteInstallationNetwork(api.client);
+
+      await network.completeInstallationJson(
+        'req_ist1',
+        oltDeviceOwnership: 'user',
+        connectionFatNodeId: 'node_7',
+        installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
+        installedDeviceSerial: 'FHTT-22A25980',
+        dpLatitude: 23.7444,
+        dpLongitude: 90.3788,
+      );
+
+      final body = api.captured.data as Map<String, dynamic>;
+      expect(body['installed_device_mac'], 'AA:BB:CC:DD:EE:FF');
+      expect(body['installed_device_serial'], 'FHTT-22A25980');
     });
 
     test('JSON: no inventory lines sends no items field', () async {
@@ -68,6 +91,7 @@ void main() {
         'req_ist1',
         oltDeviceOwnership: 'user',
         connectionFatNodeId: 'node_7',
+        installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
         dpLatitude: 23.7444,
         dpLongitude: 90.3788,
       );
@@ -91,6 +115,7 @@ void main() {
         'req_ist1',
         oltDeviceOwnership: 'user',
         connectionFatNodeId: 'node_1',
+        installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
         dpLatitude: 23.7444,
         dpLongitude: 90.3788,
         inventoryLines: _lines,
@@ -105,6 +130,8 @@ void main() {
       expect(fields['items[1][item_id]'], 'item_3');
       expect(fields['items[1][quantity]'], '2.5');
       expect(formFileFields(form), contains('installation_photos[]'));
+      // Guide §9: the MAC rides the multipart path too, same field name.
+      expect(fields['installed_device_mac'], 'AA:BB:CC:DD:EE:FF');
     });
 
     test('multipart: no inventory lines sends no items fields', () async {
@@ -115,6 +142,7 @@ void main() {
         'req_ist1',
         oltDeviceOwnership: 'user',
         connectionFatNodeId: 'node_1',
+        installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
         dpLatitude: 23.7444,
         dpLongitude: 90.3788,
       );

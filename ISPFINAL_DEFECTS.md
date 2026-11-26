@@ -296,3 +296,107 @@ Also note an internal contradiction in the old code: the `device_scan.dart` head
 7. **Duplicate-error wording contract**: the 422 handling string-matches `"already been taken"` + `mac`/`serial` in the backend message — exact backend wording unverified against the live server.
 8. **mobile_scanner 7.5.0's exact Dart SDK range** — resolution must be proven by `flutter pub get` on the PC.
 9. **Whether scanning ever worked end-to-end on a phone from this codebase** — no surviving code could compile the flow (missing providers + routes + `mobile_scanner`), so Haider's pre-redesign working state, if real, came from a build whose source is not in any retrievable commit.
+
+## D19 — BLOCKER + MAJOR — FIXED 2026-11-26 (NOT pushed) — ISPFinal Mobile API Developer Guide Rev 1.0 (26 Nov 2026): base URL, installed-device MAC, authorize cap, new survey statuses, PPPoE/inventory blocks, profiles endpoint, voice-note POST, document download
+
+Haider (2026-11-26 16:05 PKT): implement per the new guide, be careful nothing breaks, check the doc first for problems, the base URL change is in it, test all the APIs, ask before building the app. Implementation done in lib/ + test/ on 2026-11-26; **NOT pushed** — needs Haider's "Han, push kar do", and the app build needs his explicit go-ahead ("app bananay say pehlay puch lena").
+
+Live context (Luna, 2026-11-26, new base, Umair account): login/me/dashboard/create-data/list/detail/sub-branches/inventory-items (47)/direct-olts/profiles (8 line, 3 service, 113 VLAN)/waiting-onus/documents-download/notifications/logout — all HTTP 200. Discover-waiting-onus is POST, not GET (doc says GET; live GET → 405 "Supported methods: POST"). POST writes were NOT executed live — no write is claimed live-verified. Old base sslip.io still alive.
+
+### D19.1 — Base URL swap
+
+`lib/core/constants/app_constants.dart:14` — `'https://184-164-137-101.sslip.io/api/mobile'` → `'https://ttsn.onlinecer.com/api/mobile'`. Only code place (grep: 0 sslip.io hits left in lib/ + test/). The `--dart-define=API_BASE_URL` override still works (unchanged code path).
+
+### D19.2 — BLOCKER — `installed_device_mac` on complete-installation (guide §9)
+
+The app sent ownership + FAT id but NEVER `installed_device_mac` (only trace was `lib/core/network/api_exceptions.dart` error handling) — installation would 422 on the new server.
+
+- New `lib/shared/validation/mac_address.dart`: `normalizeMacAddress()` (colon/dash/dot/bare-12-hex + optional `MAC:` prefix → canonical uppercase `AA:BB:CC:DD:EE:FF`, null when invalid), `isMacAddress()`, `validateMacAddress()` (missing → 'Enter the installed device MAC address.'; invalid → 'Enter a valid MAC address (e.g. AA:BB:CC:DD:EE:FF).'). No MAC classifier existed in lib/ (the old device-scan helpers are gone) — written fresh.
+- `lib/features/installation/data/complete_installation_network.dart`: both `completeInstallationJson` and `completeInstallationMultipart` (interface + `DioCompleteInstallationNetwork`) gained `required String installedDeviceMac` + `String? installedDeviceSerial`; JSON sends `installed_device_mac` always, `installed_device_serial` only when non-empty; multipart sends both as form fields (mirrors the D16 `items` two-path pattern).
+- `lib/features/installation/data/complete_installation_repository.dart`: `submit()` gained the same two params, passed through to both network paths.
+- `lib/features/installation/presentation/installation_providers.dart`: `CompleteInstallationController.submit()` gained the two params. Also gained the `voiceNoteWarning` state field (D19.7).
+- `lib/features/installation/presentation/complete_installation_screen.dart`: "Installed device" section after the FAT node section (before wire): required "Device MAC address" TextFormField (`textCapitalization: characters`, hint `AA:BB:CC:DD:EE:FF`, `validator: validateMacAddress`) + optional "Device serial (optional)" TextFormField (`maxLength: 150`). Submit normalises the MAC and blocks when `mac == null` (defensive; the form validator already blocks). FAT-node dropdown, ownership, photos, items, coordinates untouched. Progress checklist unchanged (still 3 items: ownership/FAT/DP).
+- Tests: `test/installation/complete_installation_network_test.dart` (MAC on both paths, serial forwarding), `test/installation/complete_installation_repository_test.dart` (9 calls updated + serial assertions), `test/installation/merged_screen_test.dart` (form-level: empty MAC → error + 0 calls; invalid MAC → error + 0 calls; `aabbccddeeff` + serial `FHTT-22A25980` → 1 JSON call, `lastMac == 'AA:BB:CC:DD:EE:FF'`, `lastSerial == 'FHTT-22A25980'`), `test/shared/mac_address_test.dart` (12 tests).
+
+### D19.3 — Authorize description 64-char cap (guide §16)
+
+`lib/features/onu/presentation/authorize_onu_screen.dart`: new top-level `validateAuthorizeDescription()` (required; >64 chars → 'Description must be 64 characters or fewer.' — flags a pre-filled customer name longer than 64 instead of letting the POST 422); description TextFormField gained `maxLength: 64` + `helperText: 'Max 64 characters'` + `validator: validateAuthorizeDescription`. Profile/VLAN/gemport behaviour untouched here. Tests: `test/onu/authorize_description_test.dart` (validator + dropdown-item helpers).
+
+### D19.4 — `inventory_pending` / `survey_not_feasible` / `survey_completed` statuses + routing (guide §8)
+
+Feasible survey + items → `inventory_pending` (then `installation_assigned` after web approval, or `survey_review` if no installation team); not-feasible → `survey_not_feasible` (reason required — already enforced); feasible + no items → `survey_completed`. Previously `inventory_pending` appeared only in comments and fell back to the session-team detail route.
+
+- `ConnectionStatus` (`lib/core/constants/app_constants.dart:99-113`) gained `inventoryPending`, `surveyNotFeasible`, `surveyCompleted` with a §8 lifecycle comment.
+- `Routes.detailRouteForRequest` (`lib/core/router/app_router.dart`) maps all three → `surveyDetailFor`. Existing D18 entries unchanged.
+- `lib/features/survey/presentation/survey_request_detail_screen.dart`: `canPlanRoute` changed from `detail.actions.isEmpty || canCompleteSurvey` to `canCompleteSurvey || canReviewSurvey` — a read-only detail (empty `allowed_actions`, e.g. `inventory_pending`) now shows NO actionable buttons (Plan Route was the one that leaked; Complete Survey / Review were already gated). This matches the pre-existing "Incidental observations" note that flagged this exact behaviour. No new buttons invented; inventory approval is web-only.
+- Tests: `test/routing/stage_detail_routing_test.dart` (resolver-table case for the three statuses), `test/survey/detail_bottom_shelf_test.dart` (inventory_pending detail with no allowed actions shows no Plan Route / Complete Survey / Review; screen still renders read-only).
+
+### D19.5 — Parse `pppoe_credentials` + `installation_inventory` in detail (guide §6)
+
+Detail returns `pppoe_credentials {available, username, password, password_visible}` and `installation_inventory {warehouse, assigned_items, available_items, request_status, can_request, request_endpoint}`. Neither was parsed before.
+
+- `ConnectionRequest` (`lib/models/connection_request.dart:59-87`) gained nullable `pppoeCredentials` + `installationInventory` (`Map<String, Object?>?`, display-only) via a new `_LenientMapConverter` (missing/null/non-object → null, never throws — a plain freezed `Map` field would throw on a non-map value).
+- `TeamStageDetail` (`lib/features/stage_shared/models/team_stage_detail.dart`) gained the same two fields as `Map<String, dynamic>?`, parsed leniently in `fromJson`.
+- New shared cards `lib/shared/widgets/pppoe_inventory_cards.dart`: `PppoeCredentialsCard` (renders nothing when null; password shown only when `password_visible == true`, else `••••••••`; `available == false` → "Credentials not generated yet.") and `InstallationInventoryCard` (request_status / can_request Yes-No / warehouse name / assigned + available item counts; renders nothing when the block is null or empty; `request_endpoint` deliberately NOT rendered — it is a web action).
+- Wired into: survey detail screen (after Assignment card), installation detail Overview section (after Locations), `TeamStageDetailSections` (after documents).
+- **Known gap:** the splicing detail uses its own `SplicingDetail` model (no documents/PPPoE parsing) — NOT covered.
+- Tests: `test/models/connection_request_detail_blocks_test.dart` (live shapes for both models; absent/null/non-object/partial all parse safely).
+- **build_runner note:** full `flutter pub run build_runner build` ran clean (47s, "wrote 6 outputs", the `ConnectionRequest` change). As always, the regen dropped the hand-edit line in `lib/models/connection_request.g.dart` — restored verbatim (now line 68: `'item_requests': instance.itemRequests?.map((e) => e.toJson()).toList(),`). **PC must run `flutter pub run build_runner build` and re-apply that line if dropped, then confirm identical regen.** `lib/models/` verified byte-for-byte against remote tip `8f9e457b` via blob-SHA comparison: the ONLY differences are the three `connection_request.*` files (new fields) plus the new `lib/models/olt_profiles.dart`; every other model file is identical to remote.
+
+### D19.6 — Wire §15 profiles endpoint (guide §15)
+
+`GET /lookups/direct-olts/{olt}/profiles?sub_branch_id=` returns `{olt, line_profiles[{value,label,huawei_profile_id}], service_profiles[{...}], vlans[{value,vlan_id,name,label}], authorization_preset{ready,gemport}}`. Live shape: 8 line / 3 service / 113 VLANs.
+
+- `Endpoints.oltProfiles(oltId, {subBranchId})` (`lib/core/constants/app_constants.dart`) — path `/lookups/direct-olts/{olt}/profiles` + `?sub_branch_id=` when given.
+- New hand-written lenient model `lib/models/olt_profiles.dart` (NO codegen, like TeamStageDetail): `OltProfiles {olt, lineProfiles, serviceProfiles, vlans, authorizationPreset}` with `OltProfileOption {value, label, huaweiProfileId}` and `OltVlanOption {value: int, label, vlanId, name}`; defensive `data`-envelope unwrap; string-encoded VLAN values accepted; entries without a usable value dropped.
+- `OltNetwork.fetchProfiles` + `DioOltNetwork` (`lib/features/onu/data/olt_network.dart`), `OltRepository.fetchProfiles` (`lib/features/onu/data/olt_repository.dart`), `oltProfilesProvider = FutureProvider.family<OltProfiles, String>` keyed by OLT id reading scope from `subBranchStateProvider` (mirrors `waitingOnusProvider`) (`lib/features/onu/presentation/olt_providers.dart`).
+- Authorize screen (`lib/features/onu/presentation/authorize_onu_screen.dart`): `_AuthorizeBody` watches `oltProfilesProvider(olt.id)`; line/service profile + VLAN + user-VLAN fields become `DropdownButtonFormField`s fed by the profiles response when loaded with options, otherwise today's free-text fields (loading/error/empty all fall back — authorize never breaks if the endpoint is unavailable). Controllers stay the single source of truth (dropdowns read/write the same `TextEditingController`s, submit/payload code 100% unchanged; both VLAN dropdowns use the same `vlans` array with independent selections; `value` for payload, `label` for display). Top-level pure helpers `profileDropdownItems()` / `vlanDropdownItems()` append the current value as an extra item when it is not in the list (a preset value not returned by the endpoint can never crash the dropdown — a DropdownButtonFormField value must match an item). Preset-ready still pre-fills from the preset as today; preset-not-ready dropdowns are required with the same error messages as the text fields. GEM port stays a text field. Dropdowns use `initialValue:` (not deprecated `value:` — verified against the SDK: `DropdownButtonFormFieldState.didUpdateWidget` calls `setValue(widget.initialValue)` when it changes, so behaviour is identical).
+- Tests: `test/onu/olt_profiles_test.dart` (8/3/113 parse + repository fetch with/without scope), `test/onu/authorize_description_test.dart` (dropdown-item helpers). Existing test fakes implementing `OltNetwork` (`test/onu/olt_repository_test.dart`, `test/ispfinal_adversarial/adversarial_detail_olt_test.dart`) gained a `fetchProfiles` stub.
+
+### D19.7 — Wire §20 voice-note POST as the reliable voice path (guide §20)
+
+`POST /connection-requests/{request}/voice-note`, multipart `voice_note` (required, max 10 MB), HTTP 201. The doc warns "do not assume stage completion saves a voice note" — the app only sent `voice_note` inside stage completion. Design (least invasive, stage completion never breaks): after a stage completion succeeds, if a voice recording was captured for that stage, upload it via the standalone endpoint as a best-effort follow-up — errors are shown to the user but NEVER fail or roll back the completed stage, and NEVER double-send on retry (upload once per recording). `voice_note` is STILL sent inside stage completion as today (not removed).
+
+- New `lib/features/voice_notes/data/voice_note_network.dart`: `VoiceNoteNetwork` interface + `DioVoiceNoteNetwork` — `POST Endpoints.requestVoiceNote(requestId)` (`/connection-requests/{id}/voice-note`), multipart `voice_note` via the authenticated `ApiClient`.
+- New `lib/features/voice_notes/data/voice_note_repository.dart`: `VoiceNoteRepository.uploadBestEffort({requestId, voiceNotePath, voiceNoteMimeType})` → `Future<String?>` (null = uploaded or nothing to do; non-null = user-facing warning). NEVER throws. Validates size (10 MB) + MIME (reuses `allowedVoiceNoteMimeTypes`/`maxVoiceNoteBytes`); upload-once rule via in-memory `Set<String> _attempted` keyed `'$requestId|$path'`, marked BEFORE the upload starts so a retry can never double-send (a failed first attempt is also marked — no re-send ever; deliberate trade-off, noted here).
+- New `lib/features/voice_notes/presentation/voice_note_providers.dart`: `voiceNoteNetworkProvider` + `voiceNoteRepositoryProvider` (one instance per container, so the once-set lives for the app session).
+- Wired into all four stage completions, awaited after a successful submit, failure only warns: `SubmitSurveyController` (+ `voiceNoteWarning` field on `SubmitSurveyState`), `CompleteInstallationController` (+ field on `CompleteInstallationState`), `CompleteSplicingController` (+ field on `CompleteSplicingState`), `TeamStageCompletionForm._submit` (verification/closing shared form — warning appended to the success snackbar message). Screens surface the warning: submit-survey screen reads the warning and shows it via `_snack` after the success overlay pops, before `context.go` (root ScaffoldMessenger keeps it visible across navigation); installation form + splicing screen append `'\n$warning'` to the success snackbar text.
+- Tests: `test/voice_notes/voice_note_repository_test.dart` (9 tests: upload once, no-op without a recording, never re-sent incl. after failure, failure returns a warning and never throws, oversize/unsupported-MIME rejected without a network call, missing file warns, MIME derived from extension). **Not tested:** the controller wiring (one controller-level test asserting `state.voiceNoteWarning` is set on follow-up failure while the result is still returned) — the repository is the unit under test; the wiring is a two-line call site in each controller.
+- **Known trade-off:** a failed first attempt is never retried (marked attempted before sending). If the backend later needs a retry path, the once-set must become per-recording-state instead of a plain set.
+
+### D19.8 — Wire §21 document download (guide §21)
+
+Detail returns documents as URLs (`id_card_front_url`, `id_card_back_url`, `utility_bill_url`, `connection_form_url` — live-verified on the new base). The detail screen rendered documents as plain ListTiles with no onTap (`team_stage_detail_sections.dart:106-112`).
+
+- `ApiClient.downloadBytes(url)` (`lib/core/network/api_client.dart`) — `_guard`-wrapped (auth + typed errors + 401 handling), `ResponseType.bytes`, absolute URL used as-is / relative resolved against baseUrl, returns `List<int>`.
+- New `lib/features/stage_shared/data/document_download.dart`: `DocumentDownloader` (fetch via authenticated client; save to app temp dir via `path_provider` — never a public cache; open with `url_launcher` `Uri.file(path)`, `LaunchMode.externalApplication`; `fetchBytes` kept separate so tests can assert the auth header without touching the filesystem; `download()` throws `DocumentDownloadException` on missing URL/download failure; file that downloads but cannot be opened returns `opened: false` with the saved path — never an exception).
+- New `lib/features/stage_shared/presentation/document_download_providers.dart`: `documentDownloaderProvider`.
+- `TeamStageDetailSections._documents` rows are now tappable `_DocumentRow` (ConsumerStatefulWidget): spinner + tap-ignored while downloading, error snackbar on failure (never crashes the detail screen), "Saved to <path> — no app could open it." when the viewer can't open it, "Document downloaded." on success.
+- **Limitation:** `url_launcher` was already a dependency; no `open_file`/`share_plus` exists in pubspec — there is no in-app viewer; opening relies on the system viewer, falling back to showing the saved path. Documents appear only in `TeamStageDetailSections` (verification/closing detail screens); survey/installation/splicing detail screens render no documents section (out of the stated scope).
+- Tests: `test/stage_shared/document_download_test.dart` (bearer header asserted on the download request; no-token case sends no Authorization header; widget test taps a document row and asserts the provider downloader was called with the exact URL).
+
+### D19 — verification (2026-11-26, VM)
+
+- `flutter analyze lib` — **0 issues**.
+- Full suite — **448 pass / 1 fail** (baseline 393 pass / 1 fail; **+55 new tests, all passing**). The 1 fail is the pre-existing `test/installation/complete_installation_flow_test.dart` compile failure (imports nonexistent `RequestDetailScreen`; out of scope, not fixed).
+- New test files: `test/shared/mac_address_test.dart` (12), `test/onu/authorize_description_test.dart` (10), `test/onu/olt_profiles_test.dart` (7), `test/models/connection_request_detail_blocks_test.dart` (8), `test/voice_notes/voice_note_repository_test.dart` (9), `test/stage_shared/document_download_test.dart` (4). Extended: `test/installation/merged_screen_test.dart` (+1 MAC widget test), `test/installation/complete_installation_network_test.dart` + `test/installation/complete_installation_repository_test.dart` (MAC params), `test/routing/stage_detail_routing_test.dart` (+1 resolver case), `test/survey/detail_bottom_shelf_test.dart` (+1 read-only case).
+- pubspec.yaml / pubspec.lock / android/ untouched (no package added — `url_launcher` and `path_provider` were already dependencies).
+
+### D19 — NOT implemented / NOT verified (exact reasons)
+
+1. **No live POST write was executed** (per instruction): complete-installation with a MAC, authorize with a dropdown-picked profile, and the voice-note follow-up upload are unit/widget-tested only — the 422 fix, installed-device persistence, and the follow-up upload's server acceptance are unverified until a phone test on the new base.
+2. **Controller-level voice-note wiring test** (one test asserting `state.voiceNoteWarning` on follow-up failure) was not written — repository covered; wiring is a two-line call site per controller.
+3. **Splicing detail PPPoE/inventory display** — `SplicingDetail` has no such parsing; out of scope, noted as a known gap above.
+4. **Document in-app viewer** — no viewer package exists in pubspec; opening relies on the system viewer via `url_launcher` with a saved-path fallback (see D19.8 limitation).
+5. **Survey-account `team_flows: []`** (D17 open item) — unchanged by D19; still a backend config question, not an app bug.
+6. **Discover-waiting-onus method mismatch** — doc says GET, live is POST (GET → 405). The app already uses POST (`OltNetwork.discoverWaitingOnus`); no app change needed, but the guide text is wrong on this point.
+
+### D19 — phone checks (for Haider, after push + build)
+
+1. Complete a real installation with a MAC on the new base — confirm no 422 and the installed device persists server-side (check the detail afterwards shows the device / installed-device fields).
+2. Authorize with a dropdown-picked profile (line + service + VLAN + user VLAN) — confirm the authorize succeeds and the preset pre-fill still works when ready.
+3. An `inventory_pending` request opens the survey detail read-only (no Plan Route / Complete Survey / Review buttons).
+4. A feasible survey generates PPPoE credentials — confirm the detail shows the username/password card (password masked unless `password_visible`).
+5. Record a voice note on a stage completion — confirm the stage still succeeds even if the follow-up upload fails (e.g. offline), and the warning appears without blocking.
+6. Tap a document row on a verification/closing detail — confirm it downloads and opens (or shows the saved path if no viewer can open it).
+7. Login on the new base (`ttsn.onlinecer.com`) works as before; the old sslip.io base is no longer used by the app.

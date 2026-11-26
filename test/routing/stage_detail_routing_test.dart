@@ -64,6 +64,24 @@ void main() {
       );
     });
 
+    test('inventory_pending / survey_not_feasible / survey_completed open the survey detail (D19, guide §8)', () {
+      // Feasible survey + items → inventory_pending (web-only approval);
+      // not-feasible → survey_not_feasible; feasible without items →
+      // survey_completed. All three are read-only survey-stage states.
+      const fallback = Routes.installationDetailFor;
+      for (final status in [
+        'inventory_pending',
+        'survey_not_feasible',
+        'survey_completed',
+      ]) {
+        expect(
+          Routes.detailRouteForRequest(_requestWithStatus(status), fallback),
+          Routes.surveyDetailFor('req-1'),
+          reason: status,
+        );
+      }
+    });
+
     test('installation_assigned opens the installation detail', () {
       expect(
         Routes.detailRouteForRequest(

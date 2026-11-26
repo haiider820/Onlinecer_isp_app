@@ -15,6 +15,7 @@ import '../../../models/connection_request.dart';
 import '../../../shared/widgets/voice_note_section.dart';
 import '../../auth/presentation/providers.dart';
 import '../../survey/presentation/connection_request_providers.dart';
+import '../../voice_notes/presentation/voice_note_providers.dart';
 import '../data/team_stage_completion_network.dart';
 import '../data/team_stage_completion_repository.dart';
 import '../models/team_stage_detail.dart';
@@ -247,6 +248,18 @@ class _TeamStageCompletionFormState extends ConsumerState<TeamStageCompletionFor
         voiceNoteMimeType: _voiceNotePath == null ? null : 'audio/mp4',
       );
       if (!mounted) return;
+      // Guide §20: stage completion may not save the voice note, so the
+      // recording is uploaded separately as a best-effort follow-up. The
+      // stage is already complete — a failure here only warns, never fails
+      // or rolls back the submit.
+      final voiceNoteWarning = await ref
+          .read(voiceNoteRepositoryProvider)
+          .uploadBestEffort(
+            requestId: widget.requestId,
+            voiceNotePath: _voiceNotePath,
+            voiceNoteMimeType: _voiceNotePath == null ? null : 'audio/mp4',
+          );
+      if (!mounted) return;
       // Phase D: refetch both the stage detail and the shared request
       // detail so any later read re-derives buttons from fresh
       // `allowed_actions`, never the stale pre-submit payload.
@@ -268,7 +281,13 @@ class _TeamStageCompletionFormState extends ConsumerState<TeamStageCompletionFor
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(child: Text(message)),
+            Expanded(
+              child: Text(
+                voiceNoteWarning == null
+                    ? message
+                    : '$message\n$voiceNoteWarning',
+              ),
+            ),
           ],
         ),
       ));

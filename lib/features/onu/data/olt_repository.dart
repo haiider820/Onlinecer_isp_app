@@ -1,4 +1,5 @@
 import '../../../models/direct_olt.dart';
+import '../../../models/olt_profiles.dart';
 import '../../../models/waiting_onu.dart';
 import 'olt_network.dart';
 
@@ -45,6 +46,20 @@ class OltRepository {
       subBranchId: subBranchId,
     );
     return WaitingOnuList.fromJson(_unwrapEnvelope(map));
+  }
+
+  /// `GET /lookups/direct-olts/{olt}/profiles` (guide §15): line/service
+  /// profiles + VLANs for the authorize form. The response is flat (no
+  /// `data` envelope); [OltProfiles.fromJson] unwraps defensively anyway.
+  Future<OltProfiles> fetchProfiles(
+    String oltId, {
+    String? subBranchId,
+  }) async {
+    final map = await network.fetchProfiles(
+      oltId,
+      subBranchId: subBranchId,
+    );
+    return OltProfiles.fromJson(map);
   }
 
   /// Some Laravel resource responses nest the envelope under a `data` key

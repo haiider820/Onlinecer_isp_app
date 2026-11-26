@@ -18,10 +18,13 @@ typedef InstallationPhoto = ({String path, String mime});
 /// depends on, so the completion flow is unit-testable without a real server.
 abstract interface class CompleteInstallationNetwork {
   /// Plain-JSON call: `POST .../complete-installation` with
-  /// `{ olt_device_ownership, connection_fat_node_id, dp_latitude,
-  ///    dp_longitude, total_wire_used?, installation_notes?,
-  ///    items? }`.
+  /// `{ olt_device_ownership, connection_fat_node_id, installed_device_mac,
+  ///    installed_device_serial?, dp_latitude, dp_longitude,
+  ///    total_wire_used?, installation_notes?, items? }`.
   ///
+  /// `installed_device_mac` is REQUIRED (guide §9) — the normalised
+  /// `AA:BB:CC:DD:EE:FF` form; `installed_device_serial` is optional
+  /// (max 150 chars, enforced by the form).
   /// `dp_latitude`/`dp_longitude` are the selected FAT node's coordinates
   /// (backend decision: the DP location is the FAT node, no separate GPS
   /// read). `items` is an array of `{ item_id, quantity }` objects — the
@@ -31,6 +34,8 @@ abstract interface class CompleteInstallationNetwork {
     String id, {
     required String oltDeviceOwnership,
     required String connectionFatNodeId,
+    required String installedDeviceMac,
+    String? installedDeviceSerial,
     required double dpLatitude,
     required double dpLongitude,
     num? totalWireUsed,
@@ -45,6 +50,8 @@ abstract interface class CompleteInstallationNetwork {
     String id, {
     required String oltDeviceOwnership,
     required String connectionFatNodeId,
+    required String installedDeviceMac,
+    String? installedDeviceSerial,
     required double dpLatitude,
     required double dpLongitude,
     num? totalWireUsed,
@@ -67,6 +74,8 @@ class DioCompleteInstallationNetwork implements CompleteInstallationNetwork {
     String id, {
     required String oltDeviceOwnership,
     required String connectionFatNodeId,
+    required String installedDeviceMac,
+    String? installedDeviceSerial,
     required double dpLatitude,
     required double dpLongitude,
     num? totalWireUsed,
@@ -78,6 +87,9 @@ class DioCompleteInstallationNetwork implements CompleteInstallationNetwork {
       data: {
         'olt_device_ownership': oltDeviceOwnership,
         'connection_fat_node_id': connectionFatNodeId,
+        'installed_device_mac': installedDeviceMac,
+        if (installedDeviceSerial != null && installedDeviceSerial.isNotEmpty)
+          'installed_device_serial': installedDeviceSerial,
         'dp_latitude': dpLatitude,
         'dp_longitude': dpLongitude,
         if (totalWireUsed != null) 'total_wire_used': totalWireUsed,
@@ -96,6 +108,8 @@ class DioCompleteInstallationNetwork implements CompleteInstallationNetwork {
     String id, {
     required String oltDeviceOwnership,
     required String connectionFatNodeId,
+    required String installedDeviceMac,
+    String? installedDeviceSerial,
     required double dpLatitude,
     required double dpLongitude,
     num? totalWireUsed,
@@ -108,6 +122,9 @@ class DioCompleteInstallationNetwork implements CompleteInstallationNetwork {
     final form = FormData.fromMap({
       'olt_device_ownership': oltDeviceOwnership,
       'connection_fat_node_id': connectionFatNodeId,
+      'installed_device_mac': installedDeviceMac,
+      if (installedDeviceSerial != null && installedDeviceSerial.isNotEmpty)
+        'installed_device_serial': installedDeviceSerial,
       'dp_latitude': dpLatitude,
       'dp_longitude': dpLongitude,
       if (totalWireUsed != null) 'total_wire_used': totalWireUsed,

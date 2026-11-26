@@ -24,6 +24,14 @@ abstract interface class OltNetwork {
     String oltId, {
     String? subBranchId,
   });
+
+  /// `GET /lookups/direct-olts/{olt}/profiles`
+  /// (+ `?sub_branch_id=` when given). Line/service profiles + VLANs for
+  /// the authorize form (guide §15).
+  Future<Map<String, dynamic>> fetchProfiles(
+    String oltId, {
+    String? subBranchId,
+  });
 }
 
 /// Real HTTP-backed implementation (ISPFINAL §5–§7).
@@ -66,6 +74,16 @@ class DioOltNetwork implements OltNetwork {
       query: {
         if (subBranchId != null) 'sub_branch_id': subBranchId,
       },
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>> fetchProfiles(
+    String oltId, {
+    String? subBranchId,
+  }) {
+    return _client.getMap(
+      Endpoints.oltProfiles(oltId, subBranchId: subBranchId),
     );
   }
 }

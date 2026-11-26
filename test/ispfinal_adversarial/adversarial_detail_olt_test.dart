@@ -71,6 +71,16 @@ class _ScriptedOltNetwork implements OltNetwork {
     fetchWaitingCalls++;
     return waiting ?? const {'data': []};
   }
+
+  @override
+  Future<Map<String, dynamic>> fetchProfiles(String oltId, {String? subBranchId}) async {
+    return const {
+      'olt': {},
+      'line_profiles': [],
+      'service_profiles': [],
+      'vlans': [],
+    };
+  }
 }
 
 void main() {

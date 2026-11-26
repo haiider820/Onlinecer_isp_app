@@ -14,6 +14,7 @@ import '../../../shared/formatting/format_minor_price.dart';
 import '../../../shared/widgets/location_map.dart';
 import '../../../shared/widgets/navigate_action.dart';
 import '../../../shared/widgets/ops_widgets.dart';
+import '../../../shared/widgets/pppoe_inventory_cards.dart';
 import '../../../shared/widgets/section_card.dart';
 import '../../survey/presentation/connection_request_providers.dart';
 import 'complete_installation_screen.dart';
@@ -373,6 +374,10 @@ class _OverviewSection extends StatelessWidget {
           const SizedBox(height: 4),
           _LocationsSection(locations: request.locations!),
         ],
+        // PPPoE credentials + inventory approval state (guide §6, Rev 1.0)
+        // — read-only; each card renders nothing when its block is absent.
+        PppoeCredentialsCard(credentials: request.pppoeCredentials),
+        InstallationInventoryCard(inventory: request.installationInventory),
         const SizedBox(height: 8),
       ],
     );

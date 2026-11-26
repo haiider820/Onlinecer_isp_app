@@ -14,6 +14,8 @@ class _FakeCompleteInstallationNetwork implements CompleteInstallationNetwork {
   String? lastId;
   String? lastOwnership;
   String? lastFatNodeId;
+  String? lastMac;
+  String? lastSerial;
   double? lastDpLatitude;
   double? lastDpLongitude;
   num? lastWire;
@@ -31,6 +33,8 @@ class _FakeCompleteInstallationNetwork implements CompleteInstallationNetwork {
     String id, {
     required String oltDeviceOwnership,
     required String connectionFatNodeId,
+    required String installedDeviceMac,
+    String? installedDeviceSerial,
     required double dpLatitude,
     required double dpLongitude,
     num? totalWireUsed,
@@ -42,6 +46,8 @@ class _FakeCompleteInstallationNetwork implements CompleteInstallationNetwork {
     lastId = id;
     lastOwnership = oltDeviceOwnership;
     lastFatNodeId = connectionFatNodeId;
+    lastMac = installedDeviceMac;
+    lastSerial = installedDeviceSerial;
     lastDpLatitude = dpLatitude;
     lastDpLongitude = dpLongitude;
     lastWire = totalWireUsed;
@@ -55,6 +61,8 @@ class _FakeCompleteInstallationNetwork implements CompleteInstallationNetwork {
     String id, {
     required String oltDeviceOwnership,
     required String connectionFatNodeId,
+    required String installedDeviceMac,
+    String? installedDeviceSerial,
     required double dpLatitude,
     required double dpLongitude,
     num? totalWireUsed,
@@ -69,6 +77,8 @@ class _FakeCompleteInstallationNetwork implements CompleteInstallationNetwork {
     lastId = id;
     lastOwnership = oltDeviceOwnership;
     lastFatNodeId = connectionFatNodeId;
+    lastMac = installedDeviceMac;
+    lastSerial = installedDeviceSerial;
     lastDpLatitude = dpLatitude;
     lastDpLongitude = dpLongitude;
     lastWire = totalWireUsed;
@@ -112,6 +122,7 @@ void main() {
         id: 'req_ist1',
         oltDeviceOwnership: 'company',
         connectionFatNodeId: 'node_7',
+          installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
         dpLatitude: _dpLatitude,
         dpLongitude: _dpLongitude,
       );
@@ -119,6 +130,9 @@ void main() {
       expect(network.lastId, 'req_ist1');
       expect(network.lastOwnership, 'company');
       expect(network.lastFatNodeId, 'node_7');
+      // Guide §9: the MAC is required and threaded through both paths.
+      expect(network.lastMac, 'AA:BB:CC:DD:EE:FF');
+      expect(network.lastSerial, isNull);
       expect(network.lastDpLatitude, _dpLatitude);
       expect(network.lastDpLongitude, _dpLongitude);
       expect(network.lastWire, isNull);
@@ -132,6 +146,25 @@ void main() {
       expect(network.multipartCalls, 0);
     });
 
+    test('forwards the optional device serial when provided', () async {
+      final network = _FakeCompleteInstallationNetwork(_successMap);
+      final repository = CompleteInstallationRepository(network: network);
+
+      await repository.submit(
+        id: 'req_ist1',
+        oltDeviceOwnership: 'user',
+        connectionFatNodeId: 'node_7',
+        installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
+        installedDeviceSerial: 'FHTT-22A25980',
+        dpLatitude: _dpLatitude,
+        dpLongitude: _dpLongitude,
+      );
+
+      expect(network.lastMac, 'AA:BB:CC:DD:EE:FF');
+      expect(network.lastSerial, 'FHTT-22A25980');
+      expect(network.jsonCalls, 1);
+    });
+
     test('includes optional wire usage and notes when provided', () async {
       final network = _FakeCompleteInstallationNetwork(_successMap);
       final repository = CompleteInstallationRepository(network: network);
@@ -140,6 +173,7 @@ void main() {
         id: 'req_ist1',
         oltDeviceOwnership: 'user',
         connectionFatNodeId: 'node_7',
+          installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
         dpLatitude: _dpLatitude,
         dpLongitude: _dpLongitude,
         totalWireUsed: 35.5,
@@ -158,6 +192,7 @@ void main() {
         id: 'req_ist1',
         oltDeviceOwnership: 'user',
         connectionFatNodeId: 'node_7',
+          installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
         dpLatitude: _dpLatitude,
         dpLongitude: _dpLongitude,
         totalWireUsed: 0,
@@ -174,6 +209,7 @@ void main() {
         id: 'req_ist1',
         oltDeviceOwnership: 'user',
         connectionFatNodeId: 'node_1',
+          installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
         dpLatitude: _dpLatitude,
         dpLongitude: _dpLongitude,
         inventoryLines: const [
@@ -201,6 +237,7 @@ void main() {
           id: 'req_ist1',
           oltDeviceOwnership: 'user',
           connectionFatNodeId: 'node_7',
+          installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
           dpLatitude: _dpLatitude,
           dpLongitude: _dpLongitude,
         ),
@@ -223,6 +260,7 @@ void main() {
         id: 'req_ist1',
         oltDeviceOwnership: 'user',
         connectionFatNodeId: 'node_1',
+          installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
         dpLatitude: _dpLatitude,
         dpLongitude: _dpLongitude,
         totalWireUsed: 40,
@@ -261,6 +299,7 @@ void main() {
           id: 'req_ist1',
           oltDeviceOwnership: 'user',
           connectionFatNodeId: 'node_1',
+          installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
           dpLatitude: _dpLatitude,
           dpLongitude: _dpLongitude,
           photos: [(path: photo.path, mime: 'image/png')],
@@ -283,6 +322,7 @@ void main() {
           id: 'req_ist1',
           oltDeviceOwnership: 'user',
           connectionFatNodeId: 'node_1',
+          installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
           dpLatitude: _dpLatitude,
           dpLongitude: _dpLongitude,
           photos: [(path: photo.path, mime: 'image/bmp')],
@@ -300,6 +340,7 @@ void main() {
         id: 'req_ist1',
         oltDeviceOwnership: 'user',
         connectionFatNodeId: 'node_1',
+          installedDeviceMac: 'AA:BB:CC:DD:EE:FF',
         dpLatitude: _dpLatitude,
         dpLongitude: _dpLongitude,
       );

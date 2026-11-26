@@ -98,4 +98,49 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets(
+      'inventory_pending (no allowed actions) shows no actionable buttons (D19, guide §8)',
+      (tester) async {
+    // A feasible survey with requested items lands in inventory_pending:
+    // approval is web-only, so the survey detail must be read-only — no
+    // Plan Route, no Complete Survey, no Review. The Flag button stays
+    // (it is not a stage action).
+    tester.view.physicalSize = const Size(600, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          connectionRequestDetailProvider('req-1').overrideWith(
+            (ref) async => ConnectionRequestDetail.fromJson({
+              'data': {
+                'id': 'req-1',
+                'request_number': 'CRQ-20261125-TEST',
+                'status': 'inventory_pending',
+                'customer_name': 'Test Customer',
+                'current_team': {
+                  'id': 'team_uuid',
+                  'name': 'Survey Team',
+                  'functional_team_type': 'survey',
+                },
+              },
+              // No allowed_action / allowed_actions at all.
+            }),
+          ),
+        ],
+        child: const MaterialApp(
+          home: SurveyRequestDetailScreen(requestId: 'req-1'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Plan Route'), findsNothing);
+    expect(find.text('Complete Survey'), findsNothing);
+    expect(find.text('Review'), findsNothing);
+    // The screen itself still renders (read-only detail, not an error).
+    expect(find.text('CRQ-20261125-TEST'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

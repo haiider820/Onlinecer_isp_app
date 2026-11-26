@@ -17,6 +17,7 @@ import '../../../core/router/app_router.dart';
 import '../../../core/theme/field_ops_design_tokens.dart';
 import '../../../models/fat_node.dart';
 import '../../../models/inventory_item.dart';
+import '../../../shared/validation/mac_address.dart';
 import '../../../shared/widgets/ops_widgets.dart';
 import '../../survey/presentation/route_providers.dart';
 import '../data/complete_installation_network.dart';
@@ -89,6 +90,13 @@ class CompleteInstallationFormState
   final _notesController = TextEditingController();
   final _notesFocusNode = FocusNode();
 
+  /// Installed ONU/ONT device MAC (guide §9: REQUIRED on
+  /// complete-installation) + optional serial (max 150 chars). The MAC is
+  /// normalised to `AA:BB:CC:DD:EE:FF` at submit time; the validator blocks
+  /// a missing/invalid MAC before any network call.
+  final _macController = TextEditingController();
+  final _serialController = TextEditingController();
+
   /// Owned by the customer (user) or the company; `null` until chosen.
   String? _ownership;
   String? _ownershipError;
@@ -141,6 +149,8 @@ class CompleteInstallationFormState
     _wireController.dispose();
     _notesController.dispose();
     _notesFocusNode.dispose();
+    _macController.dispose();
+    _serialController.dispose();
     _inventorySearch.dispose();
     _inventorySearchDebounce?.cancel();
     for (final row in _inventoryRows) {
@@ -558,6 +568,28 @@ class CompleteInstallationFormState
           ),
           const SizedBox(height: 20),
 
+          _FieldTitle('Installed device'),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _macController,
+            textCapitalization: TextCapitalization.characters,
+            decoration: const InputDecoration(
+              labelText: 'Device MAC address',
+              hintText: 'AA:BB:CC:DD:EE:FF',
+            ),
+            validator: validateMacAddress,
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _serialController,
+            maxLength: 150,
+            decoration: const InputDecoration(
+              labelText: 'Device serial (optional)',
+              hintText: 'Optional',
+            ),
+          ),
+          const SizedBox(height: 20),
+
           _FieldTitle('Total wire used (m)'),
           const SizedBox(height: 8),
           WireStepper(
@@ -869,6 +901,11 @@ class CompleteInstallationFormState
     final fatNodeId = _fatNodeId;
     final formValid = _formKey.currentState?.validate() ?? false;
 
+    // Normalised here (the validator above already blocked a missing or
+    // invalid MAC, so a null here is defensive only — never sent).
+    final mac = normalizeMacAddress(_macController.text);
+    final serial = _serialController.text.trim();
+
     final wireText = _wireController.text.trim();
     final wire = wireText.isEmpty ? null : num.tryParse(wireText);
     final wireError = wireText.isNotEmpty && (wire == null || wire < 0)
@@ -896,6 +933,7 @@ class CompleteInstallationFormState
     if (!formValid ||
         ownership == null ||
         fatNodeId == null ||
+        mac == null ||
         dpPoint == null ||
         wireError != null ||
         inventoryError != null) {
@@ -939,6 +977,8 @@ class CompleteInstallationFormState
           id: widget.requestId,
           oltDeviceOwnership: ownership,
           connectionFatNodeId: fatNodeId,
+          installedDeviceMac: mac,
+          installedDeviceSerial: serial.isEmpty ? null : serial,
           dpLatitude: dpPoint.latitude,
           dpLongitude: dpPoint.longitude,
           totalWireUsed: wire,
@@ -952,6 +992,15 @@ class CompleteInstallationFormState
 
     if (result != null) {
       final status = result.data?.status?.replaceAll('_', ' ') ?? '';
+      final message = status.isEmpty
+          ? 'Installation submitted.'
+          : 'Installation submitted → $status';
+      // Guide §20: the follow-up voice-note upload may have warned — the
+      // stage is complete regardless, so the warning rides along with the
+      // success message instead of failing the submit.
+      final voiceNoteWarning = ref
+          .read(completeInstallationControllerProvider)
+          .voiceNoteWarning;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -967,9 +1016,9 @@ class CompleteInstallationFormState
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  status.isEmpty
-                      ? 'Installation submitted.'
-                      : 'Installation submitted → $status',
+                  voiceNoteWarning == null
+                      ? message
+                      : '$message\n$voiceNoteWarning',
                 ),
               ),
             ],

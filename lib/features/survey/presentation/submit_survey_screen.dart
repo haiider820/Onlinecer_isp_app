@@ -254,7 +254,12 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
     if (!mounted) return;
 
     if (result != null) {
-      await _showSuccessThenGo();
+      // Guide §20: the follow-up voice-note upload may have warned — show
+      // it after the success overlay, before leaving (the root
+      // ScaffoldMessenger keeps the snackbar visible across the navigation).
+      final voiceNoteWarning =
+          ref.read(submitSurveyControllerProvider).voiceNoteWarning;
+      await _showSuccessThenGo(voiceNoteWarning: voiceNoteWarning);
     }
   }
 
@@ -265,7 +270,7 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
   /// [context.go] lands on the list. Completion is ticker-driven (an
   /// [AnimationController], no `Timer`), so it always resolves within a bounded
   /// pump and never leaves a pending timer behind.
-  Future<void> _showSuccessThenGo() async {
+  Future<void> _showSuccessThenGo({String? voiceNoteWarning}) async {
     final navigator = Navigator.of(context);
     // Full-screen transparent overlay with the success Lottie.
     await showDialog<void>(
@@ -278,6 +283,7 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
       ),
     );
     if (!mounted) return;
+    if (voiceNoteWarning != null) _snack(voiceNoteWarning);
     // Fresh list instance refetches, so the completed request leaves the queue.
     context.go(Routes.surveyList);
   }
