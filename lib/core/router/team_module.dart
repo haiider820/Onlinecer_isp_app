@@ -79,14 +79,15 @@ class TeamModule {
   final bool showNewRequest;
 
   /// The mounted dashboard for this team, built entirely from [TeamModule]
-  /// values so the AppBar title, pending label, "View All" button, and routes
-  /// can never disagree with the team that was dispatched.
+  /// values so the AppBar title, "New request" entry, and routes can never
+  /// disagree with the team that was dispatched. (D20: the dashboard no
+  /// longer renders [viewAllLabel]/[pendingLabel] — the queue is reached
+  /// through the tiles — but the fields stay on the module as the team's
+  /// spec, guarded by team_module_dispatch_test.)
   Widget get dashboardScreen => TeamDashboardScreen(
         featureName: dashboardTitle,
         defaultEmployeeLabel: defaultEmployeeLabel,
         defaultTeamLabel: defaultTeamLabel,
-        pendingLabel: pendingLabel,
-        viewAllLabel: viewAllLabel,
         listRoute: listRoute,
         detailRouteFor: detailRouteFor,
         showNewRequest: showNewRequest,

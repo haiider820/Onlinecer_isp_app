@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:isp_onlinecer/core/constants/app_constants.dart';
 import 'package:isp_onlinecer/core/storage/secure_storage.dart';
 import 'package:isp_onlinecer/features/auth/presentation/providers.dart';
+import 'package:isp_onlinecer/features/dashboard/presentation/dashboard_tiles_providers.dart';
 import 'package:isp_onlinecer/features/installation/data/inventory_network.dart';
 import 'package:isp_onlinecer/features/installation/data/inventory_repository.dart';
 import 'package:isp_onlinecer/features/installation/presentation/installation_providers.dart';
@@ -232,6 +233,14 @@ Widget _buildApp(SecureStorage storage, _FakeConnectionRequestNetwork network) {
       inventoryRepositoryProvider.overrideWithValue(
         InventoryRepository(network: _FakeInventoryNetwork()),
       ),
+      // D20 dashboard tiles: deterministic counts, no real HTTP. The
+      // pending-authorization provider stays live on purpose — the fake
+      // connection-request repo backs it, so the ONU Authorization tile
+      // carries the fixture request.
+      dashboardTeamFlowCountProvider.overrideWith((ref) async => 2),
+      dashboardOpenTicketCountProvider.overrideWith((ref) async => 0),
+      dashboardInventoryCountProvider.overrideWith((ref) async => 0),
+      dashboardWaitingOnuCountProvider.overrideWith((ref) async => 0),
       mapTileProviderProvider.overrideWithValue(FakeTileProvider()),
     ],
     child: IspOnlinecerApp(storage: storage),
@@ -250,9 +259,8 @@ Finder _detailScrollable() {
       .first;
 }
 
-/// Pumps the app with a tall viewport so the dashboard's recent-request card
-/// is built within the test window (the bottom logout bar shaves ~76px from
-/// the body, pushing the card below the sliver build window at 600px).
+/// Pumps the app with a tall viewport so the long merged detail scroll
+/// fits the test window.
 Future<void> _pumpDashboard(WidgetTester tester, SecureStorage storage,
     _FakeConnectionRequestNetwork network) async {
   tester.view.physicalSize = const Size(800, 1400);
@@ -263,9 +271,9 @@ Future<void> _pumpDashboard(WidgetTester tester, SecureStorage storage,
 }
 
 /// Bounded settle: pumps frames until nothing is scheduled, but gives up
-/// after a bounded number of frames. The dashboard's live PulseDot repeats
-/// forever by design, so an unbounded `pumpAndSettle` can never complete
-/// while it is on screen.
+/// after a bounded number of frames, so a screen with pending timers (the
+/// detail screen's debounced map route call) can never hang the test.
+/// (The D20 dashboard itself mounts no repeating animation anymore.)
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 30; i++) {
     await tester.pump(const Duration(milliseconds: 100));
@@ -283,23 +291,25 @@ void main() {
     expect(find.text('Installation'), findsOneWidget);
     expect(find.text('Tanvir Installer'), findsOneWidget);
     expect(find.text('Installation Team'), findsOneWidget);
-    expect(find.text(_requestNumber), findsOneWidget);
+    // D20: no Recent Requests card — the queue is reached through the
+    // tiles; the request number itself lives on the list screen now.
+    expect(find.text('Connection Flow'), findsOneWidget);
+    expect(find.text('My Tickets'), findsOneWidget);
+    expect(find.text('Inventory Items'), findsOneWidget);
+    expect(find.text('Waiting ONUs'), findsOneWidget);
+    expect(find.text('ONU Authorization'), findsOneWidget);
+    expect(find.text('Recent Requests'), findsNothing);
+    expect(find.text(_requestNumber), findsNothing);
   });
 
-  testWidgets('View All loads the status-filtered installation queue', (tester) async {
+  testWidgets('Connection Flow tile loads the status-filtered installation queue', (tester) async {
     final storage = await _sessionStorage();
     final network = _FakeConnectionRequestNetwork();
     await _pumpDashboard(tester, storage, network);
 
-    // The "View All" button is the last section of the dashboard ListView, so
-    // it starts below the 600px test viewport and is not built by the lazy
-    // list — reveal it (as the other dashboard flows do) before tapping.
-    await tester.scrollUntilVisible(
-      find.text('View All Installation Requests'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.text('View All Installation Requests'));
+    // D20: the "View All" button is gone — the installation team's queue
+    // is reached through the Connection Flow tile.
+    await tester.tap(find.text('Connection Flow'));
     await _settle(tester);
 
     expect(find.text('Requests'), findsOneWidget);
@@ -312,8 +322,9 @@ void main() {
     final storage = await _sessionStorage();
     await _pumpDashboard(tester, storage, _FakeConnectionRequestNetwork());
 
-    // Go dashboard → detail via the recent request.
-    await tester.tap(find.text(_requestNumber));
+    // Go dashboard → detail via the ONU Authorization tile (first pending
+    // request, D20).
+    await tester.tap(find.text('ONU Authorization'));
     await _settle(tester);
 
     expect(find.text(_requestNumber), findsOneWidget);
@@ -361,7 +372,7 @@ void main() {
     final storage = await _sessionStorage();
     await _pumpDashboard(tester, storage, _FakeConnectionRequestNetwork());
 
-    await tester.tap(find.text(_requestNumber));
+    await tester.tap(find.text('ONU Authorization'));
     await _settle(tester);
 
     // The ref.listen seed fills both markers from the saved survey locations
@@ -394,7 +405,7 @@ void main() {
     );
     await _pumpDashboard(tester, storage, network);
 
-    await tester.tap(find.text(_requestNumber));
+    await tester.tap(find.text('ONU Authorization'));
     await _settle(tester);
 
     expect(find.text(_requestNumber), findsOneWidget);

@@ -1,37 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lottie/lottie.dart';
 
+import '../../core/constants/app_constants.dart';
 import '../../core/network/api_exceptions.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/field_ops_design_tokens.dart';
 import '../../core/theme/theme_mode_provider.dart';
 import '../../features/auth/presentation/providers.dart';
+import '../../features/dashboard/presentation/dashboard_tiles_providers.dart';
 import '../../features/lookups/presentation/sub_branch_providers.dart';
 import '../../features/notifications/presentation/notification_providers.dart';
 import '../../features/survey/presentation/dashboard_providers.dart';
+import '../../models/connection_request.dart';
 import '../../models/dashboard.dart';
-import '../../models/ticket.dart';
 import 'branded_header.dart';
 import 'ops_widgets.dart';
-import 'request_card.dart';
-import 'ticket_card.dart';
 
 /// Shared logged-in dashboard for a functional team.
 ///
-/// One dashboard per team type: same layout (employee header, stat row, recent
-/// requests), different labels and navigation targets. Feature screens stay
-/// thin parameterized wrappers; the data comes from the shared
-/// [dashboardSummaryProvider] (`GET /dashboard`).
+/// D20 layout (approved 2026-11-27, per the 3rd reference screenshot):
+/// a compact header (employee name + team, settings gear, logout), five
+/// count tiles (Connection Flow, My Tickets, Inventory Items, Waiting ONUs,
+/// ONU Authorization) and one primary "+ New request" button. No greeting
+/// hero, no GPS strip, no stat row, no Recent Requests — the team's queue
+/// stays reachable through the tiles (see [_DashboardBody] for the exact
+/// per-tile target). The data comes from the tile providers
+/// (`dashboard_tiles_providers.dart`), one endpoint per tile; the header
+/// still comes from the shared [dashboardSummaryProvider]
+/// (`GET /dashboard`).
 class TeamDashboardScreen extends ConsumerWidget {
   const TeamDashboardScreen({
     super.key,
     required this.featureName,
     required this.defaultEmployeeLabel,
     required this.defaultTeamLabel,
-    this.pendingLabel = 'Pending',
-    required this.viewAllLabel,
     required this.listRoute,
     this.detailRouteFor,
     this.showNewRequest = false,
@@ -40,7 +43,7 @@ class TeamDashboardScreen extends ConsumerWidget {
   /// Short feature name used for the AppBar title, e.g. `'Splicing'`.
   ///
   /// Kept to a single short word on purpose: the AppBar also carries the brand
-  /// logo, the notifications bell and the logout action, so a longer string
+  /// logo, the notifications bell and the theme toggle, so a longer string
   /// such as 'Fiber Splicing Dashboard' ellipsised on 360dp phones.
   final String featureName;
 
@@ -49,12 +52,6 @@ class TeamDashboardScreen extends ConsumerWidget {
 
   /// Placeholder label when the backend omits the team name.
   final String defaultTeamLabel;
-
-  /// Label for the pending-count tile; splicing uses "Pending Splicing".
-  final String pendingLabel;
-
-  /// Text of the bottom "View All" button, e.g. 'View All Survey Requests'.
-  final String viewAllLabel;
 
   /// Route for the full request list (pushed, so the dashboard stays below it).
   final String listRoute;
@@ -68,6 +65,11 @@ class TeamDashboardScreen extends ConsumerWidget {
 
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(dashboardSummaryProvider);
+    ref.invalidate(dashboardTeamFlowCountProvider);
+    ref.invalidate(dashboardOpenTicketCountProvider);
+    ref.invalidate(dashboardInventoryCountProvider);
+    ref.invalidate(dashboardWaitingOnuCountProvider);
+    ref.invalidate(dashboardPendingAuthorizationProvider);
     await ref.read(dashboardSummaryProvider.future);
   }
 
@@ -81,10 +83,11 @@ class TeamDashboardScreen extends ConsumerWidget {
         if (!didPop) _confirmLogout(context, ref);
       },
       child: Scaffold(
-        // Branded header: logo, title, notifications bell, logout button.
+        // Branded header: logo, title, theme toggle, notifications bell.
+        // No logout action here — the D20 compact header below carries the
+        // logout icon, and two logouts on one screen would be a duplicate.
         appBar: BrandedHeader(
           title: featureName,
-          onLogout: () => _confirmLogout(context, ref),
           actions: [
             _ThemeToggleAction(),
             _NotificationBellAction(
@@ -101,17 +104,14 @@ class TeamDashboardScreen extends ConsumerWidget {
           data: (data) => _DashboardBody(
             summary: data,
             onRefresh: () => _refresh(ref),
-            onViewAll: () => context.push(listRoute),
             onNewRequest: showNewRequest
                 ? () => context.push(Routes.newRequest)
                 : null,
-            pendingLabel: pendingLabel,
+            listRoute: listRoute,
+            detailRouteFor: detailRouteFor,
             defaultEmployeeLabel: defaultEmployeeLabel,
             defaultTeamLabel: defaultTeamLabel,
-            viewAllLabel: viewAllLabel,
-            detailRouteFor: detailRouteFor,
-            onTicketsTap: () => context.push(Routes.ticketsList),
-            onNotificationsTap: () => context.push(Routes.notifications),
+            onLogout: () => _confirmLogout(context, ref),
           ),
         ),
       ),
@@ -218,257 +218,179 @@ class _NotificationBellAction extends ConsumerWidget {
   }
 }
 
-class _DashboardBody extends StatelessWidget {
+/// D20 dashboard body: compact header + five count tiles + one primary
+/// "+ New request" button. No Recent Requests section (removed 2026-11-27
+/// on Haider's word) — the queue stays reachable through the tiles:
+///
+/// * Connection Flow → the New Request form's flow step on the survey team
+///   (the flow picker lives there); every other team → its own request
+///   list ([listRoute]).
+/// * My Tickets → the tickets list.
+/// * Inventory Items → the team's request list. GAP: no standalone
+///   inventory-catalog screen exists yet (see D20) — inventory is reached
+///   from a request's installation detail/form.
+/// * Waiting ONUs → the OLT list for the first request awaiting
+///   authorization (the waiting-ONU list is request-scoped, there is no
+///   global waiting-ONU screen — see D20); with no pending request, the
+///   team's request list.
+/// * ONU Authorization → the first awaiting request's (stage-aware) detail,
+///   which carries the Authorize ONU entry; with no pending request, the
+///   team's request list.
+class _DashboardBody extends ConsumerWidget {
   const _DashboardBody({
     required this.summary,
     required this.onRefresh,
-    required this.onViewAll,
     this.onNewRequest,
-    required this.pendingLabel,
+    required this.listRoute,
+    this.detailRouteFor,
     required this.defaultEmployeeLabel,
     required this.defaultTeamLabel,
-    required this.viewAllLabel,
-    this.detailRouteFor,
-    required this.onTicketsTap,
-    required this.onNotificationsTap,
+    required this.onLogout,
   });
 
   final DashboardSummary summary;
   final Future<void> Function() onRefresh;
-  final VoidCallback onViewAll;
 
   /// Opens the create-request form (ISPFINAL Phase C). `null` on teams
-  /// that never create requests — the button is then not rendered at all.
+  /// that never create requests — the button is then not rendered at all,
+  /// and the Connection Flow tile falls back to the team's request list.
   final VoidCallback? onNewRequest;
-  final String pendingLabel;
+  final String listRoute;
+  final String Function(String id)? detailRouteFor;
   final String defaultEmployeeLabel;
   final String defaultTeamLabel;
-  final String viewAllLabel;
-  final String Function(String id)? detailRouteFor;
-  final VoidCallback onTicketsTap;
-  final VoidCallback onNotificationsTap;
+  final VoidCallback onLogout;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+  Widget build(BuildContext context, WidgetRef ref) {
     final employee = summary.employee;
-    final counts = summary.stats?.connectionRequests;
-    final recent = summary.recentConnectionRequests ?? const [];
-    final ticketCounts = summary.stats?.tickets;
-    final recentTickets = (summary.recentTickets ?? const [])
-        .whereType<Map>()
-        .map((item) => Ticket.fromJson(Map<String, dynamic>.from(item)))
-        .take(5)
-        .toList(growable: false);
+    final pendingAuth = ref.watch(dashboardPendingAuthorizationProvider);
+    final firstPending = _firstInstallationAssigned(pendingAuth.valueOrNull);
 
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(left: 16, right: 16, bottom: 24),
+        padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 24),
         children: [
-          // ── Gradient greeting banner ──
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _GreetingBanner(
-              employeeName: employee?.name ?? defaultEmployeeLabel,
-              teamName: employee?.team?.name ?? defaultTeamLabel,
-              onNotificationsTap: onNotificationsTap,
+          // ── Compact header: name + team, settings gear, logout ──
+          _CompactHeader(
+            employeeName: employee?.name ?? defaultEmployeeLabel,
+            teamName: employee?.team?.name ?? defaultTeamLabel,
+            onSettings: () => _showSettingsSheet(context),
+            onLogout: onLogout,
+          ),
+          const SizedBox(height: 16),
+
+          // ── Connection Flow ──
+          _DashboardTile(
+            title: 'Connection Flow',
+            icon: Icons.link,
+            style: const _TileStyle(
+              light: Color(0xFF2563EB),
+              dark: Color(0xFF60A5FA),
             ),
+            count: ref.watch(dashboardTeamFlowCountProvider),
+            label: 'Available',
+            onTap: () {
+              if (onNewRequest != null) {
+                onNewRequest!();
+              } else {
+                context.push(listRoute);
+              }
+            },
+          ),
+          const SizedBox(height: 10),
+
+          // ── My Tickets ──
+          _DashboardTile(
+            title: 'My Tickets',
+            icon: Icons.confirmation_number_outlined,
+            style: const _TileStyle(
+              light: Color(0xFF16A34A),
+              dark: Color(0xFF4ADE80),
+            ),
+            count: ref.watch(dashboardOpenTicketCountProvider),
+            label: 'Open',
+            onTap: () => context.push(Routes.ticketsList),
+          ),
+          const SizedBox(height: 10),
+
+          // ── Inventory Items ──
+          _DashboardTile(
+            title: 'Inventory Items',
+            icon: Icons.layers_outlined,
+            style: const _TileStyle(
+              light: Color(0xFF7C3AED),
+              dark: Color(0xFFA78BFA),
+            ),
+            count: ref.watch(dashboardInventoryCountProvider),
+            label: 'Total',
+            onTap: () => context.push(listRoute),
+          ),
+          const SizedBox(height: 10),
+
+          // ── Waiting ONUs ──
+          _DashboardTile(
+            title: 'Waiting ONUs',
+            icon: Icons.router_outlined,
+            style: const _TileStyle(
+              light: Color(0xFFD97706),
+              dark: Color(0xFFFBBF24),
+            ),
+            count: ref.watch(dashboardWaitingOnuCountProvider),
+            label: 'Waiting',
+            onTap: () {
+              if (firstPending != null) {
+                context.push(Routes.oltListFor(firstPending.id));
+              } else {
+                context.push(listRoute);
+              }
+            },
+          ),
+          const SizedBox(height: 10),
+
+          // ── ONU Authorization ──
+          _DashboardTile(
+            title: 'ONU Authorization',
+            icon: Icons.shield_outlined,
+            style: const _TileStyle(
+              light: Color(0xFFDC2626),
+              dark: Color(0xFFF87171),
+            ),
+            count: pendingAuth.whenData(
+              (page) => page.meta.total ?? page.data.length,
+            ),
+            label: 'Pending',
+            onTap: () {
+              if (firstPending != null && detailRouteFor != null) {
+                context.push(
+                  Routes.detailRouteForRequest(firstPending, detailRouteFor!),
+                );
+              } else {
+                context.push(listRoute);
+              }
+            },
           ),
 
-          // ── Stat cards: mono instrument readouts ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Row(
-              children: [
-                _CountStatTile(
-                  label: pendingLabel,
-                  value: counts?.pending ?? 0,
-                  accent: true,
-                ),
-                const SizedBox(width: 10),
-                _CountStatTile(
-                  label: 'Completed',
-                  value: counts?.completed ?? 0,
-                ),
-                const SizedBox(width: 10),
-                _CountStatTile(
-                  label: 'Total',
-                  value: counts?.total ?? 0,
-                ),
-              ],
-            ),
-          ),
-
-          // ── My Tickets strip ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: OpsCard(
-              onTap: onTicketsTap,
-              child: Row(children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary
-                        .withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: Icon(
-                    Icons.confirmation_number_outlined,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'My Tickets',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${ticketCounts?.pending ?? 0} open · ${ticketCounts?.total ?? 0} total',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  Icons.chevron_right,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ]),
-            ),
-          ),
-
-          // ── Recent tickets ──
-          if (recentTickets.isNotEmpty) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Recent Tickets',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: onTicketsTap,
-                    child: const Text('View All'),
-                  ),
-                ],
-              ),
-            ),
-            for (final ticket in recentTickets)
-              TicketCard(
-                ticket: ticket,
-                onTap: () => context.push(Routes.ticketDetailFor(ticket.id)),
-              ),
-          ],
-
-          // ── Recent Requests ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Row(
-              children: [
-                Text(
-                  'Recent Requests',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Count badge.
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    '${recent.length}',
-                    style: TextStyle(
-                      color: theme.colorScheme.onPrimaryContainer,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: FieldOpsDesignTokens.bodyFamily,
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                TextButton(onPressed: onViewAll, child: const Text('View All')),
-              ],
-            ),
-          ),
-
-          if (recent.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
-              child: Column(
-                children: [
-                  SizedBox(
-                    height: 120,
-                    width: 120,
-                    child: Lottie.asset(
-                      'assets/lottie/empty_list.json',
-                      repeat: true,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'No requests assigned yet.',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            for (final request in recent.take(3))
-              RequestCard(
-                request: request,
-                onTap: detailRouteFor == null
-                    ? null
-                    // D18: the detail screen follows the request's stage,
-                    // not the viewer's session team, so a later-stage
-                    // request opens its own stage's detail screen.
-                    : () => context.push(
-                          Routes.detailRouteForRequest(request, detailRouteFor!),
-                        ),
-              ),
-
-          // ── View All button ──
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: OutlinedButton.icon(
-              onPressed: onViewAll,
-              icon: const Icon(Icons.list_alt),
-              label: Text(viewAllLabel),
-            ),
-          ),
-
-          // ── New request entry (ISPFINAL Phase C) ──
-          // A clear secondary entry below View All, not a second competing
-          // primary CTA on the same card: the dashboard's one job stays the
-          // queue; creating a request is a separate entry point.
+          // ── New request (ISPFINAL Phase C, survey team only) ──
+          // The dashboard's one primary button (kit Rule 3 + Rule 12):
+          // sky fill with dark-navy ink, never white on sky.
           if (onNewRequest != null)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: OutlinedButton.icon(
-                onPressed: onNewRequest,
-                icon: const Icon(Icons.add),
-                label: const Text('New request'),
+              padding: const EdgeInsets.only(top: 16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: onNewRequest,
+                  icon: const Icon(Icons.add),
+                  label: const Text('New request'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF5BC0DE),
+                    foregroundColor: const Color(0xFF0B132B),
+                  ),
+                ),
               ),
             ),
         ],
@@ -477,178 +399,257 @@ class _DashboardBody extends StatelessWidget {
   }
 }
 
-/// Stat tile with a count-up number (same layout as [StatTile], but the
-/// value animates via [CountUp] instead of rendering statically).
-class _CountStatTile extends StatelessWidget {
-  const _CountStatTile({
-    required this.value,
-    required this.label,
-    this.accent = false,
-  });
-
-  final int value;
-  final String label;
-  final bool accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Expanded(
-      child: OpsCard(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-        child: Column(
-          children: [
-            DefaultTextStyle(
-              style: FieldOpsDesignTokens.dataLg.copyWith(
-                color: accent
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.onSurface,
-              ),
-              child: CountUp(value: value),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label.toUpperCase(),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 9.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
+/// First `installation_assigned` row of the pending-authorization page, or
+/// `null` when the page is not loaded yet or holds no such row. The
+/// Waiting ONUs / ONU Authorization tiles navigate through this request —
+/// the OLT list and the authorize flow are both request-scoped, so there
+/// is no request-free target for them.
+ConnectionRequest? _firstInstallationAssigned(ConnectionRequestPage? page) {
+  if (page == null) return null;
+  for (final request in page.data) {
+    if (request.status == ConnectionStatus.installationAssigned) {
+      return request;
+    }
   }
+  return null;
 }
 
-/// Ops hero: same cobalt gradient in dark and light, greeting, team line
-/// and a live GPS ribbon. White text on the hero stays — contrast is fine
-/// on both gradients. No glow.
-class _GreetingBanner extends StatelessWidget {
-  const _GreetingBanner({
+/// Compact D20 header: employee name (bold) + team (muted) on the left,
+/// settings gear + logout (red-tinted circle) on the right. Both actions
+/// are 48dp targets (kit Rule 8).
+class _CompactHeader extends StatelessWidget {
+  const _CompactHeader({
     required this.employeeName,
     required this.teamName,
-    required this.onNotificationsTap,
+    required this.onSettings,
+    required this.onLogout,
   });
 
   final String employeeName;
   final String teamName;
-  final VoidCallback onNotificationsTap;
+  final VoidCallback onSettings;
+  final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final hour = DateTime.now().hour;
-    final greeting = hour < 12
-        ? 'Good morning'
-        : hour < 17
-            ? 'Good afternoon'
-            : 'Good evening';
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1D4ED8), Color(0xFF123280)],
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Stack(
-        children: [
-          Column(
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  OpsAvatar(
-                    initials: OpsAvatar.initialsOf(employeeName),
-                    size: 52,
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          greeting,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color:
-                                Colors.white.withValues(alpha: 0.85),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          employeeName,
-                          style: FieldOpsDesignTokens.headlineMd
-                              .copyWith(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(
-                    Icons.work_outline,
-                    size: 15,
-                    color: Colors.white.withValues(alpha: 0.75),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      teamName,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // Live GPS ribbon.
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 9),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(13),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.14),
-                  ),
+              Text(
+                employeeName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: FieldOpsDesignTokens.headlineMd.copyWith(
+                  color: theme.colorScheme.onSurface,
+                  fontWeight: FontWeight.w700,
                 ),
-                child: Row(
-                  children: [
-                    PulseDot(color: const Color(0xFF34D399)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'GPS SIGNAL ACTIVE',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      '${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}',
-                      style: FieldOpsDesignTokens.dataSm.copyWith(
-                        color: Colors.white.withValues(alpha: 0.85),
-                      ),
-                    ),
-                  ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                teamName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
           ),
-        ],
+        ),
+        IconButton(
+          tooltip: 'Settings',
+          onPressed: onSettings,
+          icon: const Icon(Icons.settings_outlined),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          tooltip: 'Log out',
+          onPressed: onLogout,
+          icon: const Icon(Icons.logout),
+          color: theme.colorScheme.error,
+          style: IconButton.styleFrom(
+            backgroundColor: theme.colorScheme.error.withValues(alpha: 0.1),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One D20 count tile: tinted icon chip, title, big coloured number +
+/// small label, chevron. The number counts up (kit Rule 4); while its
+/// count is loading the tile shows a dash, on error it shows 0 — a failed
+/// count never crashes the dashboard or blocks the other tiles.
+///
+/// Size spec (Haider, 2026-11-27): COMPACT — 85% of the screen width
+/// (centred, equal margins both sides) and ~47px tall: 32px icon chip,
+/// 14px title, 20px number, 7px vertical padding, 10px tile gap. The
+/// header and the "+ New request" button stay full width.
+class _DashboardTile extends StatelessWidget {
+  const _DashboardTile({
+    required this.title,
+    required this.icon,
+    required this.style,
+    required this.count,
+    required this.label,
+    required this.onTap,
+  });
+
+  final String title;
+  final IconData icon;
+  final _TileStyle style;
+  final AsyncValue<int> count;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = style.resolve(theme.brightness);
+    final numberStyle = FieldOpsDesignTokens.dataLg.copyWith(
+      fontSize: 20,
+      height: 1.0,
+      color: color,
+    );
+    final labelStyle = FieldOpsDesignTokens.labelSm.copyWith(
+      fontWeight: FontWeight.w500,
+      height: 1.0,
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+
+    return Center(
+      child: FractionallySizedBox(
+        widthFactor: 0.85,
+        child: OpsCard(
+          onTap: onTap,
+          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: FieldOpsDesignTokens.labelLg.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  count.when(
+                    data: (value) => DefaultTextStyle(
+                      style: numberStyle,
+                      child: CountUp(value: value),
+                    ),
+                    loading: () => Text('–', style: numberStyle),
+                    error: (_, __) => Text('0', style: numberStyle),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(label, style: labelStyle),
+                ],
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right,
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tile accent colour, one hue in two brightnesses: the reference hue in
+/// light mode, its lighter Tailwind-400 sibling in dark mode so the number
+/// stays readable on the dark surface. The hues are the approved D20
+/// reference design (one colour per tile), not status colours.
+class _TileStyle {
+  const _TileStyle({required this.light, required this.dark});
+
+  final Color light;
+  final Color dark;
+
+  Color resolve(Brightness brightness) =>
+      brightness == Brightness.dark ? dark : light;
+}
+
+/// Settings sheet for the header gear.
+///
+/// GAP (D20): no dedicated settings screen exists in the app yet, so the
+/// gear opens this sheet instead of a route. It currently holds the one
+/// setting the app already owns — the persisted theme choice
+/// ([themeModeProvider]) — and nothing invented.
+Future<void> _showSettingsSheet(BuildContext context) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetContext) => const _SettingsSheet(),
+  );
+}
+
+class _SettingsSheet extends ConsumerWidget {
+  const _SettingsSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final mode = ref.watch(themeModeProvider);
+    const options = [
+      (ThemeMode.system, 'System'),
+      (ThemeMode.light, 'Light'),
+      (ThemeMode.dark, 'Dark'),
+    ];
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Settings',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text('Theme', style: theme.textTheme.titleMedium),
+            RadioGroup<ThemeMode>(
+              groupValue: mode,
+              onChanged: (next) {
+                if (next != null) {
+                  ref.read(themeModeProvider.notifier).set(next);
+                }
+              },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final (value, label) in options)
+                    RadioListTile<ThemeMode>(
+                      title: Text(label),
+                      value: value,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

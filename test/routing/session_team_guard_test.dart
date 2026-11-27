@@ -7,6 +7,7 @@ import 'package:isp_onlinecer/core/router/functional_team.dart';
 import 'package:isp_onlinecer/core/router/session_team_guard.dart';
 import 'package:isp_onlinecer/core/storage/secure_storage.dart';
 import 'package:isp_onlinecer/features/auth/presentation/providers.dart';
+import 'package:isp_onlinecer/features/dashboard/presentation/dashboard_tiles_providers.dart';
 import 'package:isp_onlinecer/features/dashboard/dashboard_shell.dart';
 import 'package:isp_onlinecer/features/notifications/data/notification_network.dart';
 import 'package:isp_onlinecer/features/notifications/data/notification_repository.dart';
@@ -209,13 +210,25 @@ void main() {
           // The header's notification bell never goes through real Dio: Dio's
           // fetch schedules a zero-duration Timer that outlives the test.
           notificationRepositoryProvider.overrideWithValue(_InstantNotificationRepository()),
+          // D20 dashboard tiles: same rule — deterministic counts, no real
+          // HTTP, so no Dio Timer can outlive the test either.
+          dashboardTeamFlowCountProvider.overrideWith((ref) async => 0),
+          dashboardOpenTicketCountProvider.overrideWith((ref) async => 0),
+          dashboardInventoryCountProvider.overrideWith((ref) async => 0),
+          dashboardWaitingOnuCountProvider.overrideWith((ref) async => 0),
+          dashboardPendingAuthorizationProvider.overrideWith(
+            (ref) async => const ConnectionRequestPage(
+              data: [],
+              meta: PaginationMeta(),
+            ),
+          ),
         ],
         child: MaterialApp.router(routerConfig: router),
       ),
     );
-    // Bounded pumps only: the dashboard mounts PulseDot, whose controller
-    // repeats forever, so pumpAndSettle can never settle. A few frames are
-    // enough for the async guard redirect to land on the dashboard.
+    // Bounded pumps only: a few frames are enough for the async guard
+    // redirect to land on the dashboard. (The D20 dashboard mounts no
+    // repeating animation anymore.)
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pump(const Duration(milliseconds: 100));

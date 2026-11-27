@@ -1,19 +1,19 @@
-/// Suspect (a) — lib/main.dart builds the router inside build(), so every
-/// rebuild of IspOnlinecerApp (e.g. a theme toggle) creates a brand-new
-/// GoRouter at /boot and drops the user's navigation stack.
-///
-/// Real IspOnlinecerApp + real router, faked storage/network only; never a
-/// live server.
-///
-/// Tests marked DEFECT-DOCUMENTING assert the correct behaviour and are
-/// EXPECTED TO FAIL against the current tree — the failure is the finding.
-import 'package:flutter/material.dart';
+// Suspect (a) — lib/main.dart builds the router inside build(), so every
+// rebuild of IspOnlinecerApp (e.g. a theme toggle) creates a brand-new
+// GoRouter at /boot and drops the user's navigation stack.
+//
+// Real IspOnlinecerApp + real router, faked storage/network only; never a
+// live server.
+//
+// Tests marked DEFECT-DOCUMENTING assert the correct behaviour and are
+// EXPECTED TO FAIL against the current tree — the failure is the finding.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:isp_onlinecer/core/theme/theme_mode_provider.dart';
 import 'package:isp_onlinecer/features/auth/data/auth_network.dart';
 import 'package:isp_onlinecer/features/auth/presentation/providers.dart';
+import 'package:isp_onlinecer/features/dashboard/presentation/dashboard_tiles_providers.dart';
 import 'package:isp_onlinecer/features/notifications/data/notification_network.dart';
 import 'package:isp_onlinecer/features/notifications/data/notification_repository.dart';
 import 'package:isp_onlinecer/features/notifications/presentation/notification_providers.dart';
@@ -156,6 +156,18 @@ void main() {
         authNetworkProvider.overrideWithValue(authNetwork),
         dashboardRepositoryProvider.overrideWithValue(_FakeDashboardRepository()),
         notificationRepositoryProvider.overrideWithValue(_InstantNotificationRepository()),
+        // D20 dashboard tiles: deterministic counts, no real HTTP — a
+        // dashboard mount here must never touch the network.
+        dashboardTeamFlowCountProvider.overrideWith((ref) async => 0),
+        dashboardOpenTicketCountProvider.overrideWith((ref) async => 0),
+        dashboardInventoryCountProvider.overrideWith((ref) async => 0),
+        dashboardWaitingOnuCountProvider.overrideWith((ref) async => 0),
+        dashboardPendingAuthorizationProvider.overrideWith(
+          (ref) async => const ConnectionRequestPage(
+            data: [],
+            meta: PaginationMeta(),
+          ),
+        ),
         connectionRequestsProvider.overrideWith(
           (ref, page) async => ConnectionRequestPage(
             data: const [

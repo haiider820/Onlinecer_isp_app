@@ -7,6 +7,7 @@ import 'package:isp_onlinecer/core/router/functional_team.dart';
 import 'package:isp_onlinecer/core/router/session_team_guard.dart';
 import 'package:isp_onlinecer/core/storage/secure_storage.dart';
 import 'package:isp_onlinecer/features/auth/presentation/providers.dart';
+import 'package:isp_onlinecer/features/dashboard/presentation/dashboard_tiles_providers.dart';
 import 'package:isp_onlinecer/features/installation/data/inventory_network.dart';
 import 'package:isp_onlinecer/features/installation/data/inventory_repository.dart';
 import 'package:isp_onlinecer/features/installation/presentation/installation_providers.dart';
@@ -395,6 +396,14 @@ void main() {
           notificationRepositoryProvider.overrideWithValue(
             _InstantNotificationRepository(),
           ),
+          // D20 dashboard tiles: deterministic counts, no real HTTP. The
+          // pending-authorization provider stays live on purpose — the
+          // fake connection-request repo backs it, so the ONU
+          // Authorization tile carries the fixture request.
+          dashboardTeamFlowCountProvider.overrideWith((ref) async => 2),
+          dashboardOpenTicketCountProvider.overrideWith((ref) async => 0),
+          dashboardInventoryCountProvider.overrideWith((ref) async => 0),
+          dashboardWaitingOnuCountProvider.overrideWith((ref) async => 0),
           mapTileProviderProvider.overrideWithValue(FakeTileProvider()),
         ],
       );
@@ -414,14 +423,16 @@ void main() {
     }
 
     testWidgets(
-        'survey-session user tapping an installation_assigned card opens the Installation detail with the form',
+        'survey-session user tapping the ONU Authorization tile opens the Installation detail with the form',
         (tester) async {
       await openApp(
         tester,
         requestMap: liveRequestMap,
         detailMap: liveDetail,
       );
-      await tester.tap(find.text('CRQ-20261125-N2ON1HQK'));
+      // D20: the dashboard card is gone — the pending request is reached
+      // through the ONU Authorization tile (first pending request).
+      await tester.tap(find.text('ONU Authorization'));
       await settle(tester);
 
       expect(find.byType(InstallationRequestDetailScreen), findsOneWidget);
@@ -437,6 +448,10 @@ void main() {
         requestMap: surveyRequestMap,
         detailMap: surveyDetail,
       );
+      // D20: the dashboard card is gone — the survey list is reached
+      // through the Inventory Items tile, then the request card there.
+      await tester.tap(find.text('Inventory Items'));
+      await settle(tester);
       await tester.tap(find.text('CRQ-20261125-SURVEY'));
       await settle(tester);
 

@@ -86,9 +86,9 @@ class _FakeTicketNetwork implements TicketNetwork {
 }
 
 /// Bounded settle: pumps frames until nothing is scheduled, but gives up
-/// after a bounded number of frames. The dashboard's live PulseDot repeats
-/// forever by design, so an unbounded `pumpAndSettle` can never complete
-/// while it is on screen.
+/// after a bounded number of frames, so a screen with pending timers can
+/// never hang the test. (The D20 dashboard itself mounts no repeating
+/// animation anymore.)
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 30; i++) {
     await tester.pump(const Duration(milliseconds: 100));

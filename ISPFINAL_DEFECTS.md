@@ -400,3 +400,88 @@ Detail returns documents as URLs (`id_card_front_url`, `id_card_back_url`, `util
 5. Record a voice note on a stage completion — confirm the stage still succeeds even if the follow-up upload fails (e.g. offline), and the warning appears without blocking.
 6. Tap a document row on a verification/closing detail — confirm it downloads and opens (or shows the saved path if no viewer can open it).
 7. Login on the new base (`ttsn.onlinecer.com`) works as before; the old sslip.io base is no longer used by the app.
+
+## D20 — Dashboard redesign — IMPLEMENTED + VERIFIED 2026-11-27 (NOT pushed) — 5-tile dashboard replaces the greeting hero / stats / Recent Requests
+
+Haider's request (2026-11-27, 3 screenshots): the first 2 are the current Survey dashboard (blue greeting hero "Good morning, Umair Shafique", GPS strip, Pending/Completed/Total stats, My Tickets card, Recent Requests with the "CRQ-20..." truncation, "+ New request"); the 3rd is the reference design to copy. Direction approved by Haider 2026-11-27 08:11 PKT with ONE change — **remove the Recent Requests section only**, rest as previewed. Size correction from Haider 2026-11-27 08:21 PKT — all 5 tiles COMPACT (see the size spec below). **NOT pushed** — push needs fresh approval after verification.
+
+### D20 — what the dashboard is now
+
+- Compact header: employee name (bold) + team name (muted) on the left; settings gear icon + logout icon (red-tinted circle) on the right. Header stays **full width**.
+- 5 tiles, each a card with a tinted icon chip left, title, big coloured number + small label right, chevron: Connection Flow (blue), My Tickets (green), Inventory Items (purple), Waiting ONUs (amber/orange), ONU Authorization (red).
+- "+ New request" full-width primary button at the bottom (sky `#5BC0DE` fill with dark-navy ink `#0B132B`, never white on sky). Button stays **full width**.
+- **Gone:** greeting hero + GPS strip, Pending/Completed/Total stats row, My Tickets card, Recent Requests section, View All button. (The greeting hero's `PulseDot` is gone from the dashboard; `PulseDot` itself still exists in `ops_widgets.dart` for other uses.)
+
+### D20 — size spec (Haider, 2026-11-27 08:21 PKT)
+
+- Tiles are **85% of the screen width, centered** (equal margins both sides) — `Center` + `FractionallySizedBox(widthFactor: 0.85)`.
+- Tiles are **~60% of the preview tile height, ~47px tall**: icon chip 32×32 (radius 10, icon size 20), title 14px (`labelLg`, w700), number 20px (`dataLg`, height 1.0), label 11px (`labelSm`, w500), number–label gap 2, vertical card padding 7px, horizontal 12px, tile gap **10px** (header gap 16 and button top padding 16 unchanged).
+- Header and the "+ New request" button stay full width.
+- Widget test proves it: tile width closeTo 652.8 (= 85% of 768 = 800 viewport − 32 ListView padding), left offset closeTo 73.6, height >40 and <52, icon size property 20, title fontSize 14, number fontSize 20. (Note: asserting the rendered Icon's measured width gives 32.0 — the parent chip box — so the test asserts the Icon widget's `size` property instead; the 32px chip is proven by the 47px tile height.)
+
+### D20 — tile data sources (live numbers, Umair, 2026-11-27 morning, new base)
+
+All counts reuse existing providers/repositories — no new endpoints invented. Loading state shows a placeholder dash (`–`); error state shows 0. A failed count never crashes the dashboard or blocks the other tiles.
+
+- **Connection Flow** — `team_flows.length` from `GET /connection-requests/create-data` (live: 2 — Installation, Cent-Tech Support). Label "Available". Provider: `dashboardTeamFlowCountProvider` (`createDataProvider`, scope from `subBranchStateProvider`, `canProceed ? effectiveId : null`).
+- **My Tickets** — open tickets from `GET /tickets` (live: 0). Label "Open". Provider: `dashboardOpenTicketCountProvider` (`ticketPageProvider` with `TicketQuery(status: 'OPEN')`, page 1, `meta.total ?? data.length`). **Counts status OPEN only** — `IN_PROGRESS` / `WAITING_CUSTOMER` are NOT included; there is no backend open-aggregate on GET /tickets.
+- **Inventory Items** — `GET /lookups/inventory-items` rows (live: 47). Label "Total". Provider: `dashboardInventoryCountProvider` (inventory rows length).
+- **Waiting ONUs** — waiting ONUs across the user's OLTs via existing direct-olts + waiting-onus providers (live: 0 on Wah OLT). Label "Waiting". Provider: `dashboardWaitingOnuCountProvider` (direct OLTs, then waiting-onus per OLT, summed; per-OLT try/catch contributes 0 on failure).
+- **ONU Authorization** — **DERIVED**: number of connection requests with status `installation_assigned` from the existing list provider (live: 1). Label "Pending". Provider: `dashboardPendingAuthorizationProvider` (`installationRequestsProvider(1)`, `meta.total`; also the navigation source for the first pending request). **There is NO backend endpoint for a true pending-jobs count** — a short code comment on the provider says so, and it is recorded here. A backend endpoint would be needed for a true count.
+
+### D20 — navigation + how the request list stays reachable
+
+Each tile opens the matching existing screen/route where one exists; where none exists it opens the closest existing screen (gap listed).
+
+- Connection Flow → New Request flow step when the team can create requests (`showNewRequest`, survey only); otherwise the team's assigned-request list route.
+- My Tickets → tickets list (`Routes.tickets`).
+- Inventory Items → the team's assigned-request list route. **GAP: no standalone inventory-catalog screen exists** — the tile opens the request list, not a catalog.
+- Waiting ONUs → OLT list for the first pending-authorization request (`Routes.oltListFor(requestId)`), else the team's list route. **GAP: no global waiting-ONU screen exists** — waiting ONUs are request-scoped in the app.
+- ONU Authorization → the first pending request's stage-aware detail (`Routes.detailRouteForRequest`, D18 — carries Authorize ONU), else the team's list route.
+- Settings gear → **no settings screen exists in the app** (grep-confirmed), so the gear opens a small bottom sheet with the one setting the app already owns: theme System / Light / Dark via the existing `themeModeProvider` (uses `RadioGroup<ThemeMode>` — `RadioListTile` groupValue/onChanged are deprecated in Flutter 3.35).
+- Logout icon → the existing logout (confirm dialog, same `_logout` path). The AppBar (`BrandedHeader`) keeps logo/title/theme-toggle/bell but drops its own logout button (now in the compact header) to avoid a duplicate logout.
+
+**Request-list reachability after removing Recent Requests** (the team's assigned-request list must stay reachable): survey list via the Inventory Items tile + Waiting/Auth fallbacks; installation list via the Connection Flow tile (when creation is off) + Inventory tile + Waiting/Auth fallbacks; splicing/verification/closing lists via the Inventory tile + Waiting/Auth fallbacks. The `"+ New request"` button is shown only for the survey team (`showNewRequest`); other teams reach their list through the tiles above. The bottom navigation (`DashboardShell`) is unchanged — the dashboard is its home tab.
+
+### D20 — files changed / added
+
+- New `lib/features/dashboard/presentation/dashboard_tiles_providers.dart` — the 5 providers above (all `autoDispose`).
+- Rewrote `lib/shared/widgets/team_dashboard_screen.dart` — `TeamDashboardScreen` keeps `featureName/defaultEmployeeLabel/defaultTeamLabel/listRoute/detailRouteFor/showNewRequest` but **dropped `pendingLabel`/`viewAllLabel` params**; AppBar keeps theme toggle + bell, no logout; `_refresh` now invalidates the summary + all 5 tile providers; `_DashboardBody` is now a `ConsumerWidget` (compact header + 5 tiles + sky New-request button); `_CompactHeader`, `_DashboardTile`, `_firstInstallationAssigned` helper (first row with status `installation_assigned`, else null), `_SettingsSheet`, `_ErrorView` kept; `_confirmLogout`/`_logout`/`_ThemeToggleAction`/`_NotificationBellAction` unchanged. Removed: `_GreetingBanner` (hero + GPS ribbon + PulseDot), `_CountStatTile`, Recent Requests/Tickets sections, View All button, `lottie`/`request_card`/`ticket_card`/`Ticket` imports.
+- Edited `lib/core/router/team_module.dart` — `dashboardScreen` no longer passes `pendingLabel`/`viewAllLabel`; `TeamModule` keeps the fields (still asserted by `test/routing/team_module_dispatch_test.dart`).
+- New `test/dashboard/dashboard_tiles_test.dart` — 13 tests (see verification).
+- **pubspec.yaml / pubspec.lock / android/ untouched. No `.freezed.dart`/`.g.dart` touched, no build_runner run, no model changes — the `connection_request.g.dart` hand-edit line is untouched (still line 68).**
+
+### D20 — tests rewired (dashboard entry points moved off the request card)
+
+Four full-app test files navigated dashboard → detail by tapping the request number on the Recent Requests card; all now go through the tiles, with deterministic tile-provider overrides in each harness (the 4 int providers overridden; the pending-authorization provider stays live on the fake connection-request repo where the fixture holds installation work, overridden with an empty page where it does not):
+
+- `test/installation/installation_routing_test.dart` — dashboard → installation detail now taps **'ONU Authorization'** (3 places); test 1 asserts the 5 tiles + no Recent Requests + no request number on the dashboard; test 2 renamed to 'Connection Flow tile loads the status-filtered installation queue' (taps 'Connection Flow').
+- `test/installation/merged_screen_test.dart` — `_openDetail` taps **'ONU Authorization'**; stale viewport/`_settle` comments updated (no recent-request card, no PulseDot).
+- `test/survey/survey_flow_test.dart` — dashboard → survey detail now taps **'Inventory Items'** → survey list → request number (2 tests); pending provider overridden with an empty page (its fake repo ignores the status filter and would otherwise report the survey request as pending); stale `_settle` comment updated.
+- `test/routing/stage_detail_routing_test.dart` — installation case taps **'ONU Authorization'** (test renamed accordingly); survey case taps **'Inventory Items'** → list → 'CRQ-20261125-SURVEY'. D18 assertions unchanged (Installation detail + Complete Installation + Authorize ONU; Survey detail for the survey case).
+- `test/routing/session_team_guard_test.dart` + `test/ispfinal_adversarial/adversarial_router_rebuild_test.dart` — tile providers overridden with deterministic values (0 / empty page) so no dashboard mount ever touches real Dio in tests (the guard test's own comment records why: a real Dio fetch schedules a zero-duration Timer that outlives the test). Stale PulseDot comments updated in both, plus `test/tickets/ticket_advance_flow_test.dart` (comment-only — that file mounts only ticket screens, no dashboard).
+- **Drive-by fix in `adversarial_router_rebuild_test.dart`:** removed a pre-existing unused `material.dart` import (warning) and converted its dangling file-level `///` doc comment to `//` (info) — both pre-existing, neither caused by D20; the file now analyzes clean.
+- Checked and NOT needing rewiring: `test/ispfinal_adversarial/adversarial_router_rebuild_test.dart` aside, `test/ispfinal_adversarial/adversarial_branding_shell_test.dart` mounts only the "no team" ComingSoon screen (no tiles); `test/survey/dashboard_repository_test.dart` is repository-level; `test/ispfinal_adversarial/adversarial_router_rebuild_test.dart`'s AppBar-title assertion still holds. The pre-existing failing test `test/installation/complete_installation_flow_test.dart` (imports nonexistent `RequestDetailScreen`) is out of scope, not fixed.
+
+### D20 — verification (2026-11-27, VM)
+
+- `flutter analyze lib` — **0 issues**. `flutter analyze` on lib + all 8 touched test files — **0 issues** (after the drive-by fix above; before it, 2 pre-existing issues in `adversarial_router_rebuild_test.dart` only).
+- Full suite — **461 pass / 1 fail** (baseline 448 pass / 1 fail; **+13 new tests, all passing, zero new failures**). The 1 fail is the pre-existing `test/installation/complete_installation_flow_test.dart` compile failure, re-confirmed by running that file alone (+0 -1). The `create_request_flow_test.dart` tap warning seen in the suite output is a non-fatal hit-test warning — that file passes 7/7 on its own.
+- New test file `test/dashboard/dashboard_tiles_test.dart` (13 tests, all pass): renders all five tiles with live counts and labels (2 flows, 0 tickets, 0 waiting, 47 inventory, 1 auth-pending; labels Available/Open/Total/Waiting/Pending; header Umair Shafique / Centralized Tech; New request present); Recent Requests is gone (also no View All, no GPS strip, no Good morning/afternoon/evening); tiles are compact: 85% width, ~47px tall; a count still loading shows a dash; a failed count falls back to 0; Connection Flow opens the New Request flow step (survey team); Connection Flow opens the team list when creation is off; My Tickets opens the tickets list; Inventory Items opens the team list (no catalog screen yet); Waiting ONUs opens the OLT list for the first pending request; ONU Authorization opens the first pending request detail; settings gear opens the theme sheet and persists the choice; logout icon asks for confirmation. Harness: tall viewport 800×1400 (ListView is lazy — all tiles + button must be built), `GoogleFonts.config.allowRuntimeFetching = false`, in-memory fake secure storage, `notificationUnreadCountProvider` overridden to 0, all 5 tile providers overridden with deterministic values, test `GoRouter` with stub destination routes, `ProviderContainer` + `UncontrolledProviderScope`.
+
+### D20 — NOT verified / gaps (exact reasons)
+
+1. **Not pushed** — push needs fresh approval after verification (per Haider's standing rule).
+2. **No phone check yet** — the compact sizing (~47px tiles, 85% width) and the live counts are widget-tested only; verify on Haider's phone that the tiles look right, the counts match the live API, and each tile opens the right screen.
+3. **ONU Authorization count is derived, not a real count** — no backend endpoint exists for a true pending-jobs count (see the tile data sources above). If Haider wants a true count, the backend developer must add an endpoint.
+4. **My Tickets counts status OPEN only** — `IN_PROGRESS` / `WAITING_CUSTOMER` tickets are not included; no backend open-aggregate exists.
+5. **No settings screen** — the gear opens a theme-only bottom sheet (the only setting the app owns). A real settings screen is a separate feature, not built here.
+6. **No inventory-catalog screen and no global waiting-ONU screen** — both tiles fall back to the closest existing screens (team request list / request-scoped OLT list). Building either screen is a separate feature, not built here.
+
+### D20 — phone checks (for Haider, after push + build)
+
+1. Dashboard shows the 5 compact tiles with the live counts (flows 2, tickets 0 open, inventory 47, waiting 0, auth-pending 1 for Umair) and no Recent Requests / hero / stats anywhere.
+2. Tap each tile — Connection Flow (New Request for survey / team list otherwise), My Tickets (tickets list), Inventory Items (team list), Waiting ONUs (OLT list for the pending request), ONU Authorization (first pending request's installation detail with Complete Installation + Authorize ONU).
+3. Open the team's assigned-request list from the dashboard for each team (survey/installation/splicing/verification/closing) — confirm it is reachable without Recent Requests.
+4. Settings gear opens the theme sheet; changing the theme persists across an app restart. Logout icon asks for confirmation and signs out.
+5. Tiles look compact on his phone (~47px tall, 85% width, centered) — confirm the size feels right.

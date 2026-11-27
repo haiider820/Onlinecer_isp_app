@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:isp_onlinecer/core/storage/secure_storage.dart';
 import 'package:isp_onlinecer/features/auth/presentation/providers.dart';
+import 'package:isp_onlinecer/features/dashboard/presentation/dashboard_tiles_providers.dart';
+import 'package:isp_onlinecer/models/connection_request.dart';
 import 'package:isp_onlinecer/features/survey/data/connection_request_network.dart';
 import 'package:isp_onlinecer/features/survey/data/connection_request_repository.dart';
 import 'package:isp_onlinecer/features/survey/data/dashboard_network.dart';
@@ -287,6 +289,20 @@ Widget _buildApp(
       // The survey route screen now renders a route map; the tile provider
       // must stay network-free so no tile HTTP leaves the test runner.
       mapTileProviderProvider.overrideWithValue(FakeTileProvider()),
+      // D20 dashboard tiles: deterministic counts, no real HTTP. The
+      // fixture holds no installation work, so the pending-authorization
+      // page is empty on purpose (the fake repo ignores the status
+      // filter and would otherwise report the survey request as pending).
+      dashboardTeamFlowCountProvider.overrideWith((ref) async => 2),
+      dashboardOpenTicketCountProvider.overrideWith((ref) async => 0),
+      dashboardInventoryCountProvider.overrideWith((ref) async => 0),
+      dashboardWaitingOnuCountProvider.overrideWith((ref) async => 0),
+      dashboardPendingAuthorizationProvider.overrideWith(
+        (ref) async => const ConnectionRequestPage(
+          data: [],
+          meta: PaginationMeta(),
+        ),
+      ),
     ],
     child: IspOnlinecerApp(storage: storage),
   );
@@ -294,9 +310,9 @@ Widget _buildApp(
 
 
 /// Bounded settle: pumps frames until nothing is scheduled, but gives up
-/// after a bounded number of frames. The dashboard's live PulseDot repeats
-/// forever by design, so an unbounded `pumpAndSettle` can never complete
-/// while it is on screen.
+/// after a bounded number of frames, so a screen with pending timers can
+/// never hang the test. (The D20 dashboard itself mounts no repeating
+/// animation anymore.)
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 30; i++) {
     await tester.pump(const Duration(milliseconds: 100));
@@ -315,12 +331,16 @@ void main() {
     await tester.pumpWidget(_buildApp(storage));
     await _settle(tester);
 
-    // 1. Dashboard loads with header + recent request.
+    // 1. Dashboard loads with header + tiles (D20: no Recent Requests).
     expect(find.text('Survey'), findsOneWidget);
     expect(find.text('Karim Surveyor'), findsOneWidget);
-    expect(find.text(_requestNumber), findsOneWidget);
+    expect(find.text('Connection Flow'), findsOneWidget);
+    expect(find.text('Recent Requests'), findsNothing);
 
-    // 2. Tap the recent request → detail.
+    // 2. Inventory tile → survey list, tap the request → detail.
+    await tester.tap(find.text('Inventory Items'));
+    await _settle(tester);
+    expect(find.text(_requestNumber), findsOneWidget);
     await tester.tap(find.text(_requestNumber));
     await _settle(tester);
     expect(find.text('Request Detail'), findsOneWidget);
@@ -391,7 +411,11 @@ void main() {
     ));
     await _settle(tester);
 
-    // Navigate to the route screen via dashboard → detail → Plan Route.
+    // Navigate to the route screen via dashboard → list → detail →
+    // Plan Route (D20: the dashboard card is gone; the list is reached
+    // through the Inventory Items tile).
+    await tester.tap(find.text('Inventory Items'));
+    await _settle(tester);
     await tester.tap(find.text(_requestNumber));
     await _settle(tester);
     await tester.tap(find.text('Plan Route'));

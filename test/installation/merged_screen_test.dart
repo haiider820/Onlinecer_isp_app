@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:isp_onlinecer/core/constants/app_constants.dart';
 import 'package:isp_onlinecer/core/storage/secure_storage.dart';
 import 'package:isp_onlinecer/features/auth/presentation/providers.dart';
+import 'package:isp_onlinecer/features/dashboard/presentation/dashboard_tiles_providers.dart';
 import 'package:isp_onlinecer/features/installation/data/complete_installation_network.dart';
 import 'package:isp_onlinecer/features/installation/data/inventory_network.dart';
 import 'package:isp_onlinecer/features/installation/data/inventory_repository.dart';
@@ -332,15 +333,22 @@ Future<ProviderContainer> _openDetail(
       inventoryRepositoryProvider.overrideWithValue(
         InventoryRepository(network: _FakeInventoryNetwork()),
       ),
+      // D20 dashboard tiles: deterministic counts, no real HTTP. The
+      // pending-authorization provider stays live on purpose — the fake
+      // connection-request repo backs it, so the ONU Authorization tile
+      // carries the fixture request.
+      dashboardTeamFlowCountProvider.overrideWith((ref) async => 2),
+      dashboardOpenTicketCountProvider.overrideWith((ref) async => 0),
+      dashboardInventoryCountProvider.overrideWith((ref) async => 0),
+      dashboardWaitingOnuCountProvider.overrideWith((ref) async => 0),
       mapTileProviderProvider.overrideWithValue(FakeTileProvider()),
       ...extraOverrides,
     ],
   );
   addTearDown(container.dispose);
 
-  // Device-tall viewport: the dashboard's recent-request card sits below the
-  // 800×600 test default now that a bottom logout bar reserves ~76px, so raise
-  // the surface to a real-phone height before pumping the app.
+  // Device-tall viewport: the merged detail screen's long scroll needs a
+  // real-phone height to reveal its lower cards in the test.
   tester.view.physicalSize = const Size(800, 1400);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -353,8 +361,9 @@ Future<ProviderContainer> _openDetail(
   );
   await _settle(tester);
 
-  // Dashboard → installation detail.
-  await tester.tap(find.text(_requestNumber));
+  // Dashboard → installation detail via the ONU Authorization tile
+  // (first pending request, D20 — the Recent Requests card is gone).
+  await tester.tap(find.text('ONU Authorization'));
   await _settle(tester);
 
   return container;
@@ -384,9 +393,10 @@ Future<void> _settleMap(WidgetTester tester) async {
 }
 
 /// Bounded settle: pumps frames until nothing is scheduled, but gives up
-/// after a bounded number of frames. The dashboard's live PulseDot repeats
-/// forever by design, so an unbounded `pumpAndSettle` can never complete
-/// while it is on screen.
+/// after a bounded number of frames. The detail screen's debounced map
+/// route call and flutter_map's internal timers need bounded pumps so a
+/// test can never hang on them. (The D20 dashboard itself mounts no
+/// repeating animation anymore.)
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 30; i++) {
     await tester.pump(const Duration(milliseconds: 100));
