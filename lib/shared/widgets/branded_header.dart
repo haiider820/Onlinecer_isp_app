@@ -19,6 +19,7 @@ class BrandedHeader extends StatelessWidget implements PreferredSizeWidget {
     this.centerTitle = false,
     this.height = 64,
     this.onLogout,
+    this.brandMarkHeight,
   });
 
   /// Feature title in the header, e.g. 'Tickets', 'Work Order Execution'.
@@ -40,12 +41,28 @@ class BrandedHeader extends StatelessWidget implements PreferredSizeWidget {
   /// NOT pass [onBack] since they're top-level screens with nowhere to go back to.
   final VoidCallback? onLogout;
 
-  /// Brand mark shown left of the title — the Malik Fiber logo mark.
+  /// Height of the brand mark (D22). The logo asset is near-square
+  /// (402×395, transparent padding), so at height 32 it renders ~32dp wide
+  /// — the dashboard header keeps plenty of room for the title. Pass 32
+  /// for the dashboard header; `null` keeps the legacy 44×44 box so other
+  /// screens are unchanged.
+  final double? brandMarkHeight;
+
+  /// Brand mark shown left of the title — the techtis globe logo (D24).
+  /// The old `malik_fiber_logo.png` stays in the tree, unreferenced.
   Widget buildBrandMark(BuildContext context) {
+    final height = brandMarkHeight;
+    if (height == null) {
+      return Image.asset(
+        'assets/images/techtis_logo.png',
+        width: 44,
+        height: 44,
+        fit: BoxFit.contain,
+      );
+    }
     return Image.asset(
-      'assets/images/malik_fiber_logo.png',
-      width: 44,
-      height: 44,
+      'assets/images/techtis_logo.png',
+      height: height,
       fit: BoxFit.contain,
     );
   }
@@ -60,11 +77,16 @@ class BrandedHeader extends StatelessWidget implements PreferredSizeWidget {
         bottom: false,
         child: Container(
           height: height,
-          padding: const EdgeInsets.symmetric(horizontal: FieldOpsDesignTokens.pageMargin),
+          padding: const EdgeInsets.symmetric(
+            horizontal: FieldOpsDesignTokens.pageMargin,
+          ),
           decoration: BoxDecoration(
             color: theme.colorScheme.surface.withValues(alpha: 0.92),
             border: Border(
-              bottom: BorderSide(color: theme.colorScheme.outlineVariant, width: 1),
+              bottom: BorderSide(
+                color: theme.colorScheme.outlineVariant,
+                width: 1,
+              ),
             ),
           ),
           child: Row(
@@ -110,21 +132,27 @@ class BrandedHeader extends StatelessWidget implements PreferredSizeWidget {
                 const SizedBox(width: FieldOpsDesignTokens.spaceSm),
                 for (final action in actions)
                   Padding(
-                    padding: const EdgeInsets.only(left: FieldOpsDesignTokens.spaceXs),
+                    padding: const EdgeInsets.only(
+                      left: FieldOpsDesignTokens.spaceXs,
+                    ),
                     child: action,
                   ),
               ],
               if (onLogout != null) ...[
                 const SizedBox(width: FieldOpsDesignTokens.spaceSm),
                 Padding(
-                  padding: const EdgeInsets.only(left: FieldOpsDesignTokens.spaceXs),
+                  padding: const EdgeInsets.only(
+                    left: FieldOpsDesignTokens.spaceXs,
+                  ),
                   child: IconButton(
                     tooltip: 'Log out',
                     onPressed: onLogout,
                     icon: const Icon(Icons.logout, size: 24),
                     color: theme.colorScheme.error,
                     style: IconButton.styleFrom(
-                      backgroundColor: theme.colorScheme.error.withValues(alpha: 0.1),
+                      backgroundColor: theme.colorScheme.error.withValues(
+                        alpha: 0.1,
+                      ),
                     ),
                   ),
                 ),

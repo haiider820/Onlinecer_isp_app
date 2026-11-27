@@ -134,9 +134,10 @@ class CompleteInstallationController extends Notifier<CompleteInstallationState>
         done: result,
         voiceNoteWarning: voiceNoteWarning,
       );
-      // Phase D: refetch detail so the next screen re-derives its stage
-      // buttons from fresh `allowed_actions`, never the stale pre-submit one.
-      refreshConnectionRequestDetail(ref, id);
+      // D24: refresh detail + every list + dashboard, so the new stage
+      // shows with no manual refresh (the old call only refetched the
+      // detail, which is why the list kept showing the old phase).
+      refreshAfterStageSubmit(ref.invalidate, id);
       return result;
     } on ApiException catch (e) {
       state = CompleteInstallationState(errorMessage: e.message);

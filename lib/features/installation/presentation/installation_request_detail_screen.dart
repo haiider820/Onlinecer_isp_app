@@ -133,8 +133,35 @@ class _DetailScaffoldState extends ConsumerState<_DetailScaffold> {
   final _overviewKey = GlobalKey();
   final _routeKey = GlobalKey();
   final _workKey = GlobalKey();
+  final _previousKey = GlobalKey();
   final _formKey = GlobalKey<CompleteInstallationFormState>();
   final _progress = ValueNotifier<double>(0);
+
+  /// D21: the previous stage (survey) has data worth showing when any of
+  /// these blocks is present. The "Previous" tab only exists then — no
+  /// chip for an empty stage.
+  bool get _hasPreviousData {
+    final request = widget.detail.request;
+    final surveyNotes = request.stageData?.surveyNotes?.trim();
+    return (surveyNotes != null && surveyNotes.isNotEmpty) ||
+        request.locations != null ||
+        request.pppoeCredentials != null ||
+        request.installationInventory != null;
+  }
+
+  List<String> get _tabLabels => [
+        'Overview',
+        'Route',
+        'Work',
+        if (_hasPreviousData) 'Previous',
+      ];
+
+  List<GlobalKey> get _sectionKeys => [
+        _overviewKey,
+        _routeKey,
+        _workKey,
+        if (_hasPreviousData) _previousKey,
+      ];
 
   @override
   void dispose() {
@@ -157,7 +184,7 @@ class _DetailScaffoldState extends ConsumerState<_DetailScaffold> {
 
   void _jumpTo(int index) {
     setState(() => _tab = index);
-    final key = [_overviewKey, _routeKey, _workKey][index];
+    final key = _sectionKeys[index];
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctx = key.currentContext;
       if (ctx != null) {
@@ -186,6 +213,10 @@ class _DetailScaffoldState extends ConsumerState<_DetailScaffold> {
             detail.actions.contains(ConnectionRequestAction.authorizeOnu);
     final submitting =
         ref.watch(completeInstallationControllerProvider).isSubmitting;
+    // D21: if the previous-stage data disappears on a refetch while the
+    // Previous tab is open, fall back to Overview instead of pointing at
+    // a tab that no longer exists.
+    final selectedTab = _tab.clamp(0, _tabLabels.length - 1);
 
     return Scaffold(
       appBar: PreferredSize(
@@ -204,7 +235,11 @@ class _DetailScaffoldState extends ConsumerState<_DetailScaffold> {
       ),
       body: Column(
         children: [
-          _SectionTabBar(selected: _tab, onSelect: _jumpTo),
+          _SectionTabBar(
+            labels: _tabLabels,
+            selected: selectedTab,
+            onSelect: _jumpTo,
+          ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {},
@@ -255,6 +290,14 @@ class _DetailScaffoldState extends ConsumerState<_DetailScaffold> {
                         progress: _progress,
                         scrollController: widget.scrollController,
                       ),
+                      // D21: previous-stage data (survey notes, locations,
+                      // PPPoE, inventory) is built ONLY while its tab is
+                      // open — it is never in the tree by default.
+                      if (selectedTab == 3)
+                        _PreviousSection(
+                          key: _previousKey,
+                          detail: detail,
+                        ),
                     ],
                   ),
                 ),
@@ -274,14 +317,18 @@ class _DetailScaffoldState extends ConsumerState<_DetailScaffold> {
   }
 }
 
-/// Sticky tab bar: Overview / Route / Work jump to their anchored sections.
+/// Sticky tab bar: Overview / Route / Work (+ Previous when the previous
+/// stage has data) jump to their anchored sections.
 class _SectionTabBar extends StatelessWidget {
-  const _SectionTabBar({required this.selected, required this.onSelect});
+  const _SectionTabBar({
+    required this.labels,
+    required this.selected,
+    required this.onSelect,
+  });
 
+  final List<String> labels;
   final int selected;
   final ValueChanged<int> onSelect;
-
-  static const _labels = ['Overview', 'Route', 'Work'];
 
   @override
   Widget build(BuildContext context) {
@@ -298,7 +345,7 @@ class _SectionTabBar extends StatelessWidget {
         ),
         child: Row(
           children: [
-            for (var i = 0; i < _labels.length; i++)
+            for (var i = 0; i < labels.length; i++)
               Expanded(
                 child: GestureDetector(
                   onTap: () => onSelect(i),
@@ -313,7 +360,7 @@ class _SectionTabBar extends StatelessWidget {
                     ),
                     alignment: Alignment.center,
                     child: Text(
-                      _labels[i],
+                      labels[i],
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
@@ -343,7 +390,6 @@ class _OverviewSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final request = detail.request;
-    final surveyNotes = request.stageData?.surveyNotes?.trim();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -366,13 +412,36 @@ class _OverviewSection extends StatelessWidget {
         ],
         const OpsSectionLabel('Pricing'),
         _PricingCard(request: request),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+/// Previous stage (survey) — D21: behind the top "Previous" tab, built
+/// only while that tab is open. Survey notes, locations, PPPoE credentials
+/// and the inventory approval state used to render inside Overview by
+/// default; now they appear only on tap.
+class _PreviousSection extends StatelessWidget {
+  const _PreviousSection({super.key, required this.detail});
+
+  final ConnectionRequestDetail detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final request = detail.request;
+    final surveyNotes = request.stageData?.surveyNotes?.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const OpsSectionLabel('Previous stage — Survey'),
         if (surveyNotes != null && surveyNotes.isNotEmpty) ...[
-          const SizedBox(height: 4),
           _SurveyQuoteCard(notes: surveyNotes),
+          const SizedBox(height: 4),
         ],
         if (request.locations != null) ...[
-          const SizedBox(height: 4),
           _LocationsSection(locations: request.locations!),
+          const SizedBox(height: 4),
         ],
         // PPPoE credentials + inventory approval state (guide §6, Rev 1.0)
         // — read-only; each card renders nothing when its block is absent.

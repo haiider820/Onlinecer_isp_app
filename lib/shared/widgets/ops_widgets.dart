@@ -1444,15 +1444,17 @@ class InternalNoteCard extends StatelessWidget {
 }
 
 /// Inline voice-note bubble with play button + waveform + duration.
+/// The duration is shown only when the caller knows it ([durationLabel]
+/// non-null): server-side notes carry no duration, so detail rows omit it.
 class VoiceNoteBubble extends StatelessWidget {
   const VoiceNoteBubble({
     super.key,
-    required this.durationLabel,
+    this.durationLabel,
     required this.onPlay,
     this.isPlaying = false,
   });
 
-  final String durationLabel;
+  final String? durationLabel;
   final VoidCallback onPlay;
   final bool isPlaying;
 
@@ -1508,12 +1510,13 @@ class VoiceNoteBubble extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              durationLabel,
-              style: FieldOpsDesignTokens.dataSm.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            if (durationLabel != null && durationLabel!.isNotEmpty)
+              Text(
+                durationLabel!,
+                style: FieldOpsDesignTokens.dataSm.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
           ],
         ),
       ),

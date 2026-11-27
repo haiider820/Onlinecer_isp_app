@@ -1,15 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:lottie/lottie.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:record/record.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_exceptions.dart';
@@ -18,11 +15,13 @@ import '../../../core/theme/field_ops_design_tokens.dart';
 import '../../../models/fat_node.dart';
 import '../../../models/inventory_item.dart';
 import '../../../shared/validation/mac_address.dart';
+import '../../../shared/voice/voice_recorder_controller.dart';
 import '../../../shared/widgets/ops_widgets.dart';
 import '../../survey/presentation/route_providers.dart';
 import '../data/complete_installation_network.dart';
 import 'installation_map_providers.dart';
 import 'installation_providers.dart';
+import 'mac_scan_sheet.dart';
 
 /// Collects the installation fields — OLT device ownership (tappable tiles),
 /// the FAT node used (picker card backed by the FAT-node lookup the survey
@@ -116,8 +115,6 @@ class CompleteInstallationFormState
   int _nextRowId = 0;
 
   final ImagePicker _imagePicker = ImagePicker();
-  final AudioRecorder _recorder = AudioRecorder();
-  final AudioPlayer _player = AudioPlayer();
 
   /// Attached installation photos (local path + MIME), validated on pick.
   final List<InstallationPhoto> _photoPaths = [];
@@ -127,25 +124,28 @@ class CompleteInstallationFormState
   Timer? _inventorySearchDebounce;
   String _inventorySearchQuery = '';
 
-  // Voice-note recording state machine (mirrors the survey submit screen).
-  bool _micPermission = false;
-  bool _micBusy = false;
-  bool _isRecording = false;
-  Duration _recordingTime = Duration.zero;
-  Timer? _recordingTicker;
-  String? _recordedPath;
-  String? _recordedMime;
-  bool _isPlaying = false;
+  /// The shared voice engine (D21): recording + playback state lives in
+  /// the controller; this form only renders the survey pattern
+  /// (VoiceRecorderCard + VoiceNoteBubble + delete).
+  late final VoiceRecorderController _voice;
 
   @override
   void initState() {
     super.initState();
-    _initMic();
+    _voice = VoiceRecorderController(
+      filePrefix: 'installation',
+      onMessage: _snack,
+    )..addListener(_onVoiceChanged)
+    ..initMic();
+  }
+
+  void _onVoiceChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    _recordingTicker?.cancel();
+    _voice.dispose();
     _wireController.dispose();
     _notesController.dispose();
     _notesFocusNode.dispose();
@@ -156,8 +156,6 @@ class CompleteInstallationFormState
     for (final row in _inventoryRows) {
       row.quantityController.dispose();
     }
-    _recorder.dispose();
-    _player.dispose();
     super.dispose();
   }
 
@@ -188,109 +186,20 @@ class CompleteInstallationFormState
     setState(() => _inventoryRows.remove(row));
   }
 
-  Future<void> _initMic() async {
-    bool granted;
-    try {
-      granted = await _recorder.hasPermission();
-    } catch (_) {
-      // No platform implementation in tests / denied by the OS.
-      granted = false;
+  /// Barcode scan for the installed-device MAC (D21): opens the scan
+  /// sheet; a scanned MAC fills the MAC field, a non-MAC value fills the
+  /// serial field instead (ONT labels usually barcode the serial).
+  Future<void> _scanMac() async {
+    final result = await showMacScanSheet(context);
+    if (result == null || !mounted) return;
+    switch (result.outcome) {
+      case MacScanOutcome.mac:
+        setState(() => _macController.text = result.value);
+        _snack('MAC scanned: ${result.value}');
+      case MacScanOutcome.serial:
+        setState(() => _serialController.text = result.value);
+        _snack('Scanned value added as the device serial.');
     }
-    if (mounted) setState(() => _micPermission = granted);
-  }
-
-  Future<void> _toggleRecording() async {
-    if (_isRecording) {
-      await _stopRecording();
-    } else {
-      await _startRecording();
-    }
-  }
-
-  Future<void> _startRecording() async {
-    if (!_micPermission) {
-      _snack(AppStrings.snackbarMicPermission);
-      return;
-    }
-    setState(() => _micBusy = true);
-    try {
-      final dir = await getTemporaryDirectory();
-      final path =
-          '${dir.path}/installation_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      await _recorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
-      final stopwatch = Stopwatch()..start();
-      _recordingTicker?.cancel();
-      _recordingTicker = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() => _recordingTime = stopwatch.elapsed);
-      });
-      if (mounted) {
-        setState(() {
-          _isRecording = true;
-          _recordingTime = Duration.zero;
-          _recordedPath = null;
-          _recordedMime = null;
-        });
-      }
-    } on Exception {
-      _snack(AppStrings.snackbarRecordFailed);
-    } finally {
-      if (mounted) setState(() => _micBusy = false);
-    }
-  }
-
-  Future<void> _stopRecording() async {
-    setState(() => _micBusy = true);
-    _recordingTicker?.cancel();
-    try {
-      final path = await _recorder.stop();
-      if (!mounted) return;
-      setState(() => _isRecording = false);
-
-      if (path == null || !File(path).existsSync()) {
-        _snack(AppStrings.snackbarRecordFailed);
-        return;
-      }
-
-      final size = await File(path).length();
-      if (size > maxVoiceNoteBytes) {
-        _snack('Voice note is too large (max ${maxVoiceNoteBytes ~/ (1024 * 1024)} MB).');
-        File(path).deleteSync();
-        return;
-      }
-      setState(() {
-        _recordedPath = path;
-        _recordedMime = 'audio/mp4';
-      });
-    } on Exception {
-      _snack(AppStrings.snackbarRecordFailed);
-    } finally {
-      if (mounted) setState(() => _micBusy = false);
-    }
-  }
-
-  Future<void> _playRecording() async {
-    if (_recordedPath == null || !mounted) return;
-    try {
-      if (_isPlaying) {
-        await _player.stop();
-        if (mounted) setState(() => _isPlaying = false);
-        return;
-      }
-      await _player.play(DeviceFileSource(_recordedPath!));
-      if (mounted) setState(() => _isPlaying = true);
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not play voice note: $error')),
-        );
-      }
-    }
-  }
-
-  String get _recordingLabel {
-    final m = _recordingTime.inMinutes;
-    final s = _recordingTime.inSeconds % 60;
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   Future<void> _pickPhotos() async {
@@ -573,9 +482,14 @@ class CompleteInstallationFormState
           TextFormField(
             controller: _macController,
             textCapitalization: TextCapitalization.characters,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Device MAC address',
               hintText: 'AA:BB:CC:DD:EE:FF',
+              suffixIcon: IconButton(
+                tooltip: 'Scan barcode',
+                icon: const Icon(Icons.qr_code_scanner),
+                onPressed: _scanMac,
+              ),
             ),
             validator: validateMacAddress,
           ),
@@ -611,48 +525,64 @@ class CompleteInstallationFormState
             ),
           const SizedBox(height: 20),
 
+          // Voice-note recording + playback, survey pattern (D21):
+          // VoiceRecorderCard + VoiceNoteBubble + delete, no re-record.
           VoiceRecorderCard(
             title: 'Installation notes',
             subtitle: 'Tap the mic to record a voice note — or type below.',
-            elapsedLabel: _isRecording
-                ? _recordingLabel
-                : (_recordedPath != null ? 'Voice note ready' : '00:00'),
-            isRecording: _isRecording,
-            onMicTap: _micBusy ? () {} : _toggleRecording,
+            elapsedLabel: _voice.recordingLabel,
+            isRecording: _voice.isRecording,
+            // Idle bars read as a fake waveform, so hide them until a
+            // recording is actually running (survey pattern).
+            waveformBars: _voice.isRecording
+                ? const [8, 16, 24, 12, 20, 9, 18, 26, 14, 10, 22, 15]
+                : const [],
+            onMicTap: _voice.toggleRecording,
             onTypeTap: () => _notesFocusNode.requestFocus(),
           ),
-          if (_recordedPath != null) ...[
+          if (_voice.micChecked && !_voice.micPermission) ...[
             const SizedBox(height: 8),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                IconButton(
-                  tooltip:
-                      _isPlaying ? 'Pause voice note' : 'Play voice note',
-                  onPressed: _playRecording,
-                  icon: Icon(
-                    _isPlaying
-                        ? Icons.pause_circle_filled
-                        : Icons.play_circle_fill,
-                  ),
-                  color: theme.colorScheme.primary,
-                ),
                 Expanded(
                   child: Text(
-                    'Voice note attached',
+                    'Microphone permission needed to record a voice note.',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
+                      color: theme.colorScheme.error,
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
                 TextButton(
-                  onPressed: () => setState(() {
-                    _recordedPath = null;
-                    _recordedMime = null;
-                    _recordingTime = Duration.zero;
-                  }),
-                  child: const Text('Remove'),
+                  onPressed: _voice.retryMicPermission,
+                  child: const Text('Open settings'),
                 ),
               ],
+            ),
+          ],
+          if (_voice.recordedPath != null && !_voice.isRecording) ...[
+            const SizedBox(height: 10),
+            OpsCard(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: VoiceNoteBubble(
+                      durationLabel: _voice.recordingLabel,
+                      onPlay: _voice.playRecording,
+                      isPlaying: _voice.isPlaying,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'Discard recording',
+                    onPressed: _voice.clearRecording,
+                    icon: const Icon(Icons.delete_outline, size: 20),
+                    color: theme.colorScheme.error,
+                  ),
+                ],
+              ),
             ),
           ],
           const SizedBox(height: 8),
@@ -985,8 +915,8 @@ class CompleteInstallationFormState
           notes: notes.isEmpty ? null : notes,
           inventoryLines: inventoryLines.isEmpty ? null : inventoryLines,
           photos: photos,
-          voiceNotePath: _recordedPath,
-          voiceNoteMimeType: _recordedMime,
+          voiceNotePath: _voice.recordedPath,
+          voiceNoteMimeType: _voice.recordedMime,
         );
     if (!mounted) return;
 
@@ -1025,7 +955,9 @@ class CompleteInstallationFormState
           ),
         ),
       );
-      // Fresh list instance refetches, so the completed request leaves the queue.
+      // D24: the submit already invalidated detail + every list + the
+      // dashboard (refreshAfterStageSubmit), so the fresh list instance
+      // refetches and the completed request leaves the queue.
       context.go(Routes.installationList);
     }
   }

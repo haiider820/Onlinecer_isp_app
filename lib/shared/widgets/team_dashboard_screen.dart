@@ -29,6 +29,14 @@ import 'ops_widgets.dart';
 /// (`dashboard_tiles_providers.dart`), one endpoint per tile; the header
 /// still comes from the shared [dashboardSummaryProvider]
 /// (`GET /dashboard`).
+///
+/// D22 (2026-11-27, Haider's UI fixes — layout only, no data/logic
+/// change): the tile count+label sits in a fixed-width (88dp) centered
+/// column with an ellipsized title; all action icons are grouped in the
+/// app bar (theme, bell, settings) and logout moved into the settings
+/// sheet (same confirmation dialog); the "+ New request" button is pinned
+/// at the bottom; the team subtitle uses the stronger `subtitleStrong`
+/// tone; the logo renders at 32dp tall.
 class TeamDashboardScreen extends ConsumerWidget {
   const TeamDashboardScreen({
     super.key,
@@ -83,15 +91,25 @@ class TeamDashboardScreen extends ConsumerWidget {
         if (!didPop) _confirmLogout(context, ref);
       },
       child: Scaffold(
-        // Branded header: logo, title, theme toggle, notifications bell.
-        // No logout action here — the D20 compact header below carries the
-        // logout icon, and two logouts on one screen would be a duplicate.
+        // Branded header: logo, title, and ALL action icons grouped on the
+        // right (D22) — theme toggle, notifications bell, settings. No
+        // logout action here: logout lives inside the settings sheet, and
+        // the D20 compact header below no longer carries its own icons.
         appBar: BrandedHeader(
           title: featureName,
+          brandMarkHeight: 32,
           actions: [
             _ThemeToggleAction(),
             _NotificationBellAction(
               onTap: () => context.push(Routes.notifications),
+            ),
+            IconButton(
+              tooltip: 'Settings',
+              onPressed: () => _showSettingsSheet(
+                context,
+                onLogout: () => _confirmLogout(context, ref),
+              ),
+              icon: const Icon(Icons.settings_outlined),
             ),
           ],
         ),
@@ -111,7 +129,6 @@ class TeamDashboardScreen extends ConsumerWidget {
             detailRouteFor: detailRouteFor,
             defaultEmployeeLabel: defaultEmployeeLabel,
             defaultTeamLabel: defaultTeamLabel,
-            onLogout: () => _confirmLogout(context, ref),
           ),
         ),
       ),
@@ -123,7 +140,9 @@ class TeamDashboardScreen extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Log out?'),
-        content: const Text('You will be signed out and return to the login screen.'),
+        content: const Text(
+          'You will be signed out and return to the login screen.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -222,9 +241,12 @@ class _NotificationBellAction extends ConsumerWidget {
 /// "+ New request" button. No Recent Requests section (removed 2026-11-27
 /// on Haider's word) — the queue stays reachable through the tiles:
 ///
-/// * Connection Flow → the New Request form's flow step on the survey team
-///   (the flow picker lives there); every other team → its own request
-///   list ([listRoute]).
+/// * Connection Flow → the team's request list ([listRoute]) (D23:
+///   it used to open the New Request form on the survey team; the
+///   create flow lives on the pinned "+ New request" button now).
+///   NOTE: the list is stage-scoped, so the survey list can be empty
+///   while the tile says 2 Available — existing list behaviour, not
+///   something the tile change creates.
 /// * My Tickets → the tickets list.
 /// * Inventory Items → the team's request list. GAP: no standalone
 ///   inventory-catalog screen exists yet (see D20) — inventory is reached
@@ -245,21 +267,21 @@ class _DashboardBody extends ConsumerWidget {
     this.detailRouteFor,
     required this.defaultEmployeeLabel,
     required this.defaultTeamLabel,
-    required this.onLogout,
   });
 
   final DashboardSummary summary;
   final Future<void> Function() onRefresh;
 
   /// Opens the create-request form (ISPFINAL Phase C). `null` on teams
-  /// that never create requests — the button is then not rendered at all,
-  /// and the Connection Flow tile falls back to the team's request list.
+  /// that never create requests — the button is then not rendered at all.
+  /// The Connection Flow tile no longer uses this (D23: it always opens
+  /// the team's request list); only the pinned "+ New request" button
+  /// calls it.
   final VoidCallback? onNewRequest;
   final String listRoute;
   final String Function(String id)? detailRouteFor;
   final String defaultEmployeeLabel;
   final String defaultTeamLabel;
-  final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -267,118 +289,141 @@ class _DashboardBody extends ConsumerWidget {
     final pendingAuth = ref.watch(dashboardPendingAuthorizationProvider);
     final firstPending = _firstInstallationAssigned(pendingAuth.valueOrNull);
 
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 24),
-        children: [
-          // ── Compact header: name + team, settings gear, logout ──
-          _CompactHeader(
-            employeeName: employee?.name ?? defaultEmployeeLabel,
-            teamName: employee?.team?.name ?? defaultTeamLabel,
-            onSettings: () => _showSettingsSheet(context),
-            onLogout: onLogout,
-          ),
-          const SizedBox(height: 16),
+    // D22: the cards scroll in a ListView inside an Expanded, and the
+    // "+ New request" button is pinned at the bottom of the dashboard's
+    // own layout (SafeArea + 16dp margins, kit Rule 12). The dashboard
+    // is NOT inside a bottom-nav shell — DashboardShell only dispatches
+    // to the team's screen — so no second bottom bar can clash with it.
+    return Column(
+      children: [
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: onRefresh,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: 24,
+              ),
+              children: [
+                // ── Compact header: name + team only (D22) ──
+                // The settings gear and logout moved to the app bar /
+                // settings sheet, so this is just the employee identity.
+                _CompactHeader(
+                  employeeName: employee?.name ?? defaultEmployeeLabel,
+                  teamName: employee?.team?.name ?? defaultTeamLabel,
+                ),
+                const SizedBox(height: 16),
 
-          // ── Connection Flow ──
-          _DashboardTile(
-            title: 'Connection Flow',
-            icon: Icons.link,
-            style: const _TileStyle(
-              light: Color(0xFF2563EB),
-              dark: Color(0xFF60A5FA),
-            ),
-            count: ref.watch(dashboardTeamFlowCountProvider),
-            label: 'Available',
-            onTap: () {
-              if (onNewRequest != null) {
-                onNewRequest!();
-              } else {
-                context.push(listRoute);
-              }
-            },
-          ),
-          const SizedBox(height: 10),
+                // ── Connection Flow ──
+                _DashboardTile(
+                  title: 'Connection Flow',
+                  icon: Icons.link,
+                  style: const _TileStyle(
+                    light: Color(0xFF2563EB),
+                    dark: Color(0xFF60A5FA),
+                  ),
+                  count: ref.watch(dashboardTeamFlowCountProvider),
+                  label: 'Available',
+                  // D23: always the team's request list. The tile used to
+                  // open the New Request form when the team could create
+                  // (survey); the create flow lives on the pinned
+                  // "+ New request" button now, so the tile shows the
+                  // queue it counts.
+                  onTap: () => context.push(listRoute),
+                ),
+                const SizedBox(height: 10),
 
-          // ── My Tickets ──
-          _DashboardTile(
-            title: 'My Tickets',
-            icon: Icons.confirmation_number_outlined,
-            style: const _TileStyle(
-              light: Color(0xFF16A34A),
-              dark: Color(0xFF4ADE80),
-            ),
-            count: ref.watch(dashboardOpenTicketCountProvider),
-            label: 'Open',
-            onTap: () => context.push(Routes.ticketsList),
-          ),
-          const SizedBox(height: 10),
+                // ── My Tickets ──
+                _DashboardTile(
+                  title: 'My Tickets',
+                  icon: Icons.confirmation_number_outlined,
+                  style: const _TileStyle(
+                    light: Color(0xFF16A34A),
+                    dark: Color(0xFF4ADE80),
+                  ),
+                  count: ref.watch(dashboardOpenTicketCountProvider),
+                  label: 'Open',
+                  onTap: () => context.push(Routes.ticketsList),
+                ),
+                const SizedBox(height: 10),
 
-          // ── Inventory Items ──
-          _DashboardTile(
-            title: 'Inventory Items',
-            icon: Icons.layers_outlined,
-            style: const _TileStyle(
-              light: Color(0xFF7C3AED),
-              dark: Color(0xFFA78BFA),
-            ),
-            count: ref.watch(dashboardInventoryCountProvider),
-            label: 'Total',
-            onTap: () => context.push(listRoute),
-          ),
-          const SizedBox(height: 10),
+                // ── Inventory Items ──
+                _DashboardTile(
+                  title: 'Inventory Items',
+                  icon: Icons.layers_outlined,
+                  style: const _TileStyle(
+                    light: Color(0xFF7C3AED),
+                    dark: Color(0xFFA78BFA),
+                  ),
+                  count: ref.watch(dashboardInventoryCountProvider),
+                  label: 'Total',
+                  onTap: () => context.push(listRoute),
+                ),
+                const SizedBox(height: 10),
 
-          // ── Waiting ONUs ──
-          _DashboardTile(
-            title: 'Waiting ONUs',
-            icon: Icons.router_outlined,
-            style: const _TileStyle(
-              light: Color(0xFFD97706),
-              dark: Color(0xFFFBBF24),
-            ),
-            count: ref.watch(dashboardWaitingOnuCountProvider),
-            label: 'Waiting',
-            onTap: () {
-              if (firstPending != null) {
-                context.push(Routes.oltListFor(firstPending.id));
-              } else {
-                context.push(listRoute);
-              }
-            },
-          ),
-          const SizedBox(height: 10),
+                // ── Waiting ONUs ──
+                _DashboardTile(
+                  title: 'Waiting ONUs',
+                  icon: Icons.router_outlined,
+                  style: const _TileStyle(
+                    light: Color(0xFFD97706),
+                    dark: Color(0xFFFBBF24),
+                  ),
+                  count: ref.watch(dashboardWaitingOnuCountProvider),
+                  label: 'Waiting',
+                  onTap: () {
+                    if (firstPending != null) {
+                      context.push(Routes.oltListFor(firstPending.id));
+                    } else {
+                      context.push(listRoute);
+                    }
+                  },
+                ),
+                const SizedBox(height: 10),
 
-          // ── ONU Authorization ──
-          _DashboardTile(
-            title: 'ONU Authorization',
-            icon: Icons.shield_outlined,
-            style: const _TileStyle(
-              light: Color(0xFFDC2626),
-              dark: Color(0xFFF87171),
+                // ── ONU Authorization ──
+                _DashboardTile(
+                  title: 'ONU Authorization',
+                  icon: Icons.shield_outlined,
+                  style: const _TileStyle(
+                    light: Color(0xFFDC2626),
+                    dark: Color(0xFFF87171),
+                  ),
+                  count: pendingAuth.whenData(
+                    (page) => page.meta.total ?? page.data.length,
+                  ),
+                  label: 'Pending',
+                  onTap: () {
+                    if (firstPending != null && detailRouteFor != null) {
+                      context.push(
+                        Routes.detailRouteForRequest(
+                          firstPending,
+                          detailRouteFor!,
+                        ),
+                      );
+                    } else {
+                      context.push(listRoute);
+                    }
+                  },
+                ),
+              ],
             ),
-            count: pendingAuth.whenData(
-              (page) => page.meta.total ?? page.data.length,
-            ),
-            label: 'Pending',
-            onTap: () {
-              if (firstPending != null && detailRouteFor != null) {
-                context.push(
-                  Routes.detailRouteForRequest(firstPending, detailRouteFor!),
-                );
-              } else {
-                context.push(listRoute);
-              }
-            },
           ),
+        ),
 
-          // ── New request (ISPFINAL Phase C, survey team only) ──
-          // The dashboard's one primary button (kit Rule 3 + Rule 12):
-          // sky fill with dark-navy ink, never white on sky.
-          if (onNewRequest != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 16),
+        // ── New request (ISPFINAL Phase C, survey team only) ──
+        // Pinned at the bottom (D22): the dashboard's one primary button
+        // (kit Rule 3 + Rule 12) — sky fill with dark-navy ink, never
+        // white on sky. It no longer scrolls away with the tiles, so the
+        // empty space below it in the D20 layout is gone.
+        if (onNewRequest != null)
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
               child: SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -393,8 +438,8 @@ class _DashboardBody extends ConsumerWidget {
                 ),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
@@ -414,25 +459,25 @@ ConnectionRequest? _firstInstallationAssigned(ConnectionRequestPage? page) {
   return null;
 }
 
-/// Compact D20 header: employee name (bold) + team (muted) on the left,
-/// settings gear + logout (red-tinted circle) on the right. Both actions
-/// are 48dp targets (kit Rule 8).
+/// Compact D20 header, D22: employee name (bold) + team (muted) only.
+/// The settings gear and the logout button moved out — all action icons
+/// now live grouped in the app bar (theme, bell, settings), and logout
+/// lives inside the settings sheet. The red-tinted logout circle is gone.
 class _CompactHeader extends StatelessWidget {
-  const _CompactHeader({
-    required this.employeeName,
-    required this.teamName,
-    required this.onSettings,
-    required this.onLogout,
-  });
+  const _CompactHeader({required this.employeeName, required this.teamName});
 
   final String employeeName;
   final String teamName;
-  final VoidCallback onSettings;
-  final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    // D22: the team subtitle uses the stronger muted tone
+    // (subtitleStrong: 7.14:1 light / 7.17:1 dark) instead of
+    // onSurfaceVariant (5.18:1 light), which read washed out at 14px.
+    final subtitleColor = theme.brightness == Brightness.dark
+        ? FieldOpsDarkTokens.subtitleStrong
+        : FieldOpsDesignTokens.subtitleStrong;
     return Row(
       children: [
         Expanded(
@@ -454,25 +499,10 @@ class _CompactHeader extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+                  color: subtitleColor,
                 ),
               ),
             ],
-          ),
-        ),
-        IconButton(
-          tooltip: 'Settings',
-          onPressed: onSettings,
-          icon: const Icon(Icons.settings_outlined),
-        ),
-        const SizedBox(width: 8),
-        IconButton(
-          tooltip: 'Log out',
-          onPressed: onLogout,
-          icon: const Icon(Icons.logout),
-          color: theme.colorScheme.error,
-          style: IconButton.styleFrom(
-            backgroundColor: theme.colorScheme.error.withValues(alpha: 0.1),
           ),
         ),
       ],
@@ -489,6 +519,11 @@ class _CompactHeader extends StatelessWidget {
 /// (centred, equal margins both sides) and ~47px tall: 32px icon chip,
 /// 14px title, 20px number, 7px vertical padding, 10px tile gap. The
 /// header and the "+ New request" button stay full width.
+///
+/// D22: the number + label sit in a centered column with a fixed
+/// minimum width (88dp) and the title ellipsizes (maxLines 1) with a
+/// 12dp gap, so a long title never collides with the count block and
+/// all five tiles share one center line for their counts.
 class _DashboardTile extends StatelessWidget {
   const _DashboardTile({
     required this.title,
@@ -542,26 +577,43 @@ class _DashboardTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: FieldOpsDesignTokens.labelLg.copyWith(
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  count.when(
-                    data: (value) => DefaultTextStyle(
-                      style: numberStyle,
-                      child: CountUp(value: value),
+              // D22: the count + label live in a column with a FIXED
+              // minimum width (88dp) and centered alignment, so the number
+              // and its label share one center line on every tile instead
+              // of zig-zagging with their own widths. It is a min-width,
+              // not a hard width: on a real phone every label fits in 88dp
+              // (longest is "Available" at ~60dp in Plus Jakarta Sans),
+              // but a wider font (e.g. the widget-test fallback, where
+              // "Available" needs ~101dp) grows the column instead of
+              // wrapping the label to two lines and breaking the tile
+              // height. The 12dp gap keeps a long title (e.g.
+              // "ONU Authorization") from ever touching the count block.
+              const SizedBox(width: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 88),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    count.when(
+                      data: (value) => DefaultTextStyle(
+                        style: numberStyle,
+                        child: CountUp(value: value),
+                      ),
+                      loading: () => Text('–', style: numberStyle),
+                      error: (_, __) => Text('0', style: numberStyle),
                     ),
-                    loading: () => Text('–', style: numberStyle),
-                    error: (_, __) => Text('0', style: numberStyle),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(label, style: labelStyle),
-                ],
+                    const SizedBox(height: 2),
+                    Text(label, style: labelStyle),
+                  ],
+                ),
               ),
               const SizedBox(width: 8),
               Icon(
@@ -595,16 +647,26 @@ class _TileStyle {
 /// GAP (D20): no dedicated settings screen exists in the app yet, so the
 /// gear opens this sheet instead of a route. It currently holds the one
 /// setting the app already owns — the persisted theme choice
-/// ([themeModeProvider]) — and nothing invented.
-Future<void> _showSettingsSheet(BuildContext context) async {
+/// ([themeModeProvider]) — and nothing invented. D22: logout also lives
+/// here now (it used to be a red-tinted circle in the compact header);
+/// tapping it closes the sheet and runs the SAME confirmation dialog the
+/// dashboard has always used — no second dialog was built.
+Future<void> _showSettingsSheet(
+  BuildContext context, {
+  required VoidCallback onLogout,
+}) async {
   await showModalBottomSheet<void>(
     context: context,
-    builder: (sheetContext) => const _SettingsSheet(),
+    builder: (sheetContext) => _SettingsSheet(onLogout: onLogout),
   );
 }
 
 class _SettingsSheet extends ConsumerWidget {
-  const _SettingsSheet();
+  const _SettingsSheet({required this.onLogout});
+
+  /// Shows the existing logout confirmation dialog (see
+  /// [TeamDashboardScreen._confirmLogout]).
+  final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -641,12 +703,25 @@ class _SettingsSheet extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (final (value, label) in options)
-                    RadioListTile<ThemeMode>(
-                      title: Text(label),
-                      value: value,
-                    ),
+                    RadioListTile<ThemeMode>(title: Text(label), value: value),
                 ],
               ),
+            ),
+            const Divider(),
+            // D22: logout as a plain text row — no bright red background.
+            // The destructive colour is text + icon only.
+            ListTile(
+              leading: Icon(Icons.logout, color: theme.colorScheme.error),
+              title: Text(
+                'Log out',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+              onTap: () {
+                Navigator.of(context).pop();
+                onLogout();
+              },
             ),
           ],
         ),

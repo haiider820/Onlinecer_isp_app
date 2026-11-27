@@ -4,6 +4,11 @@
     <!-- Voice-note recording (Survey submit screen). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+    <!-- Barcode scanning for the installed-device MAC (Complete-installation
+         screen, D21): mobile_scanner requests this at runtime; without the
+         declaration the scanner cannot start and the form falls back to
+         manual MAC entry. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
     <!-- Device location for the Survey route screen ("use my location"). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
@@ -12,7 +17,7 @@
          cleartext traffic so the app can reach it during development and
          until the server is moved behind TLS. -->
     <application
-        android:label="isp_onlinecer"
+        android:label="ISP 360"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">

@@ -17,6 +17,7 @@ import '../../../shared/widgets/location_map.dart';
 import '../../../shared/widgets/navigate_action.dart';
 import '../../../shared/widgets/pppoe_inventory_cards.dart';
 import '../../../shared/widgets/section_card.dart';
+import '../../../shared/widgets/stage_chips.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../../shared/formatting/format_minor_price.dart';
 import 'connection_request_providers.dart';
@@ -110,9 +111,16 @@ class _DetailBody extends StatelessWidget {
               ],
 
               // ── What Inventory approved (review case only) ──
+              // D21: another team's data — collapsed behind a top chip by
+              // default, like the other stages' previous-stage blocks.
               if (request.itemRequests != null &&
                   request.itemRequests!.isNotEmpty) ...[
-                _InventoryApprovalCard(itemRequests: request.itemRequests!),
+                CollapsibleStageSection(
+                  label: 'Inventory approval',
+                  child: _InventoryApprovalCard(
+                    itemRequests: request.itemRequests!,
+                  ),
+                ),
                 const SizedBox(height: 8),
               ],
 

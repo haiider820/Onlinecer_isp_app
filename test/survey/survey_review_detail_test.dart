@@ -100,11 +100,26 @@ void main() {
       ConnectionRequestDetail.fromJson(reviewDetailJson()),
     );
 
+    // D21: the approval card is collapsed behind the "Inventory approval"
+    // chip, and that chip row is itself a horizontal Scrollable — so the
+    // vertical detail list must be named explicitly for scrollUntilVisible.
+    final detailList = find.byWidgetPredicate(
+      (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+    );
+    await tester.scrollUntilVisible(
+      find.text('Inventory approval'),
+      300,
+      scrollable: detailList,
+    );
+    await tester.tap(find.text('Inventory approval'));
+    await tester.pumpAndSettle();
+
     // The detail body is a lazy ListView: the approval card sits below the
     // fold, so scroll it into view before asserting on its rows.
     await tester.scrollUntilVisible(
       find.text('Inventory Approval'),
       300,
+      scrollable: detailList,
     );
     await tester.pumpAndSettle();
 

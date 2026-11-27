@@ -72,6 +72,7 @@ dependencies:
   # Midnight Ops typography: Space Grotesk (display), Inter (body),
   # IBM Plex Mono (instrument data). Runtime-fetched + cached on device.
   google_fonts: ^6.2.1
+  mobile_scanner: ^7.5.0
 
 dev_dependencies:
   flutter_test:

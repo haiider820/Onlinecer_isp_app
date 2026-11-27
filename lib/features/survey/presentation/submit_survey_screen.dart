@@ -1,20 +1,16 @@
-import 'dart:async';
 import 'dart:io';
 
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:lottie/lottie.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:record/record.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/router/app_router.dart';
 import '../../../core/theme/field_ops_design_tokens.dart';
+import '../../../shared/voice/voice_recorder_controller.dart';
 import '../../../shared/widgets/branded_header.dart';
 import '../../../shared/widgets/ops_widgets.dart';
+import '../../../shared/widgets/success_moment.dart';
 import 'connection_request_providers.dart';
 import 'submit_survey_providers.dart';
 
@@ -23,7 +19,8 @@ import 'submit_survey_providers.dart';
 /// recorded voice note, and submits them via `POST .../complete-survey`.
 ///
 /// Voice-first edition (palette #4, kit DESIGN.md Rules 1-14). The notes card leads with a big
-/// glowing mic (the existing recorder state machine is untouched), then site
+/// glowing mic (the shared [VoiceRecorderController] — this screen is the
+/// reference pattern every other stage copies), then site
 /// photos, a tappable site checklist, and the typed-notes fallback — with a
 /// sticky submit shelf. Renders ONLY the fields the API actually accepts
 /// (feasibility + reason + notes + voice note); photos and checklist items are on-device helpers and
@@ -50,19 +47,12 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
   final _notesController = TextEditingController();
   final _notesFocus = FocusNode();
   final _reasonController = TextEditingController();
-  final AudioRecorder _recorder = AudioRecorder();
-  final AudioPlayer _player = AudioPlayer();
   final ImagePicker _photoPicker = ImagePicker();
 
-  bool _micPermission = false;
-  bool _micChecked = false;
-  bool _micBusy = false;
-  bool _isRecording = false;
-  Duration _recordingTime = Duration.zero;
-  Timer? _recordingTicker;
-  String? _recordedPath;
-  String? _recordedMime;
-  bool _isPlaying = false;
+  /// The shared voice engine (D21): recording + playback state lives in
+  /// the controller; this screen only renders it (VoiceRecorderCard +
+  /// VoiceNoteBubble + delete) and forwards mic taps.
+  late final VoiceRecorderController _voice;
 
   /// The surveyor's feasibility verdict (D14): `"feasible"` or
   /// `"not_feasible"`, or `null` until picked. The backend requires it on
@@ -83,140 +73,24 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
   @override
   void initState() {
     super.initState();
-    _initMic();
+    _voice = VoiceRecorderController(
+      filePrefix: 'survey',
+      onMessage: _snack,
+    )..addListener(_onVoiceChanged)
+    ..initMic();
+  }
+
+  void _onVoiceChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    _recordingTicker?.cancel();
+    _voice.dispose();
     _notesController.dispose();
     _notesFocus.dispose();
     _reasonController.dispose();
-    _recorder.dispose();
-    _player.dispose();
     super.dispose();
-  }
-
-  Future<void> _initMic() async {
-    bool granted;
-    try {
-      granted = await _recorder.hasPermission();
-    } catch (_) {
-      granted = false;
-    }
-    if (mounted) {
-      setState(() {
-        _micPermission = granted;
-        _micChecked = true;
-      });
-    }
-  }
-
-  /// Re-checks the mic permission (e.g. after the user enabled it in the
-  /// system Settings) and, if still denied, points at Settings. No
-  /// app_settings dependency — the button re-runs the permission check.
-  Future<void> _retryMicPermission() async {
-    await _initMic();
-    if (mounted && !_micPermission) {
-      _snack('Enable microphone access in Settings');
-    }
-  }
-
-  Future<void> _toggleRecording() async {
-    if (_micBusy) return;
-    if (_isRecording) {
-      await _stopRecording();
-    } else {
-      await _startRecording();
-    }
-  }
-
-  Future<void> _startRecording() async {
-    if (!_micPermission) {
-      _snack(AppStrings.snackbarMicPermission);
-      return;
-    }
-    setState(() => _micBusy = true);
-    try {
-      final dir = await getTemporaryDirectory();
-      final path = '${dir.path}/survey_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      await _recorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
-      final stopwatch = Stopwatch()..start();
-      _recordingTicker?.cancel();
-      _recordingTicker = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() => _recordingTime = stopwatch.elapsed);
-      });
-      if (mounted) {
-        setState(() {
-          _isRecording = true;
-          _recordingTime = Duration.zero;
-          _recordedPath = null;
-          _recordedMime = null;
-        });
-      }
-    } on Exception {
-      _snack(AppStrings.snackbarRecordFailed);
-    } finally {
-      if (mounted) setState(() => _micBusy = false);
-    }
-  }
-
-  Future<void> _stopRecording() async {
-    setState(() => _micBusy = true);
-    _recordingTicker?.cancel();
-    try {
-      final path = await _recorder.stop();
-      if (!mounted) return;
-      setState(() => _isRecording = false);
-
-      if (path == null || !File(path).existsSync()) {
-        _snack(AppStrings.snackbarRecordFailed);
-        return;
-      }
-
-      final size = await File(path).length();
-      if (size > maxVoiceNoteBytes) {
-        _snack('Voice note is too large (max ${maxVoiceNoteBytes ~/ (1024 * 1024)} MB).');
-        File(path).deleteSync();
-        return;
-      }
-      setState(() {
-        _recordedPath = path;
-        _recordedMime = 'audio/mp4';
-      });
-    } on Exception {
-      _snack(AppStrings.snackbarRecordFailed);
-    } finally {
-      if (mounted) setState(() => _micBusy = false);
-    }
-  }
-
-  Future<void> _playRecording() async {
-    if (_recordedPath == null || !mounted) return;
-    try {
-      if (_isPlaying) {
-        await _player.stop();
-        if (mounted) setState(() => _isPlaying = false);
-        return;
-      }
-      await _player.play(DeviceFileSource(_recordedPath!));
-      if (mounted) setState(() => _isPlaying = true);
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not play voice note: $error')),
-        );
-      }
-    }
-  }
-
-  void _clearRecording() {
-    setState(() {
-      _recordedPath = null;
-      _recordedMime = null;
-      _recordingTime = Duration.zero;
-      _isPlaying = false;
-    });
   }
 
   Future<void> _addPhoto() async {
@@ -242,8 +116,8 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
         .submit(
           id: widget.requestId,
           notes: notes.isEmpty ? null : notes,
-          voiceNotePath: _recordedPath,
-          voiceNoteMimeType: _recordedMime,
+          voiceNotePath: _voice.recordedPath,
+          voiceNoteMimeType: _voice.recordedMime,
           isReview: widget.isReview,
           // Review mode forces 'feasible' inside the controller; the
           // screen never passes a verdict there (no selector is shown).
@@ -259,24 +133,50 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
       // ScaffoldMessenger keeps the snackbar visible across the navigation).
       final voiceNoteWarning =
           ref.read(submitSurveyControllerProvider).voiceNoteWarning;
-      await _showSuccessThenGo(voiceNoteWarning: voiceNoteWarning);
+      // The success words (D23): request number + new status from the
+      // response, falling back to the detail the screen already loaded.
+      // Captured here — the controller's Phase D refetch invalidates the
+      // detail, so reading it after the overlay would come back empty.
+      final requestNumber = result.data?.requestNumber ??
+          ref
+              .read(connectionRequestDetailProvider(widget.requestId))
+              .valueOrNull
+              ?.request
+              .requestNumber;
+      final statusLabel = result.data?.status?.replaceAll('_', ' ');
+      final subtitleParts = [
+        if (requestNumber != null) requestNumber,
+        if (statusLabel != null) statusLabel,
+      ];
+      await _showSuccessThenGo(
+        voiceNoteWarning: voiceNoteWarning,
+        headline: widget.isReview ? 'Review confirmed' : 'Survey submitted',
+        subtitle: subtitleParts.isEmpty ? null : subtitleParts.join('  •  '),
+      );
     }
   }
 
-  /// Phase 3 success: play the checkmark animation briefly, then leave the
+  /// D23 success: play the native success moment briefly, then leave the
   /// queue and land back on the survey list.
   ///
-  /// The overlay closes itself when its animation completes (~2s) and then
-  /// [context.go] lands on the list. Completion is ticker-driven (an
-  /// [AnimationController], no `Timer`), so it always resolves within a bounded
-  /// pump and never leaves a pending timer behind.
-  Future<void> _showSuccessThenGo({String? voiceNoteWarning}) async {
+  /// The overlay closes itself when its animation completes (~1.4s) and
+  /// then [context.go] lands on the list. Completion is ticker-driven (an
+  /// [AnimationController] inside [SuccessMoment], no `Timer`), so it
+  /// always resolves within a bounded pump and never leaves a pending
+  /// timer behind.
+  Future<void> _showSuccessThenGo({
+    String? voiceNoteWarning,
+    required String headline,
+    String? subtitle,
+  }) async {
     final navigator = Navigator.of(context);
-    // Full-screen transparent overlay with the success Lottie.
+    // Full-screen transparent overlay with the native success moment.
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (_) => _SuccessOverlay(
+        headline: headline,
+        subtitle: subtitle,
         onComplete: () {
           if (mounted) navigator.pop();
         },
@@ -284,19 +184,15 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
     );
     if (!mounted) return;
     if (voiceNoteWarning != null) _snack(voiceNoteWarning);
-    // Fresh list instance refetches, so the completed request leaves the queue.
+    // D24: the submit already invalidated detail + every list + the
+    // dashboard (refreshAfterStageSubmit), so the fresh list instance
+    // refetches and the completed request leaves the queue.
     context.go(Routes.surveyList);
   }
 
   void _snack(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  String get _recordingLabel {
-    final m = _recordingTime.inMinutes;
-    final s = _recordingTime.inSeconds % 60;
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -351,19 +247,19 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
                 VoiceRecorderCard(
                   title: 'Voice Note',
                   subtitle: 'Tap the mic and describe what you found on site',
-                  elapsedLabel: _recordingLabel,
-                  isRecording: _isRecording,
+                  elapsedLabel: _voice.recordingLabel,
+                  isRecording: _voice.isRecording,
                   // Idle bars read as a fake waveform, so hide them until
                   // a recording is actually running.
-                  waveformBars: _isRecording
+                  waveformBars: _voice.isRecording
                       ? const [8, 16, 24, 12, 20, 9, 18, 26, 14, 10, 22, 15]
                       : const [],
-                  onMicTap: _toggleRecording,
+                  onMicTap: _voice.toggleRecording,
                   onTypeTap: () => _notesFocus.requestFocus(),
                 ),
                 // Shown only once the permission check has resolved — never
                 // on first paint before hasPermission returns.
-                if (_micChecked && !_micPermission) ...[
+                if (_voice.micChecked && !_voice.micPermission) ...[
                   const SizedBox(height: 8),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,14 +274,14 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
                       ),
                       const SizedBox(width: 8),
                       TextButton(
-                        onPressed: _retryMicPermission,
+                        onPressed: _voice.retryMicPermission,
                         child: const Text('Open settings'),
                       ),
                     ],
                   ),
                 ],
                 // ── Recorded playback row ──
-                if (_recordedPath != null && !_isRecording) ...[
+                if (_voice.recordedPath != null && !_voice.isRecording) ...[
                   const SizedBox(height: 10),
                   OpsCard(
                     padding: const EdgeInsets.all(12),
@@ -393,15 +289,15 @@ class _SubmitSurveyScreenState extends ConsumerState<SubmitSurveyScreen> {
                       children: [
                         Expanded(
                           child: VoiceNoteBubble(
-                            durationLabel: _recordingLabel,
-                            onPlay: _playRecording,
-                            isPlaying: _isPlaying,
+                            durationLabel: _voice.recordingLabel,
+                            onPlay: _voice.playRecording,
+                            isPlaying: _voice.isPlaying,
                           ),
                         ),
                         const SizedBox(width: 8),
                         IconButton(
                           tooltip: 'Discard recording',
-                          onPressed: _clearRecording,
+                          onPressed: _voice.clearRecording,
                           icon: const Icon(Icons.delete_outline, size: 20),
                           color: theme.colorScheme.error,
                         ),
@@ -832,47 +728,24 @@ class _WorkOrderHeader extends StatelessWidget {
   }
 }
 
-/// Full-screen semi-transparent overlay that plays the success checkmark
-/// animation and auto-closes when it completes.
+/// Full-screen semi-transparent overlay that plays the native success
+/// moment and auto-closes when it completes.
 ///
-/// Uses an [AnimationController] (ticker-driven, not a [Timer]) so
-/// `pumpAndSettle` always advances through the full duration and no pending
-/// timers are left behind at test teardown.
-class _SuccessOverlay extends StatefulWidget {
-  const _SuccessOverlay({required this.onComplete});
+/// D23: the Lottie checkmark is gone — the overlay now renders
+/// [SuccessMoment] (check pop + Signal ring + success words, ~1.4s).
+/// The overlay itself is a plain shell: locked (`barrierDismissible:
+/// false`, `PopScope(canPop: false)`) so the user cannot dismiss it
+/// mid-success, and it closes only via [onComplete].
+class _SuccessOverlay extends StatelessWidget {
+  const _SuccessOverlay({
+    required this.headline,
+    this.subtitle,
+    required this.onComplete,
+  });
 
+  final String headline;
+  final String? subtitle;
   final VoidCallback onComplete;
-
-  @override
-  State<_SuccessOverlay> createState() => _SuccessOverlayState();
-}
-
-class _SuccessOverlayState extends State<_SuccessOverlay>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      // 1.8s — comfortably under the checkmark asset's 3s frame count
-      // so the Lottie still has frames to display, but short enough
-      // that a test's pumpAndSettle resolves quickly.
-      duration: const Duration(milliseconds: 1800),
-    )..addStatusListener((status) {
-        if (status == AnimationStatus.completed) {
-          widget.onComplete();
-        }
-      });
-    _controller.forward();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -882,14 +755,10 @@ class _SuccessOverlayState extends State<_SuccessOverlay>
       child: ColoredBox(
         color: theme.colorScheme.surface.withValues(alpha: 0.8),
         child: Center(
-          child: SizedBox(
-            width: 180,
-            height: 180,
-            child: Lottie.asset(
-              'assets/lottie/success_checkmark.json',
-              controller: _controller,
-              repeat: false,
-            ),
+          child: SuccessMoment(
+            headline: headline,
+            subtitle: subtitle,
+            onComplete: onComplete,
           ),
         ),
       ),

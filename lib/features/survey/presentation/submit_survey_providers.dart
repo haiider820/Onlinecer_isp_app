@@ -65,6 +65,12 @@ class SubmitSurveyController extends Notifier<SubmitSurveyState> {
     String? feasibilityStatus,
     String? notFeasibleReason,
   }) async {
+    // D23: a second submit while one is already in flight is a no-op.
+    // The button disables on rebuild, but two taps in the same frame —
+    // before that rebuild — used to fire two POST .../complete-survey
+    // calls. The guard runs before validation so a concurrent call can
+    // never reach the network (or a validation error) twice.
+    if (state.isSubmitting) return null;
     if (!isReview) {
       if (feasibilityStatus == null || feasibilityStatus.isEmpty) {
         state = const SubmitSurveyState(
@@ -103,15 +109,22 @@ class SubmitSurveyController extends Notifier<SubmitSurveyState> {
             voiceNoteMimeType: voiceNoteMimeType,
           );
       state = SubmitSurveyState(done: result, voiceNoteWarning: voiceNoteWarning);
-      // Phase D: refetch detail so the next screen re-derives its stage
-      // buttons from fresh `allowed_actions`, never the stale pre-submit one.
-      refreshConnectionRequestDetail(ref, id);
+      // D24: refresh detail + every list + dashboard, so the new stage
+      // shows with no manual refresh (the old call only refetched the
+      // detail, which is why the list kept showing the old phase).
+      refreshAfterStageSubmit(ref.invalidate, id);
       return result;
     } on ApiException catch (e) {
       state = SubmitSurveyState(errorMessage: e.message);
       return null;
     } catch (e) {
-      state = SubmitSurveyState(errorMessage: e.toString());
+      // D23: never show raw Dart text (e.g. a SocketException) to the
+      // user — a generic failure gets the friendly fallback. ApiException
+      // messages (above) are already user-facing and stay as-is.
+      state = const SubmitSurveyState(
+        errorMessage:
+            "Couldn't reach the server. Check your connection and try again.",
+      );
       return null;
     }
   }

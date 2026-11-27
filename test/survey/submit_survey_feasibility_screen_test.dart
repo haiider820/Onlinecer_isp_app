@@ -227,6 +227,41 @@ void main() {
     expect(find.text('Survey List'), findsOneWidget);
   });
 
+  testWidgets('successful submit shows the native success moment (D23)',
+      (tester) async {
+    final network = _FakeSubmitSurveyNetwork();
+    await _pumpSubmitScreen(tester, network);
+
+    await tester.tap(find.text('Feasible'));
+    await _settle(tester);
+
+    // Tap submit WITHOUT settling: the overlay must be showing mid-flight.
+    await tester.tap(
+      find.ancestor(
+        of: find.text('Submit Survey'),
+        matching: find.bySubtype<FilledButton>(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // D23: no Lottie — the native moment with the success words and the
+    // request number + new status. The dialog is locked (no early dismiss).
+    expect(find.text('Survey submitted'), findsOneWidget);
+    // The full subtitle (request number + new status) — the bare number
+    // also appears in the work-order header, so assert the whole line.
+    expect(
+      find.text('CRQ-20261001-ABCD  •  installation assigned'),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.check), findsOneWidget);
+    expect(find.text('Survey List'), findsNothing);
+
+    // The moment auto-advances (~1.4s) and the screen lands on the list.
+    await _settle(tester);
+    expect(find.text('Survey List'), findsOneWidget);
+    expect(network.jsonCalls, 1);
+  });
+
   testWidgets(
       'review mode hides the feasibility selector and still sends feasible',
       (tester) async {

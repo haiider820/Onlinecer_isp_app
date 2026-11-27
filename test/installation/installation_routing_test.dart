@@ -340,6 +340,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     await _settle(tester);
 
+    // D21: survey-stage notes and prior locations moved behind the top
+    // "Previous" tab — they are only built while that tab is open, so
+    // open it before asserting on them.
+    await tester.tap(find.text('Previous'));
+    await _settle(tester);
+
     // Survey-stage notes and prior locations sit below the (now longer) merged
     // scroll — the pricing and map cards push them under the fold, so reveal
     // them before asserting.

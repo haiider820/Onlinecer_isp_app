@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:isp_onlinecer/core/router/app_router.dart';
 import 'package:isp_onlinecer/core/storage/secure_storage.dart';
+import 'package:isp_onlinecer/core/theme/app_theme.dart';
+import 'package:isp_onlinecer/core/theme/field_ops_design_tokens.dart';
 import 'package:isp_onlinecer/core/theme/theme_mode_provider.dart';
 import 'package:isp_onlinecer/features/auth/presentation/providers.dart';
 import 'package:isp_onlinecer/features/dashboard/presentation/dashboard_tiles_providers.dart';
@@ -34,8 +37,7 @@ class _InMemoryFlutterSecureStorage extends FlutterSecureStorage {
     WebOptions? webOptions,
     MacOsOptions? mOptions,
     WindowsOptions? wOptions,
-  }) async =>
-      store[key];
+  }) async => store[key];
 
   @override
   Future<void> write({
@@ -64,8 +66,7 @@ class _InMemoryFlutterSecureStorage extends FlutterSecureStorage {
     WebOptions? webOptions,
     MacOsOptions? mOptions,
     WindowsOptions? wOptions,
-  }) async =>
-      store.remove(key);
+  }) async => store.remove(key);
 
   @override
   Future<void> deleteAll({
@@ -75,8 +76,7 @@ class _InMemoryFlutterSecureStorage extends FlutterSecureStorage {
     WebOptions? webOptions,
     MacOsOptions? mOptions,
     WindowsOptions? wOptions,
-  }) async =>
-      store.clear();
+  }) async => store.clear();
 
   @override
   Future<bool> containsKey({
@@ -87,8 +87,7 @@ class _InMemoryFlutterSecureStorage extends FlutterSecureStorage {
     WebOptions? webOptions,
     MacOsOptions? mOptions,
     WindowsOptions? wOptions,
-  }) async =>
-      store.containsKey(key);
+  }) async => store.containsKey(key);
 }
 
 /// D20 dashboard (Umair, Centralized Tech): the live counts from the
@@ -165,6 +164,7 @@ Future<ProviderContainer> _pumpDashboard(
   WidgetTester tester, {
   bool showNewRequest = true,
   List<Override> extraOverrides = const [],
+  ThemeMode themeMode = ThemeMode.light,
 }) async {
   final storage = SecureStorage(_InMemoryFlutterSecureStorage());
   final container = ProviderContainer(
@@ -194,7 +194,12 @@ Future<ProviderContainer> _pumpDashboard(
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
-      child: MaterialApp.router(routerConfig: _router(showNewRequest: showNewRequest)),
+      child: MaterialApp.router(
+        routerConfig: _router(showNewRequest: showNewRequest),
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: themeMode,
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -207,7 +212,9 @@ void main() {
   // platform default, which is fine for assertions).
   GoogleFonts.config.allowRuntimeFetching = false;
 
-  testWidgets('renders all five tiles with live counts and labels', (tester) async {
+  testWidgets('renders all five tiles with live counts and labels', (
+    tester,
+  ) async {
     await _pumpDashboard(tester);
 
     expect(find.text('Umair Shafique'), findsOneWidget);
@@ -245,8 +252,9 @@ void main() {
     expect(find.text('New request'), findsOneWidget);
   });
 
-  testWidgets('tiles are compact: 85% width, ~47px tall (D20 size spec)',
-      (tester) async {
+  testWidgets('tiles are compact: 85% width, ~47px tall (D20 size spec)', (
+    tester,
+  ) async {
     await _pumpDashboard(tester);
 
     // The ListView carries 16dp horizontal padding, so the tile's parent
@@ -275,11 +283,12 @@ void main() {
 
   testWidgets('a count still loading shows a dash', (tester) async {
     final pending = Completer<int>();
-    await _pumpDashboard(tester, extraOverrides: [
-      dashboardInventoryCountProvider.overrideWith(
-        (ref) => pending.future,
-      ),
-    ]);
+    await _pumpDashboard(
+      tester,
+      extraOverrides: [
+        dashboardInventoryCountProvider.overrideWith((ref) => pending.future),
+      ],
+    );
 
     expect(find.text('–'), findsOneWidget);
     expect(find.text('47'), findsNothing);
@@ -291,11 +300,14 @@ void main() {
   });
 
   testWidgets('a failed count falls back to 0', (tester) async {
-    await _pumpDashboard(tester, extraOverrides: [
-      dashboardInventoryCountProvider.overrideWith(
-        (ref) async => throw Exception('boom'),
-      ),
-    ]);
+    await _pumpDashboard(
+      tester,
+      extraOverrides: [
+        dashboardInventoryCountProvider.overrideWith(
+          (ref) async => throw Exception('boom'),
+        ),
+      ],
+    );
 
     // Open tickets 0 + waiting ONUs 0 + failed inventory 0.
     expect(find.text('0'), findsNWidgets(3));
@@ -303,18 +315,19 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Connection Flow opens the New Request flow step (survey team)',
-      (tester) async {
+  testWidgets('Connection Flow opens the team list (D23)', (tester) async {
     await _pumpDashboard(tester);
 
     await tester.tap(find.text('Connection Flow'));
     await tester.pumpAndSettle();
 
-    expect(find.text('new-request-stub'), findsOneWidget);
+    expect(find.text('survey-list-stub'), findsOneWidget);
+    expect(find.text('new-request-stub'), findsNothing);
   });
 
-  testWidgets('Connection Flow opens the team list when creation is off',
-      (tester) async {
+  testWidgets('Connection Flow opens the team list when creation is off', (
+    tester,
+  ) async {
     await _pumpDashboard(tester, showNewRequest: false);
 
     expect(find.text('New request'), findsNothing);
@@ -334,8 +347,9 @@ void main() {
     expect(find.text('tickets-stub'), findsOneWidget);
   });
 
-  testWidgets('Inventory Items opens the team list (no catalog screen yet)',
-      (tester) async {
+  testWidgets('Inventory Items opens the team list (no catalog screen yet)', (
+    tester,
+  ) async {
     await _pumpDashboard(tester);
 
     await tester.tap(find.text('Inventory Items'));
@@ -344,8 +358,9 @@ void main() {
     expect(find.text('survey-list-stub'), findsOneWidget);
   });
 
-  testWidgets('Waiting ONUs opens the OLT list for the first pending request',
-      (tester) async {
+  testWidgets('Waiting ONUs opens the OLT list for the first pending request', (
+    tester,
+  ) async {
     await _pumpDashboard(tester);
 
     await tester.tap(find.text('Waiting ONUs'));
@@ -354,8 +369,9 @@ void main() {
     expect(find.text('olt-list-stub'), findsOneWidget);
   });
 
-  testWidgets('ONU Authorization opens the first pending request detail',
-      (tester) async {
+  testWidgets('ONU Authorization opens the first pending request detail', (
+    tester,
+  ) async {
     await _pumpDashboard(tester);
 
     await tester.tap(find.text('ONU Authorization'));
@@ -364,8 +380,9 @@ void main() {
     expect(find.text('installation-detail-stub'), findsOneWidget);
   });
 
-  testWidgets('settings gear opens the theme sheet and persists the choice',
-      (tester) async {
+  testWidgets('settings gear opens the theme sheet and persists the choice', (
+    tester,
+  ) async {
     final container = await _pumpDashboard(tester);
 
     expect(container.read(themeModeProvider), ThemeMode.system);
@@ -377,6 +394,8 @@ void main() {
     expect(find.text('System'), findsOneWidget);
     expect(find.text('Light'), findsOneWidget);
     expect(find.text('Dark'), findsOneWidget);
+    // D22: the sheet also carries the Log out row now.
+    expect(find.text('Log out'), findsOneWidget);
 
     await tester.tap(find.text('Dark'));
     await tester.pumpAndSettle();
@@ -384,10 +403,19 @@ void main() {
     expect(container.read(themeModeProvider), ThemeMode.dark);
   });
 
-  testWidgets('logout icon asks for confirmation', (tester) async {
+  testWidgets('logout lives in the settings sheet and asks for confirmation', (
+    tester,
+  ) async {
     await _pumpDashboard(tester);
 
-    await tester.tap(find.byTooltip('Log out'));
+    // D22: no logout affordance on the dashboard itself any more — the
+    // red-tinted logout circle in the compact header is gone.
+    expect(find.byTooltip('Log out'), findsNothing);
+
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Log out'));
     await tester.pumpAndSettle();
 
     expect(find.text('Log out?'), findsOneWidget);
@@ -398,4 +426,180 @@ void main() {
     expect(find.text('Log out?'), findsNothing);
     expect(find.text('Umair Shafique'), findsOneWidget);
   });
+
+  testWidgets('action icons are grouped in the app bar (D22)', (tester) async {
+    await _pumpDashboard(tester);
+
+    // Theme toggle, bell, settings — all three in the BrandedHeader.
+    expect(find.byIcon(Icons.brightness_auto_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.notifications_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+    // And nothing else actionable in the compact header below the bar.
+    expect(find.byIcon(Icons.logout), findsNothing);
+  });
+
+  testWidgets('count block is centered, min-width 88; title ellipsizes (D22)', (
+    tester,
+  ) async {
+    await _pumpDashboard(tester);
+
+    // One count column per tile: min-width 88dp (see the D22 comment in
+    // _DashboardTile — on a real phone every label fits in 88dp; the
+    // wide test fallback font grows the column instead of wrapping).
+    final countBlocks = find.byWidgetPredicate(
+      (widget) => widget is ConstrainedBox && widget.constraints.minWidth == 88,
+    );
+    expect(countBlocks, findsNWidgets(5));
+
+    // Number and label share one center line inside every tile's block
+    // (scoped per block — two tiles show '0', so a bare text lookup
+    // would pair the wrong number with a label).
+    for (final block in countBlocks.evaluate()) {
+      final texts = find.descendant(
+        of: find.byWidget(block.widget),
+        matching: find.byType(Text),
+      );
+      expect(texts, findsNWidgets(2));
+      final numberCenter = tester.getCenter(texts.at(0));
+      final labelCenter = tester.getCenter(texts.at(1));
+      expect(numberCenter.dx, closeTo(labelCenter.dx, 0.5));
+    }
+
+    // Long title never collides with the count block: maxLines 1 +
+    // ellipsis, and at least 12dp between the title text and its tile's
+    // count column.
+    final title = tester.widget<Text>(find.text('ONU Authorization'));
+    expect(title.maxLines, 1);
+    expect(title.overflow, TextOverflow.ellipsis);
+    final titleRect = tester.getRect(find.text('ONU Authorization'));
+    final onuBlock = countBlocks.evaluate().firstWhere((block) {
+      final pending = find.descendant(
+        of: find.byWidget(block.widget),
+        matching: find.text('Pending'),
+      );
+      return pending.evaluate().isNotEmpty;
+    });
+    final blockRect = tester.getRect(find.byWidget(onuBlock.widget));
+    expect(blockRect.left - titleRect.right, greaterThanOrEqualTo(12));
+  });
+
+  testWidgets('all five tiles have identical height and padding (D22)', (
+    tester,
+  ) async {
+    await _pumpDashboard(tester);
+
+    final cards = find.byType(OpsCard);
+    expect(cards, findsNWidgets(5));
+    final heights = cards
+        .evaluate()
+        .map((e) => tester.getSize(find.byWidget(e.widget)).height)
+        .toList();
+    for (final height in heights) {
+      expect(height, closeTo(heights.first, 0.5));
+    }
+    for (final element in cards.evaluate()) {
+      expect(
+        (element.widget as OpsCard).padding,
+        const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
+      );
+    }
+  });
+
+  testWidgets('New request button is pinned at the bottom (D22)', (
+    tester,
+  ) async {
+    await _pumpDashboard(tester);
+
+    // Viewport 800×1400, 16dp bottom margin: the button's bottom edge
+    // sits at 1400 − 16 = 1384 (the 64dp app bar is above the body, so
+    // it does not subtract from the button position). byWidgetPredicate
+    // with `is` — not find.byType — because FilledButton.icon builds
+    // the private _FilledButtonWithIcon subclass.
+    final buttonRect = tester.getRect(
+      find.byWidgetPredicate((widget) => widget is FilledButton),
+    );
+    expect(buttonRect.bottom, closeTo(1384, 2));
+    // The last tile ends above the button — it does not scroll away
+    // with the list.
+    final lastTile = tester.getRect(find.byType(OpsCard).last);
+    expect(lastTile.bottom, lessThan(buttonRect.top));
+  });
+
+  testWidgets('logo renders at 32dp in the dashboard header (D22)', (
+    tester,
+  ) async {
+    await _pumpDashboard(tester);
+
+    final logo = tester.widget<Image>(find.byType(Image).first);
+    expect(logo.height, 32);
+  });
+
+  testWidgets('team subtitle uses the high-contrast tone, light theme (D22)', (
+    tester,
+  ) async {
+    await _pumpDashboard(tester);
+
+    final subtitle = tester.widget<Text>(find.text('Centralized Tech'));
+    expect(subtitle.style?.color, FieldOpsDesignTokens.subtitleStrong);
+  });
+
+  testWidgets('dashboard renders in dark theme with the dark subtitle (D22)', (
+    tester,
+  ) async {
+    await _pumpDashboard(tester, themeMode: ThemeMode.dark);
+
+    // Same tiles, counts and header in dark mode.
+    expect(find.text('Umair Shafique'), findsOneWidget);
+    expect(find.text('Centralized Tech'), findsOneWidget);
+    expect(find.text('Connection Flow'), findsOneWidget);
+    expect(find.text('ONU Authorization'), findsOneWidget);
+    expect(find.text('47'), findsOneWidget);
+    expect(find.text('New request'), findsOneWidget);
+
+    final subtitle = tester.widget<Text>(find.text('Centralized Tech'));
+    expect(subtitle.style?.color, FieldOpsDarkTokens.subtitleStrong);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('subtitle contrast is WCAG AA (4.5:1) in both themes (D22)', () {
+    // Light: subtitleStrong #47536B on #F4F6FA = 7.14:1 (was 5.18:1
+    // with onSurfaceVariant #5C6880). Dark: subtitleStrong #94A3B8 on
+    // #0B132B = 7.17:1 (same value as onSurfaceVariant, kept deliberately
+    // — darkening it would only lower the contrast).
+    expect(
+      _contrastRatio(
+        FieldOpsDesignTokens.subtitleStrong,
+        FieldOpsDesignTokens.background,
+      ),
+      greaterThanOrEqualTo(4.5),
+    );
+    expect(
+      _contrastRatio(
+        FieldOpsDarkTokens.subtitleStrong,
+        FieldOpsDarkTokens.background,
+      ),
+      greaterThanOrEqualTo(4.5),
+    );
+  });
+}
+
+/// WCAG 2.x relative-luminance contrast ratio between two opaque colors.
+double _contrastRatio(Color foreground, Color background) {
+  double luminance(Color color) {
+    double channel(double c) {
+      return c <= 0.04045
+          ? c / 12.92
+          : math.pow((c + 0.055) / 1.055, 2.4).toDouble();
+    }
+
+    return 0.2126 * channel(color.r) +
+        0.7152 * channel(color.g) +
+        0.0722 * channel(color.b);
+  }
+
+  final light = luminance(foreground);
+  final dark = luminance(background);
+  final brightest = math.max(light, dark);
+  final darkest = math.min(light, dark);
+  return (brightest + 0.05) / (darkest + 0.05);
 }

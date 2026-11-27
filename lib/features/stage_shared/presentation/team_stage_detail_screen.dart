@@ -1,19 +1,15 @@
-import 'dart:async';
-import 'dart:io';
-
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lottie/lottie.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:record/record.dart';
 
-import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_exceptions.dart';
+import '../../../core/router/app_router.dart';
 import '../../../models/connection_request.dart';
-import '../../../shared/widgets/voice_note_section.dart';
+import '../../../shared/voice/voice_recorder_controller.dart';
+import '../../../shared/widgets/ops_widgets.dart';
 import '../../auth/presentation/providers.dart';
+import '../../closing/presentation/closing_success_screen.dart';
 import '../../survey/presentation/connection_request_providers.dart';
 import '../../voice_notes/presentation/voice_note_providers.dart';
 import '../data/team_stage_completion_network.dart';
@@ -47,31 +43,36 @@ class TeamStageDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _TeamStageDetailScreenState extends ConsumerState<TeamStageDetailScreen> {
-  final AudioPlayer _audioPlayer = AudioPlayer();
-  String? _playingUrl;
+  /// The shared voice engine (D21), used here only for remote-URL playback
+  /// of the Notes rows: one player, toggle-by-URL, and the play/pause icon
+  /// resets on natural finish (the old `_play` never reset it).
+  late final VoiceRecorderController _voice;
+
+  @override
+  void initState() {
+    super.initState();
+    _voice = VoiceRecorderController(
+      filePrefix: 'detail',
+      onMessage: _snack,
+    )..addListener(_onVoiceChanged);
+  }
+
+  void _onVoiceChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _snack(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
+  }
 
   @override
   void dispose() {
-    _audioPlayer.dispose();
+    _voice.dispose();
     super.dispose();
-  }
-
-  Future<void> _play(String url) async {
-    try {
-      if (_playingUrl == url) {
-        await _audioPlayer.stop();
-        if (mounted) setState(() => _playingUrl = null);
-        return;
-      }
-      await _audioPlayer.play(UrlSource(url));
-      if (mounted) setState(() => _playingUrl = url);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not play this voice note.')),
-        );
-      }
-    }
   }
 
   @override
@@ -87,7 +88,8 @@ class _TeamStageDetailScreenState extends ConsumerState<TeamStageDetailScreen> {
         ),
         data: (item) => TeamStageDetailSections(
           detail: item,
-          onPlayVoiceNote: _play,
+          onPlayVoiceNote: _voice.playUrl,
+          playingVoiceNoteUrl: _voice.playingUrl,
           completion: item.allows(widget.config.allowedAction)
               ? TeamStageCompletionForm(
                   config: widget.config,
@@ -136,105 +138,34 @@ class TeamStageCompletionForm extends ConsumerStatefulWidget {
 
 class _TeamStageCompletionFormState extends ConsumerState<TeamStageCompletionForm> {
   final _notes = TextEditingController();
-  final _recorder = AudioRecorder();
-  final _player = AudioPlayer();
-  Timer? _ticker;
-  bool _hasPermission = false;
-  bool _recording = false;
-  bool _recordingBusy = false;
+
+  /// The shared voice engine (D21): recording + playback state lives in
+  /// the controller; this form only renders the survey pattern
+  /// (VoiceRecorderCard + VoiceNoteBubble + delete).
+  late final VoiceRecorderController _voice;
+
   bool _submitting = false;
   String? _error;
-  String? _voiceNotePath;
-  Duration _elapsed = Duration.zero;
-  bool _isPlaying = false;
 
   @override
   void initState() {
     super.initState();
-    _loadPermission();
+    _voice = VoiceRecorderController(
+      filePrefix: 'stage',
+      onMessage: _show,
+    )..addListener(_onVoiceChanged)
+    ..initMic();
+  }
+
+  void _onVoiceChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    _ticker?.cancel();
+    _voice.dispose();
     _notes.dispose();
-    _recorder.dispose();
-    _player.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadPermission() async {
-    final granted = await _recorder.hasPermission();
-    if (mounted) setState(() => _hasPermission = granted);
-  }
-
-  Future<void> _toggleRecording() async {
-    if (_recording) return _stopRecording();
-    if (!_hasPermission) {
-      _show('Microphone permission is required to record a voice note.');
-      return;
-    }
-    setState(() => _recordingBusy = true);
-    try {
-      final directory = await getTemporaryDirectory();
-      await _recorder.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc),
-        path: '${directory.path}/stage_${DateTime.now().millisecondsSinceEpoch}.m4a',
-      );
-      final stopwatch = Stopwatch()..start();
-      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() => _elapsed = stopwatch.elapsed);
-      });
-      if (mounted) {
-        setState(() {
-          _recording = true;
-          _elapsed = Duration.zero;
-          _voiceNotePath = null;
-        });
-      }
-    } catch (_) {
-      _show('Could not record voice note. Please try again.');
-    } finally {
-      if (mounted) setState(() => _recordingBusy = false);
-    }
-  }
-
-  Future<void> _stopRecording() async {
-    setState(() => _recordingBusy = true);
-    _ticker?.cancel();
-    try {
-      final path = await _recorder.stop();
-      if (path == null || !File(path).existsSync()) {
-        _show('Could not record voice note. Please try again.');
-      } else if (await File(path).length() > maxVoiceNoteBytes) {
-        _show('Voice note is too large (max 10 MB).');
-      } else if (mounted) {
-        setState(() => _voiceNotePath = path);
-      }
-    } catch (_) {
-      _show('Could not record voice note. Please try again.');
-    } finally {
-      if (mounted) setState(() { _recording = false; _recordingBusy = false; });
-    }
-  }
-
-  Future<void> _playRecording() async {
-    if (_voiceNotePath == null || !mounted) return;
-    try {
-      if (_isPlaying) {
-        await _player.stop();
-        if (mounted) setState(() => _isPlaying = false);
-        return;
-      }
-      await _player.play(DeviceFileSource(_voiceNotePath!));
-      if (mounted) setState(() => _isPlaying = true);
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not play voice note: $error')),
-        );
-      }
-    }
   }
 
   Future<void> _submit() async {
@@ -244,8 +175,8 @@ class _TeamStageCompletionFormState extends ConsumerState<TeamStageCompletionFor
         config: widget.config,
         requestId: widget.requestId,
         notes: _notes.text.trim().isEmpty ? null : _notes.text.trim(),
-        voiceNotePath: _voiceNotePath,
-        voiceNoteMimeType: _voiceNotePath == null ? null : 'audio/mp4',
+        voiceNotePath: _voice.recordedPath,
+        voiceNoteMimeType: _voice.recordedPath == null ? null : 'audio/mp4',
       );
       if (!mounted) return;
       // Guide §20: stage completion may not save the voice note, so the
@@ -256,19 +187,33 @@ class _TeamStageCompletionFormState extends ConsumerState<TeamStageCompletionFor
           .read(voiceNoteRepositoryProvider)
           .uploadBestEffort(
             requestId: widget.requestId,
-            voiceNotePath: _voiceNotePath,
-            voiceNoteMimeType: _voiceNotePath == null ? null : 'audio/mp4',
+            voiceNotePath: _voice.recordedPath,
+            voiceNoteMimeType: _voice.recordedPath == null ? null : 'audio/mp4',
           );
       if (!mounted) return;
-      // Phase D: refetch both the stage detail and the shared request
-      // detail so any later read re-derives buttons from fresh
-      // `allowed_actions`, never the stale pre-submit payload.
-      ref.invalidate(widget.detailProvider(widget.requestId));
-      ref.invalidate(connectionRequestDetailProvider(widget.requestId));
-      ref.invalidate(widget.listPageProvider(1));
-      final message = widget.config.isTerminal
-          ? 'Job closed.'
-          : '${widget.config.featureName} completed: ${result.status?.replaceAll('_', ' ') ?? 'moved to next team'}';
+      // D24: refresh detail + every list + dashboard BEFORE navigating, so
+      // the list the user returns to is already fresh (no manual refresh).
+      // The old code only refetched the detail + one list page, which is
+      // why the list kept showing the old phase.
+      refreshAfterStageSubmit(ref.invalidate, widget.requestId);
+      if (widget.config.isTerminal) {
+        // Closing (D24): the activation credentials live on their own
+        // locked success screen — back cannot dismiss it. The list is
+        // already refreshed, so Close lands on the `connected` request.
+        if (!mounted) return;
+        context.push(
+          Routes.closingSuccessFor(widget.requestId),
+          extra: ClosingSuccessArgs(
+            message: result.message,
+            activation: result.activation,
+            voiceNoteWarning: voiceNoteWarning,
+            listRoute: widget.listRoute,
+          ),
+        );
+        return;
+      }
+      final message =
+          '${widget.config.featureName} completed: ${result.status?.replaceAll('_', ' ') ?? 'moved to next team'}';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Row(
           children: [
@@ -305,12 +250,10 @@ class _TeamStageCompletionFormState extends ConsumerState<TeamStageCompletionFor
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  String get _recordingLabel =>
-      '${_elapsed.inMinutes.toString().padLeft(2, '0')}:${(_elapsed.inSeconds % 60).toString().padLeft(2, '0')}';
-
   @override
   Widget build(BuildContext context) {
     final label = widget.config.actionLabel;
+    final theme = Theme.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       TextField(
         controller: _notes,
@@ -322,16 +265,65 @@ class _TeamStageCompletionFormState extends ConsumerState<TeamStageCompletionFor
         ),
       ),
       const SizedBox(height: 12),
-      VoiceNoteSection(
-        hasPermission: _hasPermission,
-        isBusy: _recordingBusy,
-        isRecording: _recording,
-        recordingLabel: _recordingLabel,
-        recordedPath: _voiceNotePath,
-        onToggle: _toggleRecording,
-        onClear: () => setState(() { _voiceNotePath = null; _elapsed = Duration.zero; }),
-        onPlay: _playRecording,
+      // Voice-note recording + playback, survey pattern (D21):
+      // VoiceRecorderCard + VoiceNoteBubble + delete, no re-record.
+      VoiceRecorderCard(
+        title: 'Voice Note',
+        subtitle: 'Tap the mic to record a voice note',
+        elapsedLabel: _voice.recordingLabel,
+        isRecording: _voice.isRecording,
+        // Idle bars read as a fake waveform, so hide them until a
+        // recording is actually running (survey pattern).
+        waveformBars: _voice.isRecording
+            ? const [8, 16, 24, 12, 20, 9, 18, 26, 14, 10, 22, 15]
+            : const [],
+        onMicTap: _voice.toggleRecording,
       ),
+      if (_voice.micChecked && !_voice.micPermission) ...[
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                'Microphone permission needed to record a voice note.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: _voice.retryMicPermission,
+              child: const Text('Open settings'),
+            ),
+          ],
+        ),
+      ],
+      if (_voice.recordedPath != null && !_voice.isRecording) ...[
+        const SizedBox(height: 10),
+        OpsCard(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Expanded(
+                child: VoiceNoteBubble(
+                  durationLabel: _voice.recordingLabel,
+                  onPlay: _voice.playRecording,
+                  isPlaying: _voice.isPlaying,
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Discard recording',
+                onPressed: _voice.clearRecording,
+                icon: const Icon(Icons.delete_outline, size: 20),
+                color: theme.colorScheme.error,
+              ),
+            ],
+          ),
+        ),
+      ],
       if (_error != null) Padding(
         padding: const EdgeInsets.only(top: 8),
         child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),

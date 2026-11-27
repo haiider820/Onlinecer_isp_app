@@ -97,9 +97,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
                   child: Column(
                     children: [
                       // Living mark: the SignalPulse travels along a
-                      // fiber line as the ISP 360 mark lands.
+                      // fiber line as the ISP 360 mark lands. The techtis
+                      // globe logo (D24) sits above the wordmark; the
+                      // SignalPulse stays the screen's one living element.
                       // Total splash stays under 2s; navigation timing
                       // and session checks are unchanged.
+                      Image.asset(
+                        'assets/images/techtis_logo.png',
+                        height: 72,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(height: 12),
                       const SizedBox(
                         width: double.infinity,
                         height: 56,

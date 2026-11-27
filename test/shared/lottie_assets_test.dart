@@ -1,17 +1,19 @@
-// Regression guard for the Lottie assets (login-loading indicator, empty-state
-// illustration, success checkmark).
+// Regression guard for the Lottie assets (empty-state illustration,
+// success checkmark).
 //
 // History: an earlier revision shipped no `assets:` declaration in pubspec.yaml,
 // so every `Lottie.asset(...)` call threw "Unable to load asset" at runtime
 // while `flutter analyze` stayed green. These assertions fail loudly in that
 // case, because they exercise the same `rootBundle` path `Lottie.asset` uses.
+//
+// D23: `login_loading.json` was deleted (zero usages in lib/) — it is no
+// longer asserted here.
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lottie/lottie.dart';
 
 const _animations = <String>[
-  'assets/lottie/login_loading.json',
   'assets/lottie/empty_list.json',
   'assets/lottie/success_checkmark.json',
 ];

@@ -5,7 +5,10 @@ import '../../../core/network/api_exceptions.dart';
 import '../../../core/router/functional_team.dart';
 import '../../../core/router/team_module.dart';
 import '../../../models/splicing.dart';
+import '../../../shared/voice/voice_recorder_controller.dart';
+import '../../../shared/widgets/ops_widgets.dart';
 import '../../../shared/widgets/section_card.dart';
+import '../../../shared/widgets/stage_chips.dart';
 import '../../../shared/widgets/status_badge.dart';
 import 'complete_splicing_screen.dart';
 import 'splicing_providers.dart';
@@ -33,13 +36,62 @@ class SplicingRequestDetailScreen extends ConsumerWidget {
   }
 }
 
-class _DetailBody extends StatelessWidget {
+class _DetailBody extends StatefulWidget {
   const _DetailBody({required this.detail});
   final SplicingDetail detail;
 
   @override
+  State<_DetailBody> createState() => _DetailBodyState();
+}
+
+class _DetailBodyState extends State<_DetailBody> {
+  /// The shared voice engine (D21), used here only for remote-URL playback
+  /// of the previous notes' voice recordings: one player, toggle-by-URL,
+  /// and the play/pause icon resets on natural finish.
+  late final VoiceRecorderController _voice;
+
+  /// D21: previous-stage data is collapsed by default — the index of the
+  /// open chip, or null when all are closed. Only stages that have data
+  /// get a chip.
+  int? _openStage;
+
+  @override
+  void initState() {
+    super.initState();
+    _voice = VoiceRecorderController(
+      filePrefix: 'detail',
+      onMessage: _snack,
+    )..addListener(_onVoiceChanged);
+  }
+
+  void _onVoiceChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _snack(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _voice.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final detail = widget.detail;
     final theme = Theme.of(context);
+    // One chip per previous-stage block that actually has data.
+    final chips = <String>[
+      if (detail.surveyNotes?.isNotEmpty == true) 'Survey',
+      if (detail.installationNotes?.isNotEmpty == true) 'Installation',
+      if (detail.notes.isNotEmpty) 'Notes',
+    ];
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
@@ -67,20 +119,19 @@ class _DetailBody extends StatelessWidget {
             InfoRow(label: 'Coordinates', value:
               '${detail.installationLatitude!.toStringAsFixed(6)}, ${detail.installationLongitude!.toStringAsFixed(6)}'),
           ]),
-        if (detail.surveyNotes?.isNotEmpty == true)
-          _NotesCard(title: 'Survey notes', text: detail.surveyNotes!),
-        if (detail.installationNotes?.isNotEmpty == true)
-          _NotesCard(title: 'Installation notes', text: detail.installationNotes!),
-        if (detail.notes.isNotEmpty)
-          SectionCard(title: 'Previous notes', icon: Icons.notes_outlined, children: [
-            for (final note in detail.notes) ...[
-              Text(note.type ?? 'Note', style: theme.textTheme.labelLarge),
-              if (note.note?.isNotEmpty == true) Text(note.note!),
-              if (note.voiceNoteUrl?.isNotEmpty == true)
-                Text('Voice note: ${note.voiceNoteUrl}', style: theme.textTheme.bodySmall),
-              const SizedBox(height: 8),
-            ],
-          ]),
+        // D21: previous-stage data behind top chips, collapsed by default —
+        // tap a chip to show that stage, tap it again to hide it.
+        if (chips.isNotEmpty) ...[
+          StageChips(
+            labels: chips,
+            selected: _openStage,
+            onSelect: (index) => setState(
+              () => _openStage = _openStage == index ? null : index,
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (_openStage != null) _previousStage(detail, chips[_openStage!]),
+        ],
         if (detail.splicer?.name != null || detail.splicedAt != null)
           SectionCard(title: 'Splicing', icon: Icons.settings_input_component_outlined, children: [
             if (detail.splicer?.name != null) InfoRow(label: 'Splicer', value: detail.splicer!.name!),
@@ -97,6 +148,37 @@ class _DetailBody extends StatelessWidget {
           ),
       ],
     );
+  }
+
+  /// The one open previous-stage block. The chip labels are built from the
+  /// same conditions, so the label always matches its content.
+  Widget _previousStage(SplicingDetail detail, String chip) {
+    switch (chip) {
+      case 'Survey':
+        return _NotesCard(title: 'Survey notes', text: detail.surveyNotes!);
+      case 'Installation':
+        return _NotesCard(
+            title: 'Installation notes', text: detail.installationNotes!);
+      default: // 'Notes'
+        return SectionCard(title: 'Previous notes', icon: Icons.notes_outlined, children: [
+          for (final note in detail.notes) ...[
+            Text(note.type ?? 'Note', style: Theme.of(context).textTheme.labelLarge),
+            if (note.note?.isNotEmpty == true) Text(note.note!),
+            // D21: a voice note used to render as raw URL text with no way
+            // to play it — it is now a survey-style bubble (no duration:
+            // the server provides none for remote notes).
+            if (note.voiceNoteUrl?.isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: VoiceNoteBubble(
+                  onPlay: () => _voice.playUrl(note.voiceNoteUrl!),
+                  isPlaying: _voice.playingUrl == note.voiceNoteUrl,
+                ),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ]);
+    }
   }
 }
 

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import '../../../core/constants/app_constants.dart';
+import '../../closing/models/closing_activation.dart';
 import '../../survey/data/submit_survey_repository.dart'
     show UnsupportedVoiceNoteException, VoiceNoteTooLargeException;
 import '../team_stage_config.dart';
@@ -41,15 +42,31 @@ class TeamStageCompletionRepository {
 
 /// Terminal Closing completion legitimately has a null [currentTeam].
 class TeamStageCompletionResult {
-  const TeamStageCompletionResult({this.message, this.id, this.status, this.currentTeam});
+  const TeamStageCompletionResult({
+    this.message,
+    this.id,
+    this.status,
+    this.currentTeam,
+    this.activation,
+  });
   final String? message;
   final String? id;
   final String? status;
   final Map<String, dynamic>? currentTeam;
+
+  /// Closing activation credentials (`response.data.data.activation`).
+  /// `null` when the backend did not return the block (older responses, and
+  /// every Verification response) — the caller shows the plain success
+  /// without the activation card, never a crash.
+  final ClosingActivation? activation;
+
   factory TeamStageCompletionResult.fromJson(Map<String, dynamic> json) {
     final data = json['data'] is Map ? Map<String, dynamic>.from(json['data'] as Map) : const <String, dynamic>{};
     return TeamStageCompletionResult(
       message: json['message']?.toString(), id: data['id']?.toString(), status: data['status']?.toString(),
-      currentTeam: data['current_team'] is Map ? Map<String, dynamic>.from(data['current_team'] as Map) : null);
+      currentTeam: data['current_team'] is Map ? Map<String, dynamic>.from(data['current_team'] as Map) : null,
+      activation: data['activation'] is Map
+          ? ClosingActivation.fromJson(Map<String, dynamic>.from(data['activation'] as Map))
+          : null);
   }
 }

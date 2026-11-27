@@ -195,6 +195,13 @@ abstract final class FieldOpsDesignTokens {
   static const Color textPrimary = Color(0xFF10182B);
   static const Color textSubtext = Color(0xFF5C6880);
 
+  /// Stronger muted text for the dashboard team subtitle ("Centralized
+  /// Tech", D22): #5C6880 on the #F4F6FA background is 5.18:1, which reads
+  /// washed out at 14px — this is 7.14:1 on the same background. Keep
+  /// [onSurfaceVariant] for chrome (hints, chips, chevrons); this token
+  /// is only for subtitle text that must stay readable.
+  static const Color subtitleStrong = Color(0xFF47536B);
+
   // ─── Typography ───────────────────────────────────────────────────────
   //
   // Served via google_fonts (runtime-fetched, cached on device). In widget
@@ -210,97 +217,97 @@ abstract final class FieldOpsDesignTokens {
 
   /// 28 / 800 — hero titles, screen display.
   static TextStyle get displayLg => GoogleFonts.plusJakartaSans(
-        fontSize: 28,
-        fontWeight: FontWeight.w800,
-        height: 1.15,
-        letterSpacing: -0.01,
-      );
+    fontSize: 28,
+    fontWeight: FontWeight.w800,
+    height: 1.15,
+    letterSpacing: -0.01,
+  );
 
   /// 22 / 700 — screen titles.
   static TextStyle get headlineLg => GoogleFonts.plusJakartaSans(
-        fontSize: 22,
-        fontWeight: FontWeight.w700,
-        height: 1.25,
-      );
+    fontSize: 22,
+    fontWeight: FontWeight.w700,
+    height: 1.25,
+  );
 
   /// 20 / 600 — section headers, card titles.
   static TextStyle get headlineMd => GoogleFonts.plusJakartaSans(
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
-        height: 1.3,
-      );
+    fontSize: 20,
+    fontWeight: FontWeight.w600,
+    height: 1.3,
+  );
 
   /// 18 / 600 — card titles.
   static TextStyle get headlineSm => GoogleFonts.plusJakartaSans(
-        fontSize: 18,
-        fontWeight: FontWeight.w600,
-        height: 1.3,
-      );
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+    height: 1.3,
+  );
 
   /// 16 / 500 — primary content.
   static TextStyle get bodyLg => GoogleFonts.plusJakartaSans(
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
-        height: 1.5,
-      );
+    fontSize: 16,
+    fontWeight: FontWeight.w500,
+    height: 1.5,
+  );
 
   /// 14 / 400 — secondary content.
   static TextStyle get bodyMd => GoogleFonts.plusJakartaSans(
-        fontSize: 14,
-        fontWeight: FontWeight.w400,
-        height: 1.5,
-      );
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    height: 1.5,
+  );
 
   /// 12 / 400 — captions, timestamps only; never body copy.
   static TextStyle get bodySm => GoogleFonts.plusJakartaSans(
-        fontSize: 12,
-        fontWeight: FontWeight.w400,
-        height: 1.45,
-      );
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    height: 1.45,
+  );
 
   /// 14 / 600 — button text, emphasized labels.
   static TextStyle get labelLg => GoogleFonts.plusJakartaSans(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        height: 1.4,
-        letterSpacing: 0.01,
-      );
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    height: 1.4,
+    letterSpacing: 0.01,
+  );
 
   /// 12 / 600 — form labels.
   static TextStyle get labelMd => GoogleFonts.plusJakartaSans(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        height: 1.35,
-        letterSpacing: 0.02,
-      );
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+    height: 1.35,
+    letterSpacing: 0.02,
+  );
 
   /// 11 / 700 — tags, captions (sentence case, no letter-spacing).
   static TextStyle get labelSm => GoogleFonts.plusJakartaSans(
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        height: 1.3,
-      );
+    fontSize: 11,
+    fontWeight: FontWeight.w700,
+    height: 1.3,
+  );
 
   /// 22 / 700 mono — hero instrument readouts.
   static TextStyle get dataLg => GoogleFonts.ibmPlexMono(
-        fontSize: 22,
-        fontWeight: FontWeight.w700,
-        height: 1.2,
-      );
+    fontSize: 22,
+    fontWeight: FontWeight.w700,
+    height: 1.2,
+  );
 
   /// 14 / 600 mono — request numbers, IDs, inline values.
   static TextStyle get dataMd => GoogleFonts.ibmPlexMono(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        height: 1.35,
-      );
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    height: 1.35,
+  );
 
   /// 11.5 / 500 mono — captions, coordinates, timestamps.
   static TextStyle get dataSm => GoogleFonts.ibmPlexMono(
-        fontSize: 11.5,
-        fontWeight: FontWeight.w500,
-        height: 1.35,
-      );
+    fontSize: 11.5,
+    fontWeight: FontWeight.w500,
+    height: 1.35,
+  );
 
   // ─── Spacing (kit Rule 4 scale: 4 / 8 / 12 / 16 / 24 / 32 / 48) ──────
 
@@ -506,6 +513,12 @@ abstract final class FieldOpsDarkTokens {
   static const Color textPrimary = Color(0xFFECF1FB);
   static const Color textSubtext = Color(0xFF94A3B8);
 
+  /// Stronger muted text for the dashboard team subtitle (D22): #94A3B8
+  /// on the #0B132B background is 7.17:1 — already well above WCAG AA,
+  /// so the dark value intentionally matches [onSurfaceVariant] (darkening
+  /// it would only lower the contrast). The light twin is #47536B.
+  static const Color subtitleStrong = Color(0xFF94A3B8);
+
   // ─── Typography (same scale as light) ─────────────────────────────────
 
   static const String displayFamily = 'Plus Jakarta Sans';
@@ -513,31 +526,73 @@ abstract final class FieldOpsDarkTokens {
   static const String monoFamily = 'IBM Plex Mono';
 
   static TextStyle get displayLg => GoogleFonts.plusJakartaSans(
-      fontSize: 28, fontWeight: FontWeight.w800, height: 1.15, letterSpacing: -0.01);
+    fontSize: 28,
+    fontWeight: FontWeight.w800,
+    height: 1.15,
+    letterSpacing: -0.01,
+  );
   static TextStyle get headlineLg => GoogleFonts.plusJakartaSans(
-      fontSize: 22, fontWeight: FontWeight.w700, height: 1.25);
+    fontSize: 22,
+    fontWeight: FontWeight.w700,
+    height: 1.25,
+  );
   static TextStyle get headlineMd => GoogleFonts.plusJakartaSans(
-      fontSize: 20, fontWeight: FontWeight.w600, height: 1.3);
+    fontSize: 20,
+    fontWeight: FontWeight.w600,
+    height: 1.3,
+  );
   static TextStyle get headlineSm => GoogleFonts.plusJakartaSans(
-      fontSize: 18, fontWeight: FontWeight.w600, height: 1.3);
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+    height: 1.3,
+  );
   static TextStyle get bodyLg => GoogleFonts.plusJakartaSans(
-      fontSize: 16, fontWeight: FontWeight.w500, height: 1.5);
+    fontSize: 16,
+    fontWeight: FontWeight.w500,
+    height: 1.5,
+  );
   static TextStyle get bodyMd => GoogleFonts.plusJakartaSans(
-      fontSize: 14, fontWeight: FontWeight.w400, height: 1.5);
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    height: 1.5,
+  );
   static TextStyle get bodySm => GoogleFonts.plusJakartaSans(
-      fontSize: 12, fontWeight: FontWeight.w400, height: 1.45);
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    height: 1.45,
+  );
   static TextStyle get labelLg => GoogleFonts.plusJakartaSans(
-      fontSize: 14, fontWeight: FontWeight.w600, height: 1.4, letterSpacing: 0.01);
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    height: 1.4,
+    letterSpacing: 0.01,
+  );
   static TextStyle get labelMd => GoogleFonts.plusJakartaSans(
-      fontSize: 12, fontWeight: FontWeight.w600, height: 1.35, letterSpacing: 0.02);
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+    height: 1.35,
+    letterSpacing: 0.02,
+  );
   static TextStyle get labelSm => GoogleFonts.plusJakartaSans(
-      fontSize: 11, fontWeight: FontWeight.w700, height: 1.3);
+    fontSize: 11,
+    fontWeight: FontWeight.w700,
+    height: 1.3,
+  );
   static TextStyle get dataLg => GoogleFonts.ibmPlexMono(
-      fontSize: 22, fontWeight: FontWeight.w700, height: 1.2);
+    fontSize: 22,
+    fontWeight: FontWeight.w700,
+    height: 1.2,
+  );
   static TextStyle get dataMd => GoogleFonts.ibmPlexMono(
-      fontSize: 14, fontWeight: FontWeight.w600, height: 1.35);
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    height: 1.35,
+  );
   static TextStyle get dataSm => GoogleFonts.ibmPlexMono(
-      fontSize: 11.5, fontWeight: FontWeight.w500, height: 1.35);
+    fontSize: 11.5,
+    fontWeight: FontWeight.w500,
+    height: 1.35,
+  );
 
   // ─── Spacing (kit Rule 4 scale: 4 / 8 / 12 / 16 / 24 / 32 / 48) ──────
 

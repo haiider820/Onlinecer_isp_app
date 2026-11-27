@@ -11,7 +11,7 @@ import 'package:isp_onlinecer/features/stage_shared/presentation/team_stage_deta
 import '../ispfinal_adversarial/helpers.dart';
 
 /// D19 (guide §21): document rows on the detail screen download through
-/// the AUTHENTICATED client (bearer <redacted> on the request) and open with
+/// the AUTHENTICATED client (bearer token on the request) and open with
 /// the system viewer. No unauthenticated fetch path exists — `downloadBytes`
 /// on the ApiClient is the only fetch.
 Future<ApiClient> _authenticatedClient({
@@ -155,7 +155,15 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // D21: the Documents section sits behind its top chip, collapsed by
+      // default — the chip is the only 'Documents' text on screen until
+      // it is tapped, and the document row is not built until then.
       expect(find.text('Documents'), findsOneWidget);
+      expect(find.text('id card front'), findsNothing);
+
+      await tester.tap(find.text('Documents'));
+      await tester.pumpAndSettle();
+
       expect(find.text('id card front'), findsOneWidget);
 
       await tester.tap(find.text('id card front'));

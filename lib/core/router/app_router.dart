@@ -5,6 +5,7 @@ import '../../features/device_scan/presentation/scanner_home_screen.dart';
 import '../../features/device_scan/presentation/scanner_login_screen.dart';
 import '../../features/closing/presentation/closing_list_screen.dart';
 import '../../features/closing/presentation/closing_request_detail_screen.dart';
+import '../../features/closing/presentation/closing_success_screen.dart';
 import '../../features/connection_requests/presentation/create_request_screen.dart';
 import '../../features/onu/presentation/authorize_onu_screen.dart';
 import '../../features/onu/presentation/olt_list_screen.dart';
@@ -67,6 +68,7 @@ abstract final class Routes {
   static const verificationDetail = '/verification/requests/:id';
   static const closingList = '/closing/requests';
   static const closingDetail = '/closing/requests/:id';
+  static const closingSuccess = '/closing/requests/:id/success';
   static const ticketsList = '/tickets';
   static const ticketDetail = '/tickets/:id';
   static const notifications = '/notifications';
@@ -79,6 +81,9 @@ abstract final class Routes {
   static String splicingDetailFor(String id) => '/splicing/requests/$id';
   static String verificationDetailFor(String id) => '/verification/requests/$id';
   static String closingDetailFor(String id) => '/closing/requests/$id';
+
+  /// Concrete closing-success path for a given request id (D24).
+  static String closingSuccessFor(String id) => '/closing/requests/$id/success';
   static String ticketDetailFor(String id) => '/tickets/$id';
 
   /// Concrete submit-survey path for a given request id.
@@ -281,6 +286,28 @@ GoRouter buildAppRouter({required SecureStorage storage}) {
             requestId: state.pathParameters['id'] ?? '',
           ),
         ),
+      ),
+      GoRoute(
+        path: Routes.closingSuccess,
+        builder: (context, state) {
+          // D24: the success screen is only ever pushed from the closing
+          // form with the activation in `extra`. A deep link (or a
+          // restored route) without it still renders a plain success with
+          // a working Close button — never a crash.
+          final args = state.extra is ClosingSuccessArgs
+              ? state.extra as ClosingSuccessArgs
+              : ClosingSuccessArgs(
+                  message: null,
+                  activation: null,
+                  voiceNoteWarning: null,
+                  listRoute: Routes.closingList,
+                );
+          return SessionTeamGuard(
+            expectedTeam: FunctionalTeamType.closing,
+            stageAware: true,
+            child: ClosingSuccessScreen(args: args),
+          );
+        },
       ),
       GoRoute(
         path: Routes.surveyList,

@@ -22,6 +22,12 @@ class _FakeSubmitSurveyNetwork implements SubmitSurveyNetwork {
   int jsonCalls = 0;
   int multipartCalls = 0;
 
+  /// D23: hold the fake call in flight so a second submit can overlap it.
+  Duration delay = Duration.zero;
+
+  /// D23: throw a generic (non-ApiException) error instead of succeeding.
+  bool throwGeneric = false;
+
   @override
   Future<Map<String, dynamic>> completeSurveyJson(
     String id, {
@@ -30,6 +36,10 @@ class _FakeSubmitSurveyNetwork implements SubmitSurveyNetwork {
     String? notFeasibleReason,
   }) async {
     jsonCalls++;
+    if (throwGeneric) {
+      throw Exception('SocketException: Failed host lookup');
+    }
+    if (delay != Duration.zero) await Future.delayed(delay);
     lastJsonFeasibility = feasibilityStatus;
     lastJsonReason = notFeasibleReason;
     return _successMap;
@@ -186,6 +196,52 @@ void main() {
     expect(
       network.lastJsonReason,
       'No FAT port is reachable from this address',
+    );
+  });
+
+  test('a second submit while one is in flight is a no-op (D23)', () async {
+    final network = _FakeSubmitSurveyNetwork()
+      ..delay = const Duration(milliseconds: 200);
+    final container = _containerWithNetwork(network);
+    final controller = container.read(submitSurveyControllerProvider.notifier);
+
+    // Fire twice without awaiting: the second call starts while the first
+    // POST is still in flight (the button only disables on rebuild, so
+    // two taps in the same frame used to fire two POSTs).
+    final first = controller.submit(
+      id: '101',
+      notes: 'All good',
+      feasibilityStatus: 'feasible',
+    );
+    final second = controller.submit(
+      id: '101',
+      notes: 'All good',
+      feasibilityStatus: 'feasible',
+    );
+    final results = await Future.wait([first, second]);
+
+    expect(results[0], isNotNull);
+    expect(results[1], isNull);
+    expect(network.jsonCalls, 1);
+  });
+
+  test('a generic failure shows the friendly message, not raw Dart text (D23)',
+      () async {
+    final network = _FakeSubmitSurveyNetwork()..throwGeneric = true;
+    final container = _containerWithNetwork(network);
+    final controller = container.read(submitSurveyControllerProvider.notifier);
+
+    final result = await controller.submit(
+      id: '101',
+      notes: 'All good',
+      feasibilityStatus: 'feasible',
+    );
+
+    expect(result, isNull);
+    expect(network.jsonCalls, 1);
+    expect(
+      container.read(submitSurveyControllerProvider).errorMessage,
+      "Couldn't reach the server. Check your connection and try again.",
     );
   });
 }

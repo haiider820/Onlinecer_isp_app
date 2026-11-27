@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -621,5 +622,97 @@ void main() {
     expect(state.route!.length, 2);
     // ...and the graceful note explains why, instead of an empty map.
     expect(state.routeNote, AppStrings.mapRouteStraightLine);
+  });
+
+  testWidgets(
+      'D21: survey data hides behind the Previous tab until it is tapped',
+      (tester) async {
+    final storage = await _sessionStorage();
+    await _openDetail(
+      tester,
+      storage,
+      detailMap: _detailWithSurveyData,
+    );
+
+    // The Previous tab exists (survey notes + locations are present) but
+    // the survey quote is NOT on screen by default.
+    expect(find.text('Previous'), findsOneWidget);
+    expect(
+      find.text('FAT port 3 free, roof access confirmed.'),
+      findsNothing,
+    );
+
+    await tester.tap(find.text('Previous'));
+    await _settle(tester);
+
+    expect(
+      find.text('FAT port 3 free, roof access confirmed.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('D21: no previous-stage data means no Previous tab',
+      (tester) async {
+    final storage = await _sessionStorage();
+    await _openDetail(
+      tester,
+      storage,
+      detailMap: _detailNoLocations,
+    );
+
+    expect(find.text('Previous'), findsNothing);
+  });
+
+  testWidgets('D21: MAC field scan button opens the barcode sheet',
+      (tester) async {
+    // mobile_scanner has no camera in tests: mock its channel so the
+    // sheet reaches its error fallback instead of an unhandled
+    // MissingPluginException (same mock as test/shared/mac_scan_test.dart).
+    const scannerChannel =
+        MethodChannel('dev.steenbakker.mobile_scanner/scanner/method');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(scannerChannel, (call) async {
+      switch (call.method) {
+        case 'state':
+          return 1; // MobileScannerAuthorizationState.authorized
+        case 'start':
+          throw PlatformException(
+            code: 'MOBILE_SCANNER_CAMERA_PERMISSION_DENIED',
+          );
+        default:
+          return null;
+      }
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(scannerChannel, null);
+    });
+
+    final storage = await _sessionStorage();
+    await _openDetail(
+      tester,
+      storage,
+      detailMap: _detailNoLocations,
+    );
+
+    await tester.scrollUntilVisible(
+      find.text('Device MAC address'),
+      300,
+      scrollable: _detailScrollable(),
+    );
+    await tester.ensureVisible(find.byTooltip('Scan barcode'));
+    await tester.tap(find.byTooltip('Scan barcode'));
+    await _settle(tester);
+
+    // The sheet opened (camera start reports denied in tests, so the
+    // sheet shows its manual-entry fallback, not a dead camera view).
+    expect(find.text('Scan device barcode'), findsOneWidget);
+    expect(find.text('Enter manually'), findsOneWidget);
+
+    // Close the sheet before the test ends so the scanner controller is
+    // disposed while the channel mock is still registered.
+    await tester.tap(find.text('Enter manually'));
+    await _settle(tester);
+    expect(find.text('Scan device barcode'), findsNothing);
   });
 }

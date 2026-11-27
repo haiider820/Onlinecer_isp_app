@@ -24,7 +24,10 @@ android {
         applicationId = "com.example.isp_onlinecer"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // D21: mobile_scanner 7.x needs minSdk 23 (its Android library
+        // declares minSdk 23); the Flutter default (21) would fail the
+        // manifest merge on the PC build. 23 = Android 6.0 (2015).
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
