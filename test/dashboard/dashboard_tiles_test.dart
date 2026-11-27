@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -91,8 +92,10 @@ class _InMemoryFlutterSecureStorage extends FlutterSecureStorage {
 }
 
 /// D20 dashboard (Umair, Centralized Tech): the live counts from the
-/// 2026-11-27 morning check — 2 flows, 0 open tickets, 47 inventory
-/// items, 0 waiting ONUs, 1 request awaiting authorization.
+/// 2026-11-27 morning check — 3 requests across all stages (D25: the
+/// Connection Flow tile counts the unfiltered queue now, not team flows),
+/// 0 open tickets, 47 inventory items, 0 waiting ONUs, 1 request awaiting
+/// authorization.
 const _summary = DashboardSummary(
   employee: Employee(
     id: 'emp-1',
@@ -115,6 +118,11 @@ const Map<String, Object?> _pendingPageMap = {
     },
   ],
   'meta': {'current_page': 1, 'per_page': 15, 'total': 1, 'last_page': 1},
+};
+
+const Map<String, Object?> _emptyPendingPageMap = {
+  'data': [],
+  'meta': {'current_page': 1, 'per_page': 15, 'total': 0, 'last_page': 1},
 };
 
 GoRouter _router({bool showNewRequest = true}) {
@@ -145,6 +153,22 @@ GoRouter _router({bool showNewRequest = true}) {
         builder: (context, state) => const Text('survey-list-stub'),
       ),
       GoRoute(
+        path: Routes.allRequests,
+        builder: (context, state) => const Text('all-requests-stub'),
+      ),
+      GoRoute(
+        path: Routes.inventory,
+        builder: (context, state) => const Text('inventory-stub'),
+      ),
+      GoRoute(
+        path: Routes.waitingOnusGlobal,
+        builder: (context, state) => const Text('waiting-global-stub'),
+      ),
+      GoRoute(
+        path: Routes.pendingAuthorization,
+        builder: (context, state) => const Text('pending-auth-stub'),
+      ),
+      GoRoute(
         path: Routes.surveyDetail,
         builder: (context, state) => const Text('survey-detail-stub'),
       ),
@@ -172,7 +196,7 @@ Future<ProviderContainer> _pumpDashboard(
       secureStorageProvider.overrideWithValue(storage),
       notificationUnreadCountProvider.overrideWith((ref) async => 0),
       dashboardSummaryProvider.overrideWith((ref) async => _summary),
-      dashboardTeamFlowCountProvider.overrideWith((ref) async => 2),
+      dashboardAllRequestsCountProvider.overrideWith((ref) async => 3),
       dashboardOpenTicketCountProvider.overrideWith((ref) async => 0),
       dashboardInventoryCountProvider.overrideWith((ref) async => 47),
       dashboardWaitingOnuCountProvider.overrideWith((ref) async => 0),
@@ -224,11 +248,11 @@ void main() {
     expect(find.text('Inventory Items'), findsOneWidget);
     expect(find.text('Waiting ONUs'), findsOneWidget);
     expect(find.text('ONU Authorization'), findsOneWidget);
-    expect(find.text('2'), findsOneWidget); // flows
+    expect(find.text('3'), findsOneWidget); // all requests across stages
     expect(find.text('0'), findsNWidgets(2)); // open tickets + waiting ONUs
     expect(find.text('47'), findsOneWidget); // inventory
     expect(find.text('1'), findsOneWidget); // pending authorization
-    expect(find.text('Available'), findsOneWidget);
+    expect(find.text('Requests'), findsOneWidget);
     expect(find.text('Open'), findsOneWidget);
     expect(find.text('Total'), findsOneWidget);
     expect(find.text('Waiting'), findsOneWidget);
@@ -252,18 +276,19 @@ void main() {
     expect(find.text('New request'), findsOneWidget);
   });
 
-  testWidgets('tiles are compact: 85% width, ~47px tall (D20 size spec)', (
+  testWidgets('tiles are full width, ~47px tall (D25 size spec)', (
     tester,
   ) async {
     await _pumpDashboard(tester);
 
-    // The ListView carries 16dp horizontal padding, so the tile's parent
-    // width is 800 - 32 = 768; 85% of that is 652.8, centred (73.6dp
-    // margin on each side).
+    // D25: tiles are as wide as the "+ New request" button — the full
+    // ListView content width (800 − 32 padding = 768), left edge at 16.
+    // The 85% width (652.8, 73.6 margins) truncated titles on a 360dp
+    // phone ("Connecti...").
     final tile = find.byType(OpsCard).first;
     final tileSize = tester.getSize(tile);
-    expect(tileSize.width, closeTo(652.8, 1.0));
-    expect(tester.getTopLeft(tile).dx, closeTo(73.6, 1.0));
+    expect(tileSize.width, closeTo(768, 1.0));
+    expect(tester.getTopLeft(tile).dx, closeTo(16, 1.0));
     // 7 + 20 (number) + 2 + 11 (label) + 7 = 47dp tall — compact, not
     // the ~80dp preview tile. A small tolerance covers font-metric
     // variance; the point is the tile is slim, roughly half the preview.
@@ -278,7 +303,7 @@ void main() {
       tester.widget<Text>(find.text('Connection Flow')).style?.fontSize,
       14,
     );
-    expect(tester.widget<Text>(find.text('2')).style?.fontSize, 20);
+    expect(tester.widget<Text>(find.text('3')).style?.fontSize, 20);
   });
 
   testWidgets('a count still loading shows a dash', (tester) async {
@@ -315,17 +340,19 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Connection Flow opens the team list (D23)', (tester) async {
+  testWidgets('Connection Flow opens the all-requests list (D25)', (
+    tester,
+  ) async {
     await _pumpDashboard(tester);
 
     await tester.tap(find.text('Connection Flow'));
     await tester.pumpAndSettle();
 
-    expect(find.text('survey-list-stub'), findsOneWidget);
+    expect(find.text('all-requests-stub'), findsOneWidget);
     expect(find.text('new-request-stub'), findsNothing);
   });
 
-  testWidgets('Connection Flow opens the team list when creation is off', (
+  testWidgets('Connection Flow opens the all-requests list when creation is off', (
     tester,
   ) async {
     await _pumpDashboard(tester, showNewRequest: false);
@@ -335,7 +362,7 @@ void main() {
     await tester.tap(find.text('Connection Flow'));
     await tester.pumpAndSettle();
 
-    expect(find.text('survey-list-stub'), findsOneWidget);
+    expect(find.text('all-requests-stub'), findsOneWidget);
   });
 
   testWidgets('My Tickets opens the tickets list', (tester) async {
@@ -347,18 +374,16 @@ void main() {
     expect(find.text('tickets-stub'), findsOneWidget);
   });
 
-  testWidgets('Inventory Items opens the team list (no catalog screen yet)', (
-    tester,
-  ) async {
+  testWidgets('Inventory Items opens the catalog (D25)', (tester) async {
     await _pumpDashboard(tester);
 
     await tester.tap(find.text('Inventory Items'));
     await tester.pumpAndSettle();
 
-    expect(find.text('survey-list-stub'), findsOneWidget);
+    expect(find.text('inventory-stub'), findsOneWidget);
   });
 
-  testWidgets('Waiting ONUs opens the OLT list for the first pending request', (
+  testWidgets('Waiting ONUs opens the global waiting screen (D25)', (
     tester,
   ) async {
     await _pumpDashboard(tester);
@@ -366,7 +391,7 @@ void main() {
     await tester.tap(find.text('Waiting ONUs'));
     await tester.pumpAndSettle();
 
-    expect(find.text('olt-list-stub'), findsOneWidget);
+    expect(find.text('waiting-global-stub'), findsOneWidget);
   });
 
   testWidgets('ONU Authorization opens the first pending request detail', (
@@ -379,6 +404,29 @@ void main() {
 
     expect(find.text('installation-detail-stub'), findsOneWidget);
   });
+
+  testWidgets(
+    'ONU Authorization falls back to the pending-authorization list when nothing is pending (D25)',
+    (tester) async {
+      await _pumpDashboard(
+        tester,
+        extraOverrides: [
+          dashboardPendingAuthorizationProvider.overrideWith(
+            (ref) async => ConnectionRequestPage.fromJson(
+              _emptyPendingPageMap,
+            ),
+          ),
+        ],
+      );
+
+      await tester.tap(find.text('ONU Authorization'));
+      await tester.pumpAndSettle();
+
+      // The survey list is NOT the fallback any more (D20–D24 bug).
+      expect(find.text('pending-auth-stub'), findsOneWidget);
+      expect(find.text('survey-list-stub'), findsNothing);
+    },
+  );
 
   testWidgets('settings gear opens the theme sheet and persists the choice', (
     tester,
@@ -438,16 +486,17 @@ void main() {
     expect(find.byIcon(Icons.logout), findsNothing);
   });
 
-  testWidgets('count block is centered, min-width 88; title ellipsizes (D22)', (
+  testWidgets('count block is centered, min-width 76; title ellipsizes (D25)', (
     tester,
   ) async {
     await _pumpDashboard(tester);
 
-    // One count column per tile: min-width 88dp (see the D22 comment in
-    // _DashboardTile — on a real phone every label fits in 88dp; the
-    // wide test fallback font grows the column instead of wrapping).
+    // One count column per tile: min-width 76dp since D25 (was 88dp — see
+    // the D25 comment in _DashboardTile: on a real phone every label fits
+    // in 76dp; the wide test fallback font grows the column instead of
+    // wrapping).
     final countBlocks = find.byWidgetPredicate(
-      (widget) => widget is ConstrainedBox && widget.constraints.minWidth == 88,
+      (widget) => widget is ConstrainedBox && widget.constraints.minWidth == 76,
     );
     expect(countBlocks, findsNWidgets(5));
 
@@ -481,6 +530,37 @@ void main() {
     });
     final blockRect = tester.getRect(find.byWidget(onuBlock.widget));
     expect(blockRect.left - titleRect.right, greaterThanOrEqualTo(12));
+  });
+
+  testWidgets('titles render fully at 768dp viewport width (D25)', (
+    tester,
+  ) async {
+    await _pumpDashboard(tester);
+
+    // D25: full-width tiles must show every title whole — the 85% width
+    // truncated "Connection Flow" to "Connecti..." on a 360dp phone.
+    // RenderParagraph.didExceedMaxLines is the honest assertion here: the
+    // Text widgets still carry maxLines 1 + ellipsis, so only a real
+    // layout overflow flips this flag.
+    //
+    // NOTE on 360dp: this does NOT prove the phone fits — the widget-test
+    // fallback font is ~2x wider than Plus Jakarta Sans, so a 360dp pump
+    // would ellipsize even when the phone is fine. The layout math at
+    // 768dp (523dp of title room) plus the 360dp arithmetic in the D25
+    // entry (~140dp of title room vs ~124dp for "ONU Authorization") is
+    // the argument; the phone check stays open.
+    for (final title in [
+      'Connection Flow',
+      'My Tickets',
+      'Inventory Items',
+      'Waiting ONUs',
+      'ONU Authorization',
+    ]) {
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.text(title),
+      );
+      expect(paragraph.didExceedMaxLines, isFalse, reason: title);
+    }
   });
 
   testWidgets('all five tiles have identical height and padding (D22)', (

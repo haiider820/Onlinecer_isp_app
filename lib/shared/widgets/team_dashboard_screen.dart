@@ -31,12 +31,19 @@ import 'ops_widgets.dart';
 /// (`GET /dashboard`).
 ///
 /// D22 (2026-11-27, Haider's UI fixes — layout only, no data/logic
-/// change): the tile count+label sits in a fixed-width (88dp) centered
-/// column with an ellipsized title; all action icons are grouped in the
-/// app bar (theme, bell, settings) and logout moved into the settings
-/// sheet (same confirmation dialog); the "+ New request" button is pinned
-/// at the bottom; the team subtitle uses the stronger `subtitleStrong`
-/// tone; the logo renders at 32dp tall.
+/// change): the tile count+label sits in a fixed-width (76dp since D25,
+/// was 88dp) centered column with an ellipsized title; all action icons
+/// are grouped in the app bar (theme, bell, settings) and logout moved
+/// into the settings sheet (same confirmation dialog); the "+ New request"
+/// button is pinned at the bottom; the team subtitle uses the stronger
+/// `subtitleStrong` tone; the logo renders at 32dp tall.
+///
+/// D25 (2026-11-27, Haider's phone screenshot): tiles are FULL width (the
+/// 85% width is gone — it truncated titles on a 360dp phone), the
+/// Connection Flow count is the all-stages request total (label
+/// "Requests") opening one unfiltered list, and Inventory / Waiting ONUs /
+/// ONU Authorization each open their own screen instead of the team's
+/// request list. See [_DashboardBody] for the per-tile targets.
 class TeamDashboardScreen extends ConsumerWidget {
   const TeamDashboardScreen({
     super.key,
@@ -62,6 +69,12 @@ class TeamDashboardScreen extends ConsumerWidget {
   final String defaultTeamLabel;
 
   /// Route for the full request list (pushed, so the dashboard stays below it).
+  ///
+  /// D25: no tile navigates to it any more — Connection Flow opens the
+  /// all-stages list, Inventory / Waiting ONUs / ONU Authorization open
+  /// their own screens. Kept on the module + screen as the team's spec
+  /// (like `viewAllLabel` / `pendingLabel` since D20) instead of ripping
+  /// it out of [TeamModule] and every dashboard test harness.
   final String listRoute;
 
   /// Concrete detail path for a given request id.
@@ -73,7 +86,7 @@ class TeamDashboardScreen extends ConsumerWidget {
 
   Future<void> _refresh(WidgetRef ref) async {
     ref.invalidate(dashboardSummaryProvider);
-    ref.invalidate(dashboardTeamFlowCountProvider);
+    ref.invalidate(dashboardAllRequestsCountProvider);
     ref.invalidate(dashboardOpenTicketCountProvider);
     ref.invalidate(dashboardInventoryCountProvider);
     ref.invalidate(dashboardWaitingOnuCountProvider);
@@ -241,23 +254,23 @@ class _NotificationBellAction extends ConsumerWidget {
 /// "+ New request" button. No Recent Requests section (removed 2026-11-27
 /// on Haider's word) — the queue stays reachable through the tiles:
 ///
-/// * Connection Flow → the team's request list ([listRoute]) (D23:
-///   it used to open the New Request form on the survey team; the
-///   create flow lives on the pinned "+ New request" button now).
-///   NOTE: the list is stage-scoped, so the survey list can be empty
-///   while the tile says 2 Available — existing list behaviour, not
-///   something the tile change creates.
+/// * Connection Flow → the all-stages request list ([Routes.allRequests])
+///   (D25: it used to open the team's stage-scoped list while counting
+///   team flows — 2 counted, an empty list opened. The count is now the
+///   unfiltered queue total and the tile opens that same queue).
 /// * My Tickets → the tickets list.
-/// * Inventory Items → the team's request list. GAP: no standalone
-///   inventory-catalog screen exists yet (see D20) — inventory is reached
-///   from a request's installation detail/form.
-/// * Waiting ONUs → the OLT list for the first request awaiting
-///   authorization (the waiting-ONU list is request-scoped, there is no
-///   global waiting-ONU screen — see D20); with no pending request, the
-///   team's request list.
+/// * Inventory Items → the inventory catalog ([Routes.inventory]) (D25:
+///   a standalone screen now exists — before D25 the tile opened the
+///   team's request list, D20 gap).
+/// * Waiting ONUs → the global waiting-ONU screen
+///   ([Routes.waitingOnusGlobal]) (D25: all OLTs + their waiting counts,
+///   rows inline — before D25 the tile fell back to the team's request
+///   list, D20 gap).
 /// * ONU Authorization → the first awaiting request's (stage-aware) detail,
 ///   which carries the Authorize ONU entry; with no pending request, the
-///   team's request list.
+///   pending-authorization list ([Routes.pendingAuthorization]) (D25: the
+///   installation-assigned queue the count derives from — before D25 it
+///   fell back to the team's request list).
 class _DashboardBody extends ConsumerWidget {
   const _DashboardBody({
     required this.summary,
@@ -325,14 +338,14 @@ class _DashboardBody extends ConsumerWidget {
                     light: Color(0xFF2563EB),
                     dark: Color(0xFF60A5FA),
                   ),
-                  count: ref.watch(dashboardTeamFlowCountProvider),
-                  label: 'Available',
-                  // D23: always the team's request list. The tile used to
-                  // open the New Request form when the team could create
-                  // (survey); the create flow lives on the pinned
-                  // "+ New request" button now, so the tile shows the
-                  // queue it counts.
-                  onTap: () => context.push(listRoute),
+                  count: ref.watch(dashboardAllRequestsCountProvider),
+                  label: 'Requests',
+                  // D25: the all-stages request list. The count is the
+                  // unfiltered queue total from the same provider the
+                  // list reads, so the number and the rows agree. The
+                  // create flow lives on the pinned "+ New request"
+                  // button (D22/D23).
+                  onTap: () => context.push(Routes.allRequests),
                 ),
                 const SizedBox(height: 10),
 
@@ -360,7 +373,9 @@ class _DashboardBody extends ConsumerWidget {
                   ),
                   count: ref.watch(dashboardInventoryCountProvider),
                   label: 'Total',
-                  onTap: () => context.push(listRoute),
+                  // D25: the inventory catalog — before D25 this tile
+                  // opened the team's request list (no catalog existed).
+                  onTap: () => context.push(Routes.inventory),
                 ),
                 const SizedBox(height: 10),
 
@@ -374,13 +389,10 @@ class _DashboardBody extends ConsumerWidget {
                   ),
                   count: ref.watch(dashboardWaitingOnuCountProvider),
                   label: 'Waiting',
-                  onTap: () {
-                    if (firstPending != null) {
-                      context.push(Routes.oltListFor(firstPending.id));
-                    } else {
-                      context.push(listRoute);
-                    }
-                  },
+                  // D25: the global waiting-ONU screen (all OLTs). Before
+                  // D25 this opened the request-scoped OLT list for the
+                  // first pending request, or the team's request list.
+                  onTap: () => context.push(Routes.waitingOnusGlobal),
                 ),
                 const SizedBox(height: 10),
 
@@ -405,7 +417,15 @@ class _DashboardBody extends ConsumerWidget {
                         ),
                       );
                     } else {
-                      context.push(listRoute);
+                      // D25: the pending-authorization list — the
+                      // installation-assigned queue the count derives
+                      // from. Before D25 this fell back to the team's
+                      // request list (a different, usually empty queue).
+                      // Deliberately NOT Routes.installationList: its
+                      // guard is strict (installation team only), so a
+                      // survey-session user would bounce to the
+                      // dashboard — see PendingAuthorizationListScreen.
+                      context.push(Routes.pendingAuthorization);
                     }
                   },
                 ),
@@ -445,10 +465,11 @@ class _DashboardBody extends ConsumerWidget {
 }
 
 /// First `installation_assigned` row of the pending-authorization page, or
-/// `null` when the page is not loaded yet or holds no such row. The
-/// Waiting ONUs / ONU Authorization tiles navigate through this request —
-/// the OLT list and the authorize flow are both request-scoped, so there
-/// is no request-free target for them.
+/// `null` when the page is not loaded yet or holds no such row. The ONU
+/// Authorization tile navigates through this request — its detail carries
+/// the Authorize ONU entry. (The Waiting ONUs tile used to navigate
+/// through it too, for the request-scoped OLT list; since D25 it opens
+/// the global waiting screen instead.)
 ConnectionRequest? _firstInstallationAssigned(ConnectionRequestPage? page) {
   if (page == null) return null;
   for (final request in page.data) {
@@ -515,15 +536,20 @@ class _CompactHeader extends StatelessWidget {
 /// count is loading the tile shows a dash, on error it shows 0 — a failed
 /// count never crashes the dashboard or blocks the other tiles.
 ///
-/// Size spec (Haider, 2026-11-27): COMPACT — 85% of the screen width
-/// (centred, equal margins both sides) and ~47px tall: 32px icon chip,
-/// 14px title, 20px number, 7px vertical padding, 10px tile gap. The
-/// header and the "+ New request" button stay full width.
+/// Size spec (Haider, 2026-11-27): COMPACT — ~47px tall: 32px icon chip,
+/// 14px title, 20px number, 7px vertical padding, 10px tile gap. D25:
+/// FULL width (as wide as the "+ New request" button — the 85% width from
+/// D20 is gone: on a 360dp phone it left only ~79dp for the title, so
+/// "Connection Flow" rendered as "Connecti..."). At 360dp the title now
+/// gets ~140dp: "ONU Authorization" needs ~124dp and "Connection Flow"
+/// ~108dp in Plus Jakarta Sans SemiBold 14px, so both render whole. On a
+/// 320dp phone "ONU Authorization" may still ellipsize — known edge, not
+/// designed for (see D25).
 ///
 /// D22: the number + label sit in a centered column with a fixed
-/// minimum width (88dp) and the title ellipsizes (maxLines 1) with a
-/// 12dp gap, so a long title never collides with the count block and
-/// all five tiles share one center line for their counts.
+/// minimum width (76dp since D25, was 88dp) and the title ellipsizes
+/// (maxLines 1) with a 12dp gap, so a long title never collides with the
+/// count block and all five tiles share one center line for their counts.
 class _DashboardTile extends StatelessWidget {
   const _DashboardTile({
     required this.title,
@@ -556,73 +582,69 @@ class _DashboardTile extends StatelessWidget {
       color: theme.colorScheme.onSurfaceVariant,
     );
 
-    return Center(
-      child: FractionallySizedBox(
-        widthFactor: 0.85,
-        child: OpsCard(
-          onTap: onTap,
-          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
-          child: Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: FieldOpsDesignTokens.labelLg.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              // D22: the count + label live in a column with a FIXED
-              // minimum width (88dp) and centered alignment, so the number
-              // and its label share one center line on every tile instead
-              // of zig-zagging with their own widths. It is a min-width,
-              // not a hard width: on a real phone every label fits in 88dp
-              // (longest is "Available" at ~60dp in Plus Jakarta Sans),
-              // but a wider font (e.g. the widget-test fallback, where
-              // "Available" needs ~101dp) grows the column instead of
-              // wrapping the label to two lines and breaking the tile
-              // height. The 12dp gap keeps a long title (e.g.
-              // "ONU Authorization") from ever touching the count block.
-              const SizedBox(width: 12),
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 88),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    count.when(
-                      data: (value) => DefaultTextStyle(
-                        style: numberStyle,
-                        child: CountUp(value: value),
-                      ),
-                      loading: () => Text('–', style: numberStyle),
-                      error: (_, __) => Text('0', style: numberStyle),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(label, style: labelStyle),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ],
+    return OpsCard(
+      onTap: onTap,
+      padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 20),
           ),
-        ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: FieldOpsDesignTokens.labelLg.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          // D22: the count + label live in a column with a FIXED
+          // minimum width (76dp since D25, was 88dp) and centered
+          // alignment, so the number and its label share one center
+          // line on every tile instead of zig-zagging with their own
+          // widths. It is a min-width, not a hard width: on a real
+          // phone every label fits in 76dp (longest is "Available" at
+          // ~60dp in Plus Jakarta Sans — and "Requests" is shorter),
+          // but a wider font (e.g. the widget-test fallback, where
+          // "Available" needs ~101dp) grows the column instead of
+          // wrapping the label to two lines and breaking the tile
+          // height. The 12dp gap keeps a long title (e.g.
+          // "ONU Authorization") from ever touching the count block.
+          const SizedBox(width: 12),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 76),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                count.when(
+                  data: (value) => DefaultTextStyle(
+                    style: numberStyle,
+                    child: CountUp(value: value),
+                  ),
+                  loading: () => Text('–', style: numberStyle),
+                  error: (_, __) => Text('0', style: numberStyle),
+                ),
+                const SizedBox(height: 2),
+                Text(label, style: labelStyle),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Icon(
+            Icons.chevron_right,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ],
       ),
     );
   }

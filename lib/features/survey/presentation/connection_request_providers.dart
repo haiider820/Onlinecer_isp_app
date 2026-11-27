@@ -96,8 +96,14 @@ void refreshAfterStageSubmit(
   // reads the installation queue, so it goes stale with the list).
   invalidate(dashboardSummaryProvider);
   invalidate(dashboardTeamFlowCountProvider);
+  invalidate(dashboardAllRequestsCountProvider);
   invalidate(dashboardOpenTicketCountProvider);
   invalidate(dashboardInventoryCountProvider);
   invalidate(dashboardWaitingOnuCountProvider);
   invalidate(dashboardPendingAuthorizationProvider);
+  // D25: the inventory catalog reads inventoryItemsProvider (a plain,
+  // non-autoDispose FutureProvider, so it caches forever until
+  // invalidated) — a stage submit consumes items, so the catalog must
+  // refetch too instead of serving the pre-submit stock.
+  invalidate(inventoryItemsProvider);
 }

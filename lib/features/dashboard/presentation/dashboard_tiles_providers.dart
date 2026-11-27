@@ -5,6 +5,7 @@ import '../../connection_requests/presentation/create_request_providers.dart';
 import '../../installation/presentation/installation_providers.dart';
 import '../../lookups/presentation/sub_branch_providers.dart';
 import '../../onu/presentation/olt_providers.dart';
+import '../../survey/presentation/connection_request_providers.dart';
 import '../../tickets/presentation/ticket_providers.dart';
 
 /// Dashboard tile counts (D20).
@@ -13,11 +14,25 @@ import '../../tickets/presentation/ticket_providers.dart';
 /// endpoints, no invented data. A failed fetch surfaces as an error on the
 /// tile's [AsyncValue] and the tile renders `0`; a tile never crashes the
 /// dashboard or blocks the other tiles.
+///
+/// Import-cycle note (D25, same legal-Dart rationale as the D24 note in
+/// `connection_request_providers.dart`): this file is imported by
+/// `connection_request_providers.dart`, which it now also imports (for
+/// [connectionRequestsProvider]). The imports are circular at library
+/// level; every provider here is a lazily-initialised top-level, nothing
+/// runs at import time, and `flutter analyze` stays clean.
 
 /// "Connection Flow" tile: `team_flows.length` from
 /// `GET /connection-requests/create-data`, scoped by the resolved
 /// sub-branch (same scope the create form uses). A scope with no flow
 /// configured returns `team_flows: []` — the tile shows 0, never an error.
+///
+/// D25: NO TILE watches this any more — the Connection Flow tile counts
+/// requests now ([dashboardAllRequestsCountProvider]). Kept: six test
+/// harnesses override it defensively when they mount the dashboard, and
+/// the create form still reads `team_flows` through `createDataProvider`
+/// directly. Delete it together with those overrides in a later cleanup,
+/// not in this batch.
 final dashboardTeamFlowCountProvider = FutureProvider.autoDispose<int>((
   ref,
 ) async {
@@ -26,6 +41,21 @@ final dashboardTeamFlowCountProvider = FutureProvider.autoDispose<int>((
     createDataProvider(scope.canProceed ? scope.effectiveId : null).future,
   );
   return createData.data?.teamFlows?.length ?? 0;
+});
+
+/// "Connection Flow" tile (D25): TOTAL of all connection requests visible
+/// to the user across ALL stages — page 1 of the unfiltered queue
+/// (`GET /connection-requests` with no status filter, via
+/// [connectionRequestsProvider]), the same provider the tile's target
+/// screen ([AllRequestsScreen] at [Routes.allRequests]) reads. The count
+/// is the server `meta.total`, so the number on the tile and the rows on
+/// the screen can never disagree the way the D20/D23 tile did (2 flows
+/// counted, a stage-scoped list opened).
+final dashboardAllRequestsCountProvider = FutureProvider.autoDispose<int>((
+  ref,
+) async {
+  final page = await ref.watch(connectionRequestsProvider(1).future);
+  return page.meta.total ?? page.data.length;
 });
 
 /// "My Tickets" tile: open tickets from `GET /tickets`, page 1 filtered to

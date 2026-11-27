@@ -337,8 +337,8 @@ void main() {
     expect(find.text('Connection Flow'), findsOneWidget);
     expect(find.text('Recent Requests'), findsNothing);
 
-    // 2. Inventory tile → survey list, tap the request → detail.
-    await tester.tap(find.text('Inventory Items'));
+    // 2. Connection Flow tile → all-requests list, tap the request → detail (D25).
+    await tester.tap(find.text('Connection Flow'));
     await _settle(tester);
     expect(find.text(_requestNumber), findsOneWidget);
     await tester.tap(find.text(_requestNumber));
@@ -412,9 +412,9 @@ void main() {
     await _settle(tester);
 
     // Navigate to the route screen via dashboard → list → detail →
-    // Plan Route (D20: the dashboard card is gone; the list is reached
-    // through the Inventory Items tile).
-    await tester.tap(find.text('Inventory Items'));
+    // Plan Route (D25: the list is reached through the Connection Flow
+    // tile — Inventory Items opens the catalog now).
+    await tester.tap(find.text('Connection Flow'));
     await _settle(tester);
     await tester.tap(find.text(_requestNumber));
     await _settle(tester);

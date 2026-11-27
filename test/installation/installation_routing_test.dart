@@ -302,19 +302,24 @@ void main() {
     expect(find.text(_requestNumber), findsNothing);
   });
 
-  testWidgets('Connection Flow tile loads the status-filtered installation queue', (tester) async {
+  testWidgets('Connection Flow tile loads the all-requests list (D25)', (tester) async {
     final storage = await _sessionStorage();
     final network = _FakeConnectionRequestNetwork();
     await _pumpDashboard(tester, storage, network);
 
-    // D20: the "View All" button is gone — the installation team's queue
-    // is reached through the Connection Flow tile.
+    // D25: Connection Flow opens ONE unfiltered list across all stages —
+    // the old status-filtered installation queue is gone (the D20 tile
+    // counted flows but opened a stage-scoped list). The installation
+    // queue itself is reached through the ONU Authorization tile's
+    // pending-authorization fallback.
     await tester.tap(find.text('Connection Flow'));
     await _settle(tester);
 
-    expect(find.text('Requests'), findsOneWidget);
+    expect(find.text('Connection Requests'), findsOneWidget);
     expect(find.text(_requestNumber), findsOneWidget);
-    expect(network.lastStatus, ConnectionStatus.installationAssigned);
+    // Unfiltered fetch: no status is sent, so the list shows requests
+    // from every stage.
+    expect(network.lastStatus, isNull);
   });
 
   testWidgets('installation detail shows customer/plan/team and read-only survey notes',

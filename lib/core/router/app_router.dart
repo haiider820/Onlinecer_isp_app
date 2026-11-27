@@ -7,7 +7,10 @@ import '../../features/closing/presentation/closing_list_screen.dart';
 import '../../features/closing/presentation/closing_request_detail_screen.dart';
 import '../../features/closing/presentation/closing_success_screen.dart';
 import '../../features/connection_requests/presentation/create_request_screen.dart';
+import '../../features/installation/presentation/inventory_catalog_screen.dart';
+import '../../features/installation/presentation/pending_authorization_list_screen.dart';
 import '../../features/onu/presentation/authorize_onu_screen.dart';
+import '../../features/onu/presentation/global_waiting_onus_screen.dart';
 import '../../features/onu/presentation/olt_list_screen.dart';
 import '../../features/onu/presentation/waiting_onu_list_screen.dart';
 import '../../features/dashboard/dashboard_shell.dart';
@@ -17,6 +20,7 @@ import '../../features/notifications/presentation/notifications_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 import '../../features/splicing/presentation/splicing_list_screen.dart';
 import '../../features/splicing/presentation/splicing_request_detail_screen.dart';
+import '../../features/survey/presentation/all_requests_screen.dart';
 import '../../features/survey/presentation/submit_survey_screen.dart';
 import '../../features/survey/presentation/survey_list_screen.dart';
 import '../../features/survey/presentation/survey_request_detail_screen.dart';
@@ -72,6 +76,20 @@ abstract final class Routes {
   static const ticketsList = '/tickets';
   static const ticketDetail = '/tickets/:id';
   static const notifications = '/notifications';
+
+  /// All connection requests across stages (D25 — Connection Flow tile).
+  static const allRequests = '/requests';
+
+  /// Inventory catalog (D25 — Inventory Items tile).
+  static const inventory = '/inventory';
+
+  /// Waiting ONUs across every OLT (D25 — Waiting ONUs tile).
+  static const waitingOnusGlobal = '/waiting-onus';
+
+  /// Requests awaiting ONU authorization (D25 — ONU Authorization tile
+  /// fallback). Not the guarded installation list: see
+  /// PendingAuthorizationListScreen for why this is a separate route.
+  static const pendingAuthorization = '/requests/pending-authorization';
 
   /// Concrete detail path for a given request id.
   static String surveyDetailFor(String id) => '/survey/requests/$id';
@@ -243,6 +261,26 @@ GoRouter buildAppRouter({required SecureStorage storage}) {
         ),
       ),
       GoRoute(path: Routes.ticketsList, builder: (context, state) => const TicketListScreen()),
+      // D25 shared screens — reached from every team's dashboard, so
+      // unguarded like the tickets list (no single team owns them). The
+      // data is backend-scoped by the employee token; the dashboard tiles
+      // already read the same providers without a guard.
+      GoRoute(
+        path: Routes.allRequests,
+        builder: (context, state) => const AllRequestsScreen(),
+      ),
+      GoRoute(
+        path: Routes.inventory,
+        builder: (context, state) => const InventoryCatalogScreen(),
+      ),
+      GoRoute(
+        path: Routes.waitingOnusGlobal,
+        builder: (context, state) => const GlobalWaitingOnusScreen(),
+      ),
+      GoRoute(
+        path: Routes.pendingAuthorization,
+        builder: (context, state) => const PendingAuthorizationListScreen(),
+      ),
       // Notifications — UI renders sample data until the backend endpoint
       // exists (see notifications_screen.dart).
       GoRoute(

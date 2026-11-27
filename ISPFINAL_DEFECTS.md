@@ -704,3 +704,66 @@ Haider's request (2026-11-27 ~10:33 PKT, approved ~10:46 PKT with the BARCODE sc
 5. **No more manual refresh — every stage:** submit a survey → the list immediately shows the request at its new stage (no pull-to-refresh); same after installation, splicing, verification, and closing. The dashboard counts (especially ONU Authorization / Pending) update the next time the dashboard is opened.
 6. **Logo:** the techtis globe shows on the phone home screen / app drawer (launcher icon), on the native splash at app start, in the in-app splash, and in the app bar / dashboard header next to "ISP 360". Login still shows the animated Signal pulse + "ISP 360" (no static logo there, by design — say if you want the globe on login too).
 7. D21/D22/D23 phone checks still apply on the same build — see their sections above.
+
+### D25 — dashboard-tile fix batch (2026-11-27, Haider's phone screenshot)
+
+- **Trigger:** Haider's screenshot (2026-11-27 ~13:10 PKT, new D21–D24 build, dark theme, 360dp phone): tiles showed "Connecti..." / 2 Available, "My Tickets" / 0 Open, "Inventory..." / 47 Total, "Waiting..." / 0 Waiting, "ONU Aut..." / 0 Pending. His words: the text is hiding; "2" shows but tapping it opens an empty list ("no connection request") — why is 2 showing; Inventory / Waiting ONUs / ONU Authorization also open the request page; make all tiles as wide as the "+ New request" button.
+- **Diagnosis (read from the code, not guessed):** (1) "2" = `team_flows.length` (Installation + Cent-Tech Support) — the tile counted flows while opening the stage-scoped survey list, which is empty because the one live request is `installation_assigned`. Count and list measured different things. (2) Inventory (47), Waiting (0), ONU Auth (0) counts were correct, but no screens existed behind them (the D20 gaps) — all three fell back to the team's request list. (3) Titles truncated because tiles were 85% width: on a 360dp phone the title got only ~79dp (tile = 0.85 × (360−32) ≈ 279dp; minus 24dp tile padding, 32dp icon, gaps, 88dp count column, chevron).
+
+### D25 — tiles full width + titles visible
+
+- **Screen** (`team_dashboard_screen.dart`): the `Center` + `FractionallySizedBox` (widthFactor 0.85) wrapper is gone — tiles are now full ListView content width, same 16dp side margins as the "+ New request" button. Count column min-width **88dp → 76dp** (`BoxConstraints(minWidth: 76)`, `:624`): on a real phone "Available" is ~60dp in Plus Jakarta Sans, so 76 is safe; the old 88 was set for the widget-test fallback font, which is ~2× wider. Title stays **14px**: at 360dp the title gets ~140dp; "ONU Authorization" needs ~124dp, "Connection Flow" ~108dp in Plus Jakarta Sans SemiBold 14px — both render WITHOUT ellipsis. **Known edge (recorded, not designed for):** on a 320dp phone "ONU Authorization" may still ellipsize.
+
+### D25 — Connection Flow: count = all requests, tap = one unfiltered list
+
+- **Data approach — UNFILTERED FETCH (chosen, verified against the real network layer):** `ConnectionRequestNetwork.fetchPage({page, status})` takes an OPTIONAL status, and `connectionRequestsProvider` (`connection_request_providers.dart:27-29`) already calls `fetchPage(page: page)` with NO status — so no new network call was needed and no 5-stage summing. The summed-totals alternative was rejected because the unfiltered endpoint already exists and returns exactly what the tile must count.
+- **New provider** `dashboardAllRequestsCountProvider` (`dashboard_tiles_providers.dart:54`): reads page 1 `meta.total` of `connectionRequestsProvider` — the count reads the SAME provider the list screen reads, so the number on the tile and the rows on the screen can never disagree the way the D20 tile did. Label changed "Available" → **"Requests"**.
+- **New route** `/requests` (`Routes.allRequests`, `app_router.dart:81,269`): `AllRequestsScreen` (`lib/features/survey/presentation/all_requests_screen.dart`) — a thin `PaginatedRequestListScreen` wrapper, title "Connection Requests", `detailRouteFor: Routes.surveyDetailFor` (taps still route stage-aware per D18). Tile onTap (`team_dashboard_screen.dart:348`) is now always `context.push(Routes.allRequests)`; the pinned "+ New request" button still opens the create form — untouched. `listRoute` is KEPT on the module + screen as team spec (documented in code) but no longer used for navigation.
+- **`dashboardTeamFlowCountProvider` KEPT, not deleted:** six test harnesses override it defensively; deleting it means deleting those overrides too — a later cleanup, not this batch.
+
+### D25 — Inventory Items: new catalog screen
+
+- **New screen** `InventoryCatalogScreen` (`lib/features/installation/presentation/inventory_catalog_screen.dart`) + route `/inventory` (`Routes.inventory`, `app_router.dart:84,273`); tile onTap → `Routes.inventory` (`team_dashboard_screen.dart:378`). Reuses `inventoryItemsProvider` (GET /lookups/inventory-items); rows are OpsCard rows showing name + category + stock quantity/unit from the existing `InventoryItem` model (id, name, unit?, category?, stockQuantity?) — no invented fields. Count stays 47 "Total".
+
+### D25 — Waiting ONUs: new global screen
+
+- **New screen** `GlobalWaitingOnusScreen` (`lib/features/onu/presentation/global_waiting_onus_screen.dart`) + route `/waiting-onus` (`Routes.waitingOnusGlobal`, `app_router.dart:87,277`); tile onTap → `Routes.waitingOnusGlobal` (`team_dashboard_screen.dart:395`). Lists all direct OLTs of the resolved sub-branch (`directOltsProvider`) with each OLT's waiting-ONU count (`waitingOnusProvider` per OLT, same per-OLT try/catch → 0 rule as the count provider). Tap an OLT → its waiting rows expand inline via `WaitingOnuRow` with `requestId: null` — read-only, NO authorize buttons there — plus a per-OLT "Refresh from OLT" discovery. Count stays "Waiting".
+- **Refactors (to reuse the request-scoped pieces):** `_ScopeGate` → public `SubBranchScopeGate` (`olt_list_screen.dart:70`, reused by the global screen); `_OnuRow` → public `WaitingOnuRow` with nullable `requestId` (`waiting_onu_list_screen.dart`). The new routes are UNGUARDED like the tickets list (data is backend-scoped by token) — no guard scope was changed.
+
+### D25 — ONU Authorization: honest fallback
+
+- **Fallback change** (`team_dashboard_screen.dart:428`): with no first-pending request the tile now opens the **installation-assigned list** — new route `/requests/pending-authorization` (`Routes.pendingAuthorization`, `app_router.dart:92,281`), `PendingAuthorizationListScreen` (`lib/features/installation/presentation/pending_authorization_list_screen.dart`, `installationRequestsProvider`, title "Pending Authorization", `detailRouteFor: Routes.installationDetailFor`) — so 0 Pending opens an empty installation list that honestly says no request awaits authorization, instead of the empty survey list. When a pending request exists, today's behaviour is kept (open its stage-aware detail). Count stays derived from `installationRequestsProvider`.
+- **Why NOT `Routes.installationList`:** the D18 stage-aware guard would BOUNCE — `installationList` has `stageAware: false`, so `admitted = team == expectedTeam`; a survey-session user (Umair / Centralized Tech) would bounce to the dashboard = a dead tap. The guard's scope was deliberately NOT changed; the new unguarded route is the fix.
+
+### D25 — refresh wiring
+
+- `_refresh` + D24 `refreshAfterStageSubmit` (`connection_request_providers.dart:99,104-108`) now also invalidate `dashboardAllRequestsCountProvider` + `inventoryItemsProvider` — otherwise the Connection Flow count and the catalog stock would go stale after a stage submit.
+
+### D25 — files
+
+- **Created:** `lib/features/survey/presentation/all_requests_screen.dart`, `lib/features/installation/presentation/inventory_catalog_screen.dart`, `lib/features/onu/presentation/global_waiting_onus_screen.dart`, `lib/features/installation/presentation/pending_authorization_list_screen.dart`, `test/dashboard/inventory_catalog_test.dart` (3), `test/dashboard/global_waiting_onus_test.dart` (4).
+- **Modified:** `lib/shared/widgets/team_dashboard_screen.dart` (full-width tiles, count column 76, all four tile destinations + labels), `lib/features/dashboard/presentation/dashboard_tiles_providers.dart` (`dashboardAllRequestsCountProvider`; `dashboardTeamFlowCountProvider` kept), `lib/core/router/app_router.dart` (4 new routes), `lib/features/onu/presentation/olt_list_screen.dart` (`SubBranchScopeGate` public), `lib/features/onu/presentation/waiting_onu_list_screen.dart` (`WaitingOnuRow` public, nullable `requestId`), `lib/features/survey/presentation/connection_request_providers.dart` (refresh invalidations), `test/dashboard/dashboard_tiles_test.dart` (see verification), `test/installation/installation_routing_test.dart`, `test/routing/stage_detail_routing_test.dart`, `test/survey/survey_flow_test.dart` (see verification — 4 follow-on fixes in old tests).
+- **Untouched:** all models — no `*.freezed.dart` / `*.g.dart` changes, build_runner NOT run. The `connection_request.g.dart` hand-edit at **line 68** (`'item_requests': instance.itemRequests?.map((e) => e.toJson()).toList(),`) verified intact after the work. `pubspec.yaml` / `pubspec.lock` / `android/` untouched (VM runs `--no-pub`; the PC toolchain resolves `sdk: ^3.9.2`).
+
+### D25 — verification (2026-11-27, VM)
+
+- `flutter analyze --no-pub lib` + all touched test files — **0 issues**.
+- Targeted dashboard tests: **30/30 pass** (23 dashboard_tiles + 3 catalog + 4 global waiting).
+- **Full suite, first run: 530 pass / 5 fail** (535 total = 526 baseline + 9 new D25 tests) — 4 unexpected failures, all D25 follow-on breaks in OLD tests that navigated from the dashboard via the old tile destinations (not app bugs), fixed test-only:
+  1. `test/installation/installation_routing_test.dart` ("Connection Flow tile loads the status-filtered installation queue") — expected the old title `Requests` and `lastStatus == installationAssigned`. Renamed to "Connection Flow tile loads the all-requests list (D25)": expects title "Connection Requests" + the request number + `lastStatus` is null (unfiltered fetch sends no status).
+  2. `test/routing/stage_detail_routing_test.dart` ("survey-stage request still opens the Survey detail") — reached the list via the Inventory Items tile, which now opens the catalog. Now taps "Connection Flow" (all-requests list) instead.
+  3. `test/survey/survey_flow_test.dart` ("full survey flow: dashboard → detail → route → submit") — same navigation change: Inventory Items → Connection Flow.
+  4. `test/survey/survey_flow_test.dart` ("route screen shows a friendly message when location is denied") — same navigation change: Inventory Items → Connection Flow.
+- The three fixed files re-run: **17/17 pass**.
+- **Full suite, re-run after the fixes: 534 pass / 1 fail** (535 total = 526 baseline + 9 new D25 tests; zero new failures — the only failure is the pre-existing `test/installation/complete_installation_flow_test.dart` compile failure, imports nonexistent `RequestDetailScreen`, out of scope).
+- Test lessons (kept for future work): the widget-test fallback font is ~2× wider than Plus Jakarta Sans — a 360dp pump WILL still ellipsize even when the phone is fine, so do NOT claim a 360dp test proves phone fit; layout math is asserted at 768dp (`didExceedMaxLines` titles test) and the phone check stays open. A new unguarded route is the right fix when the stage-aware guard would bounce a cross-team tap — do not widen the guard's scope to make a tile work.
+- **Not verified on the VM (no phone):** full titles at 360dp, real counts, each tile's destination on the phone, the live request appearing in the all-requests list. See phone checks.
+
+### D25 — phone checks (for Haider, after push + build)
+
+1. **Titles:** on the 360dp phone, all five tile titles render WHOLE — "Connection Flow" and "ONU Authorization" with nothing hidden ("Connecti..." / "ONU Aut..." must be gone). Report if anything still truncates.
+2. **Connection Flow:** the count equals the real all-requests total (not 2 flows); tap it → ONE list showing the live request (the `installation_assigned` one must appear — no more empty list while the tile shows a number). "+ New request" still opens the form.
+3. **Inventory Items:** tap → catalog screen with 47 rows (name + category + stock). Not the request list.
+4. **Waiting ONUs:** tap → global screen (Wah OLT + its waiting count); tap the OLT → its waiting rows expand, read-only (no authorize buttons there); "Refresh from OLT" re-discovers.
+5. **ONU Authorization:** with 0 pending → the pending-authorization list (honest empty, installation queue); with a pending request → its stage-aware detail (same as before).
+6. D21/D22/D23/D24 phone checks still apply on the same build — see their sections above.

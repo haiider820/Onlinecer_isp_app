@@ -448,9 +448,9 @@ void main() {
         requestMap: surveyRequestMap,
         detailMap: surveyDetail,
       );
-      // D20: the dashboard card is gone — the survey list is reached
-      // through the Inventory Items tile, then the request card there.
-      await tester.tap(find.text('Inventory Items'));
+      // D25: the survey list is reached through the Connection Flow
+      // tile (all-requests list) — Inventory Items opens the catalog now.
+      await tester.tap(find.text('Connection Flow'));
       await settle(tester);
       await tester.tap(find.text('CRQ-20261125-SURVEY'));
       await settle(tester);

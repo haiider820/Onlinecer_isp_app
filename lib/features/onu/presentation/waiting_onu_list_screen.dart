@@ -267,7 +267,7 @@ class _OnuListBody extends StatelessWidget {
     return Column(
       children: [
         for (final onu in onus)
-          _OnuRow(
+          WaitingOnuRow(
             requestId: requestId,
             oltId: oltId,
             onu: onu,
@@ -278,15 +278,23 @@ class _OnuListBody extends StatelessWidget {
   }
 }
 
-class _OnuRow extends StatelessWidget {
-  const _OnuRow({
-    required this.requestId,
+/// One cached waiting ONU row (ISPFINAL §7).
+///
+/// [requestId] is the request the row is being authorized for: when it is
+/// set, the row offers "Authorize this ONU" (the request-scoped flow). The
+/// D25 global waiting screen passes `null` — there is no request context
+/// there, so the row is read-only and shows no authorize button.
+class WaitingOnuRow extends StatelessWidget {
+  const WaitingOnuRow({
+    super.key,
+    this.requestId,
     required this.oltId,
     required this.onu,
     required this.vendorSupported,
   });
 
-  final String requestId;
+  /// Request being authorized, or `null` for the read-only global list.
+  final String? requestId;
   final String oltId;
   final WaitingOnu onu;
   final bool vendorSupported;
@@ -339,14 +347,16 @@ class _OnuRow extends StatelessWidget {
                 ),
               ),
             ),
-          if (vendorSupported) ...[
+          // D25: no authorize button when there is no request context
+          // (the global waiting list passes requestId: null).
+          if (vendorSupported && requestId != null) ...[
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               height: 52,
               child: OutlinedButton(
                 onPressed: () => context.push(
-                  Routes.authorizeOnuFor(requestId, oltId, onu.id),
+                  Routes.authorizeOnuFor(requestId!, oltId, onu.id),
                 ),
                 child: const Text('Authorize this ONU'),
               ),

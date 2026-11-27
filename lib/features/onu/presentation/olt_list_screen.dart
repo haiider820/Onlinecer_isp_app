@@ -48,7 +48,7 @@ class OltListScreen extends ConsumerWidget {
       return const Center(child: CircularProgressIndicator());
     }
     if (!scope.canProceed) {
-      return _ScopeGate(scope: scope);
+      return SubBranchScopeGate(scope: scope);
     }
     final olts = ref.watch(directOltsProvider(scope.effectiveId));
     return olts.when(
@@ -64,8 +64,11 @@ class OltListScreen extends ConsumerWidget {
 
 /// Shown when no sub-branch scope is resolved yet: the selector (centralized
 /// mode) or the load error, never an invented id.
-class _ScopeGate extends ConsumerWidget {
-  const _ScopeGate({required this.scope});
+///
+/// Public so the D25 global waiting screen reuses the same gate instead of
+/// duplicating it.
+class SubBranchScopeGate extends ConsumerWidget {
+  const SubBranchScopeGate({super.key, required this.scope});
 
   final SubBranchState scope;
 
